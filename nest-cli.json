@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/gym-ctrl/src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/gym-ctrl/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/gym-ctrl",
+  "projects": {
+    "gym-ctrl": {
+      "type": "application",
+      "root": "apps/gym-ctrl",
+      "entryFile": "main",
+      "sourceRoot": "apps/gym-ctrl/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/gym-ctrl/tsconfig.app.json"
+      }
+    },
+    "infra": {
+      "type": "library",
+      "root": "libs/infra",
+      "entryFile": "index",
+      "sourceRoot": "libs/infra/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/infra/tsconfig.lib.json"
+      }
+    },
+    "captura": {
+      "type": "application",
+      "root": "apps/captura",
+      "entryFile": "main",
+      "sourceRoot": "apps/captura/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/captura/tsconfig.app.json"
+      }
+    },
+    "notifly": {
+      "type": "application",
+      "root": "apps/notifly",
+      "entryFile": "main",
+      "sourceRoot": "apps/notifly/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/notifly/tsconfig.app.json"
+      }
+    }
+  }
+}
