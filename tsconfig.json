@@ -20,11 +20,11 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "core/infra": [
-        "libs/infra/src"
+      "@core/infra": [
+        "libs/infra"
       ],
-      "core/infra/*": [
-        "libs/infra/src/*"
+      "@core/infra/*": [
+        "libs/infra/*"
       ]
     }
   }
