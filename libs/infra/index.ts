@@ -1,2 +1,1 @@
-export * from './infra.module';
-export * from './infra.service';
+export * from './prisma/prisma.module';

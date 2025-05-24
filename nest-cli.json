@@ -5,7 +5,8 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "webpack": true,
-    "tsConfigPath": "apps/gym-ctrl/tsconfig.app.json"
+    "tsConfigPath": "apps/gym-ctrl/tsconfig.app.json",
+     "plugins": ["@nestjs/swagger"]
   },
   "monorepo": true,
   "root": "apps/gym-ctrl",
@@ -23,7 +24,7 @@
       "type": "library",
       "root": "libs/infra",
       "entryFile": "index",
-      "sourceRoot": "libs/infra/src",
+      "sourceRoot": "libs/infra",
       "compilerOptions": {
         "tsConfigPath": "libs/infra/tsconfig.lib.json"
       }
