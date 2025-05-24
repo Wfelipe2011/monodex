@@ -1,0 +1,73 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "linux-musl", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Lead {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String   @unique
+  website   String?
+  category  String
+  rating    Float?
+  reviews   Int?
+  contacted Boolean  @default(false) // was "entrei em contato"
+  replied   Boolean  @default(false) // was "resposta"
+  quoted    Boolean  @default(false) // was "orcamento"
+  closed    Boolean  @default(false) // was "fechou"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
+  deleted   Boolean  @default(false)
+}
+
+model BankStatement {
+  id       Int      @id @default(autoincrement())
+  hash     String   @unique
+  date     DateTime
+  history  String
+  credit   Float
+  debit    Float
+  balance  Float
+  category Category @default(OUTROS)
+  type     Type
+  mode     Mode
+}
+model CategoryKeyword {
+  keyword  String   @id
+  category Category
+
+  @@map("category_keywords")
+}
+
+enum Type {
+  RECEBIMENTO
+  PAGAMENTO
+}
+
+enum Mode {
+  CONTA_CORRENTE
+  CARTAO_CREDITO
+}
+
+enum Category {
+  ALIMENTACAO
+  SAUDE
+  TRANSPORTE
+  LAZER
+  EDUCACAO
+  HABITACAO
+  SERVICOS
+  OUTROS
+  DONATIVOS
+  PETS
+  INVESTIMENTOS
+  EMPRESTIMOS
+  BONUS
+  REEMBOLSO
+  SALARIO
+}
