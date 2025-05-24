@@ -8,66 +8,185 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Lead {
-  id        Int      @id @default(autoincrement())
+model Tenant {
+  id        Int          @id @default(autoincrement())
   name      String
-  phone     String   @unique
-  website   String?
-  category  String
-  rating    Float?
-  reviews   Int?
-  contacted Boolean  @default(false) // was "entrei em contato"
-  replied   Boolean  @default(false) // was "resposta"
-  quoted    Boolean  @default(false) // was "orcamento"
-  closed    Boolean  @default(false) // was "fechou"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
-  deleted   Boolean  @default(false)
+  users     User[]
+  leads     TenantLead[]
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  uuid      String       @unique @default(uuid())
+  UserLead  UserLead[]
+  Coin      Coin[]
+  Session   Session[]
+
+  @@map("tenants")
+  Webhooks Webhooks[]
 }
 
-model BankStatement {
-  id       Int      @id @default(autoincrement())
-  hash     String   @unique
-  date     DateTime
-  history  String
-  credit   Float
-  debit    Float
-  balance  Float
-  category Category @default(OUTROS)
-  type     Type
-  mode     Mode
-}
-model CategoryKeyword {
-  keyword  String   @id
-  category Category
+model User {
+  id           Int               @id @default(autoincrement())
+  name         String
+  username     String            @unique
+  email        String
+  password     String
+  role         String
+  coins        Coin[]
+  transactions CoinTransaction[]
+  userLeads    UserLead[]
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  uuid         String            @unique @default(uuid())
+  tenant       Tenant            @relation(fields: [tenantId], references: [id])
+  tenantId     Int               @map("tenant_id")
+  Session      Session[]
+  Contacts     Contacts[]
 
-  @@map("category_keywords")
-}
-
-enum Type {
-  RECEBIMENTO
-  PAGAMENTO
-}
-
-enum Mode {
-  CONTA_CORRENTE
-  CARTAO_CREDITO
+  @@unique([email, tenantId])
+  @@map("users")
+  Webhooks Webhooks[]
 }
 
-enum Category {
-  ALIMENTACAO
-  SAUDE
-  TRANSPORTE
-  LAZER
-  EDUCACAO
-  HABITACAO
-  SERVICOS
-  OUTROS
-  DONATIVOS
-  PETS
-  INVESTIMENTOS
-  EMPRESTIMOS
-  BONUS
-  REEMBOLSO
-  SALARIO
+model Session {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  sessionData Json     @map("session_data")
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id])
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId    Int      @map("tenant_id")
+
+  @@map("whatsapp_sessions")
+}
+
+model Contacts {
+  id                 Int         @id @default(autoincrement())
+  contactInformation String      @map("contact_information")
+  name               String?
+  notifyName         String?     @map("notify_name")
+  userId             Int         @map("user_id")
+  type               TypeContact
+  user               User        @relation(fields: [userId], references: [id])
+  uuid               String      @unique @default(uuid())
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  @@map("contacts")
+}
+
+model Webhooks {
+  id        Int         @id @default(autoincrement())
+  name      String
+  target    String
+  trigger   TypeTrigger
+  filter    Json?
+  enabled   Boolean     @default(true)
+  secret    String
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @default(now()) @map("updated_at")
+  userId   Int
+  user      User        @relation(fields: [userId], references: [id])
+  tenantId  Int         @map("tenant_id")
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  uuid      String      @unique @default(uuid())
+
+  @@map("webhooks")
+}
+
+model Lead {
+  id          Int          @id @default(autoincrement())
+  name        String
+  phone       String       @unique
+  website     String?
+  category    String
+  rating      Float?
+  reviews     Int?
+  temperature Temperature  @default(FRIO)
+  tenantLeads TenantLead[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  uuid        String       @unique @default(uuid())
+
+  CoinTransaction CoinTransaction[]
+
+  @@map("leads")
+}
+
+model TenantLead {
+  id        Int        @id @default(autoincrement())
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  tenantId  Int        @map("tenant_id")
+  lead      Lead       @relation(fields: [leadId], references: [id])
+  leadId    Int        @map("lead_id")
+  contacted Boolean    @default(false)
+  replied   Boolean    @default(false)
+  quoted    Boolean    @default(false)
+  closed    Boolean    @default(false)
+  deleted   Boolean    @default(false)
+  userLeads UserLead[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  uuid      String     @unique @default(uuid())
+
+  @@map("tenant_leads")
+}
+
+model UserLead {
+  id           Int        @id @default(autoincrement())
+  user         User       @relation(fields: [userId], references: [id])
+  userId       Int        @map("user_id")
+  tenantLead   TenantLead @relation(fields: [tenantLeadId], references: [id])
+  tenantLeadId Int        @map("tenant_lead_id")
+  acquiredAt   DateTime   @default(now()) @map("acquired_at")
+  tenant       Tenant     @relation(fields: [tenantId], references: [id])
+  tenantId     Int        @map("tenant_id")
+
+  @@map("user_leads")
+}
+
+model Coin {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int      @map("user_id")
+  balance   Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  uuid      String   @unique @default(uuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  Int      @map("tenant_id")
+
+  @@unique([userId, tenantId])
+  @@map("coins")
+}
+
+model CoinTransaction {
+  id          Int         @id @default(autoincrement())
+  user        User        @relation(fields: [userId], references: [id])
+  userId      Int         @map("user_id")
+  lead        Lead?       @relation(fields: [leadId], references: [id])
+  leadId      Int?        @map("lead_id")
+  temperature Temperature @default(FRIO)
+  amount      Int
+  type        String
+  description String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@map("coin_transactions")
+}
+
+enum Temperature {
+  FRIO
+  MORNO
+  QUENTE
+  MUITO_QUENTE
+}
+
+enum TypeContact {
+  INDIVIDUAL
+  GROUP
+}
+
+enum TypeTrigger {
+  CONVERSATION_MESSAGE
 }
