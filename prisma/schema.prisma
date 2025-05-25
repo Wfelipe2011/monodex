@@ -22,6 +22,7 @@ model Tenant {
 
   @@map("tenants")
   Webhooks Webhooks[]
+  CoinTransaction CoinTransaction[]
 }
 
 model User {
@@ -168,9 +169,11 @@ model CoinTransaction {
   leadId      Int?        @map("lead_id")
   temperature Temperature @default(FRIO)
   amount      Int
-  type        String
+  type        CoinTransactionType
   description String?
   createdAt   DateTime    @default(now()) @map("created_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  Int      @map("tenant_id")
 
   @@map("coin_transactions")
 }
@@ -189,4 +192,11 @@ enum TypeContact {
 
 enum TypeTrigger {
   CONVERSATION_MESSAGE
+}
+
+enum CoinTransactionType {
+  CREDITO
+  DEBITO
+  TRANSFERENCIA
+  BONUS
 }
