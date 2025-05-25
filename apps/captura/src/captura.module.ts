@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { CapturaController } from './captura.controller';
-import { CapturaService } from './captura.service';
+import { CapturaScraperService } from './captura-scraper.service';
 import { PrismaModule } from '@core/infra';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, ScheduleModule.forRoot()],
   controllers: [CapturaController],
-  providers: [CapturaService],
+  providers: [CapturaScraperService],
 })
-export class CapturaModule {}
+export class CapturaModule { }

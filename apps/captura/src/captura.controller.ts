@@ -1,9 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
-import { CapturaService } from './captura.service';
+import { CapturaScraperService } from './captura-scraper.service';
 
 @Controller()
 export class CapturaController {
-  constructor(private readonly capturaService: CapturaService) {}
+  constructor(private readonly capturaService: CapturaScraperService) {}
 
   @Get()
   getHello(): string {

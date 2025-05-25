@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CapturaController } from './captura.controller';
-import { CapturaService } from './captura.service';
+import { CapturaScraperService } from './captura-scraper.service';
 
 describe('CapturaController', () => {
   let capturaController: CapturaController;
@@ -8,7 +8,7 @@ describe('CapturaController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [CapturaController],
-      providers: [CapturaService],
+      providers: [CapturaScraperService],
     }).compile();
 
     capturaController = app.get<CapturaController>(CapturaController);
