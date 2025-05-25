@@ -10,7 +10,7 @@ export class CapturaScraperService {
     private prisma: PrismaService
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+//   @Cron(CronExpression.EVERY_DAY_AT_1AM)
   async scrape() {
      console.log('[refreshLeads] Starting lead refresh...');
         await this.scraper.scrapeSorocabaLeads(async (params) => {
