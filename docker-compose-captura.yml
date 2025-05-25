@@ -4,7 +4,7 @@ services:
   app:
     image: wfelipe2011/captura:master
     ports:
-      - '7000:7000'
+      - '8000:8000'
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - WHATSAPP_USERNAME=${WHATSAPP_USERNAME}
