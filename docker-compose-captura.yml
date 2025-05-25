@@ -9,7 +9,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - WHATSAPP_USERNAME=${WHATSAPP_USERNAME}
       - WHATSAPP_PASSWORD=${WHATSAPP_PASSWORD}
-      - PORT=7000
+      - CAPTURA_PORT=${CAPTURA_PORT}
     deploy:
       replicas: 1
       resources:
