@@ -39,7 +39,7 @@ export class LeadsService {
                         'Estéticas',
                         'Consutorias',
                         'Cursos de inglês',
-                        'Agência Marketing Digital',
+                        // 'Agência Marketing Digital',
                         'Web Design',
                     ]
                 },
