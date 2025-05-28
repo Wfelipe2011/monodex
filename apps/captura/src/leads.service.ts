@@ -31,16 +31,16 @@ export class LeadsService {
                 deletedAt: null,
                 category: {
                     in: [
-                        'Construtoras',
+                        // 'Construtoras',
                         'Escritórios de advocacia',
-                        'Clínicas médicas',
-                        'Clínicas odontológicas',
-                        'Consultórios',
-                        'Estéticas',
-                        'Consutorias',
-                        'Cursos de inglês',
+                        // 'Clínicas médicas',
+                        // 'Clínicas odontológicas',
+                        // 'Consultórios',
+                        // 'Estéticas',
+                        // 'Consutorias',
+                        // 'Cursos de inglês',
                         // 'Agência Marketing Digital',
-                        'Web Design',
+                        // 'Web Design',
                     ]
                 },
                 phone: {
