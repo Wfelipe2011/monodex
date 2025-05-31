@@ -25,7 +25,37 @@
       ],
       "@core/infra/*": [
         "libs/infra/*"
-      ]
+      ],
+      "@core/contracts": [
+        "libs/contracts"
+      ],
+      "@core/contracts/*": [
+        "libs/contracts/*"
+      ],
+      "@core/guard": [
+        "libs/guard"
+      ],
+      "@core/guard/*": [
+        "libs/guard/*"
+      ],
+      "@core/shared": [
+        "libs/shared"
+      ],
+      "@core/shared/*": [
+        "libs/shared/*"
+      ],
+      "@core/decorators": [
+        "libs/decorators"
+      ],
+      "@core/decorators/*": [
+        "libs/decorators/*"
+      ],
+      "@core/enums": [
+        "libs/enums"
+      ],
+      "@core/enums/*": [
+        "libs/enums/*"
+      ],
     }
   }
 }

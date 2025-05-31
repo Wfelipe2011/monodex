@@ -9,29 +9,29 @@ datasource db {
 }
 
 model Tenant {
-  id        Int          @id @default(autoincrement())
-  name      String
-  users     User[]
-  leads     TenantLead[]
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
-  uuid      String       @unique @default(uuid())
-  UserLead  UserLead[]
-  Coin      Coin[]
-  Session   Session[]
+  id              Int               @id @default(autoincrement())
+  name            String
+  users           User[]
+  leads           TenantLead[]
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  uuid            String            @unique @default(uuid())
+  UserLead        UserLead[]
+  Coin            Coin[]
+  Session         Session[]
+  Webhooks        Webhooks[]
+  CoinTransaction CoinTransaction[]
 
   @@map("tenants")
-  Webhooks Webhooks[]
-  CoinTransaction CoinTransaction[]
 }
 
 model User {
   id           Int               @id @default(autoincrement())
   name         String
   username     String            @unique
-  email        String
+  email        String            @unique
   password     String
-  role         String
+  roles        Roles[]           @default([ADMIN])
   coins        Coin[]
   transactions CoinTransaction[]
   userLeads    UserLead[]
@@ -42,10 +42,10 @@ model User {
   tenantId     Int               @map("tenant_id")
   Session      Session[]
   Contacts     Contacts[]
+  Webhooks     Webhooks[]
 
   @@unique([email, tenantId])
   @@map("users")
-  Webhooks Webhooks[]
 }
 
 model Session {
@@ -85,7 +85,7 @@ model Webhooks {
   secret    String
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @default(now()) @map("updated_at")
-  userId   Int
+  userId    Int
   user      User        @relation(fields: [userId], references: [id])
   tenantId  Int         @map("tenant_id")
   tenant    Tenant      @relation(fields: [tenantId], references: [id])
@@ -162,18 +162,18 @@ model Coin {
 }
 
 model CoinTransaction {
-  id          Int         @id @default(autoincrement())
-  user        User        @relation(fields: [userId], references: [id])
-  userId      Int         @map("user_id")
-  lead        Lead?       @relation(fields: [leadId], references: [id])
-  leadId      Int?        @map("lead_id")
-  temperature Temperature @default(FRIO)
+  id          Int                 @id @default(autoincrement())
+  user        User                @relation(fields: [userId], references: [id])
+  userId      Int                 @map("user_id")
+  lead        Lead?               @relation(fields: [leadId], references: [id])
+  leadId      Int?                @map("lead_id")
+  temperature Temperature         @default(FRIO)
   amount      Int
   type        CoinTransactionType
   description String?
-  createdAt   DateTime    @default(now()) @map("created_at")
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  tenantId  Int      @map("tenant_id")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId    Int                 @map("tenant_id")
 
   @@map("coin_transactions")
 }
@@ -199,4 +199,9 @@ enum CoinTransactionType {
   DEBITO
   TRANSFERENCIA
   BONUS
+}
+
+enum Roles {
+  ADMIN
+  USER
 }

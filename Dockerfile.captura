@@ -55,6 +55,4 @@ RUN npx prisma generate
 # Compila o projeto
 RUN npm run captura:build
 
-EXPOSE 3000
-
 CMD ["npm", "run", "captura:prod"]
