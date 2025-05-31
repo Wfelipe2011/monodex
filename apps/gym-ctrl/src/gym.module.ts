@@ -13,7 +13,7 @@ import { GymController } from './gym.controller';
       isGlobal: true,
       validationSchema: Joi.object({
         NODE_ENV: Joi.string().valid('development', 'production', 'test', 'provision').default('development'),
-        PORT: Joi.number().port().default(3000),
+        GYM_PORT: Joi.number().port().default(3000),
         JWT_SECRET: Joi.string().required().description('Chave secreta para assinatura de tokens JWT'),
       }),
     })],

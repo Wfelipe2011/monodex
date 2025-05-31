@@ -21,8 +21,8 @@ async function bootstrap() {
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);
 
-  await app.listen(configService.get('PORT'), () => {
-    console.log(`API running on port ${configService.get('PORT')}`);
+  await app.listen(configService.get('GYM_PORT'), () => {
+    console.log(`API running on port ${configService.get('GYM_PORT')}`);
   });
 }
 bootstrap();
