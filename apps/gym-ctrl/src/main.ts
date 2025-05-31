@@ -6,6 +6,11 @@ import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(GymModule);
+  app.enableCors({
+    origin: '*', // Permite todas as origens
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Métodos permitidos
+    allowedHeaders: 'Content-Type, Authorization', // Cabeçalhos permitidos
+  });
   const configService = app.get(ConfigService);
   const config = new DocumentBuilder()
     .setTitle('Gestão de Leads')  
@@ -16,6 +21,8 @@ async function bootstrap() {
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);
 
-  await app.listen(configService.get('PORT'));
+  await app.listen(configService.get('PORT'), () => {
+    console.log(`API running on port ${configService.get('PORT')}`);
+  });
 }
 bootstrap();
