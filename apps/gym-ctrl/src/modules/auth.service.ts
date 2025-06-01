@@ -31,7 +31,8 @@ export class AuthService {
     this.logger.log(`Gerando token ${user?.email}`);
     
     const userToken: UserToken = {
-      id: user.uuid,
+      id: user.id,
+      userName: user.name,
       roles: user.roles,
       tenantId: user.tenantId,
       userId: user.id,
