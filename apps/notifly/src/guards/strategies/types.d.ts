@@ -1,0 +1,3 @@
+interface IJwtPayload {
+  userId: number;
+}

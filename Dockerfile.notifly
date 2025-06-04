@@ -1,0 +1,39 @@
+FROM node:20-alpine
+
+# Configura timezone para São Paulo
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime && \
+    echo "America/Sao_Paulo" > /etc/timezone && \
+    apk del tzdata
+
+WORKDIR /app
+
+# Instala dependências necessárias (incluindo openssl para Prisma)
+RUN apk add --no-cache python3 make g++ postgresql-client openssl
+
+# Instala bcrypt compilado
+RUN npm install -g node-gyp && \
+    npm install bcrypt --build-from-source
+
+# Copia apenas os arquivos necessários para instalação de dependências
+COPY package*.json ./
+COPY prisma ./prisma
+
+# Instala dependências e gera o Prisma Client
+RUN npm install --production --legacy-peer-deps
+
+RUN npm run prisma:generate
+# RUN npm run prisma:migrate:postgres
+
+# Copia o restante dos arquivos
+COPY . .
+
+# Compila o TypeScript
+RUN npm run build
+
+# Expõe a porta da aplicação
+EXPOSE 3000
+
+# Comando para rodar a aplicação
+# CMD ["npm", "run", "start:prod"]
+CMD ["sh", "-c", "npm run prisma:migrate:postgres:prod && npm run start:prod"]
