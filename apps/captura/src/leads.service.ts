@@ -200,6 +200,11 @@ export class LeadsService {
     }
 
     async auth(): Promise<{ token: string }> {
+        const user = await this.prisma.user.findFirst({
+            where: {
+                id: 4
+            }
+        })
         console.log('[auth] Authenticating...');
         const res = await fetch('https://baileys.wfelipe.com.br/auth/login', {
             method: 'POST',
@@ -208,8 +213,8 @@ export class LeadsService {
                 'User-Agent': 'insomnia/11.1.0',
             },
             body: JSON.stringify({
-                username: process.env.WHATSAPP_USERNAME,
-                password: process.env.WHATSAPP_PASSWORD,
+                username: user.username,
+                hashedPassword: user.password, // Assuming the password is already hashed
             }),
         });
         const data = await res.json();
