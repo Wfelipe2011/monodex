@@ -10,7 +10,7 @@ export class LeadsService {
     logger = new Logger(LeadsService.name);
     constructor(private prisma: PrismaService) { }
 
-    @Cron('0 12,13,14,17,18 * * 1,2,4,5')
+    // @Cron('0 12,13,14,17,18 * * 1,2,4,5')
     async contactLeads() {
         this.logger.log('[contactLeads] Buscando leads para contato...');
         const leadsTenant = await this.prisma.tenantLead.findMany({
@@ -127,7 +127,7 @@ export class LeadsService {
         }
     }
 
-    @Cron('0 0 0 * * *')
+    // @Cron('0 0 0 * * *')
     async deleteOldLeads() {
         this.logger.log('[deleteOldLeads] Deletando leads antigos...');
         const fiveDaysAgo = new Date();
