@@ -1,0 +1,20 @@
+FROM node:20
+
+WORKDIR /app
+
+# Copia e instala dependências
+COPY package*.json ./
+RUN npm install
+
+# Copia o restante do projeto
+COPY prisma ./prisma
+COPY tsconfig*.json ./
+COPY . .
+
+# Gera o Prisma Client
+RUN npx prisma generate
+
+# Compila o projeto
+RUN npm run notifly:build
+
+CMD ["npm", "run", "notifly:prod"]

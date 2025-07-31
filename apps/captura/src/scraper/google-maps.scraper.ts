@@ -1,59 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Lead } from '@prisma/client';
 
-const bairrosSorocaba = [
-    "Campolim",
-    "Centro",
-    "Vila Hortência",
-    "Jardim Europa",
-    "Além Ponte",
-    "Jardim Santa Bárbara",
-    "Wanel Ville",
-    "Jardim Paulistano",
-    "Vila Barão",
-    "Jardim Ipiranga",
-    "Jardim Astúrias",
-    "Vila Santana",
-    "Jardim São Paulo",
-    "Parque Campolim",
-    "Jardim Emília",
-    "Vila Haro",
-    "Jardim Santa Rosália",
-    "Parque São Bento",
-    "Vila Carvalho",
-    "Jardim Marcelo Augusto",
-    "Vila São João",
-    "Jardim Refúgio",
-    "Jardim Maria Eugênia",
-    "Parque das Laranjeiras",
-    "Jardim Santo André",
-    "Vila Leão",
-    "Jardim Abaeté",
-    "Vila Progresso",
-    "Jardim América",
-    "Vila Sabiá"
-];
-
 @Injectable()
 export class GoogleMapsScraper {
-    private categories = [
-        // 'Construtoras',
-        // 'Escritórios de advocacia',
-        // 'Clínicas médicas',
-        // 'Clínicas odontológicas',
-        // 'Consultórios',
-        // 'Estéticas',
-        // 'Consutorias',
-        // 'Cursos de inglês',
-        // 'Agência Marketing Digital',
-        // 'Web Design',
-        "Farmácias",
-        "Supermercados",
-        "Pet Shops",
-        "Mercearias",
-    ];
-
-    async scrapeSorocabaLeads(cb: (body: Lead[]) => Promise<void>) {
+    async scrapeSorocabaLeads(city:string, categories: string[],cb: (body: Lead[]) => Promise<void>) {
         console.log('🔧 Iniciando o scraper do Google Maps...');
         const puppeteer = require('puppeteer-extra');
         const Stealth = require('puppeteer-extra-plugin-stealth')();
@@ -70,9 +20,23 @@ export class GoogleMapsScraper {
         await page.setViewport({ width: 1440, height: 900 });
         console.log('🔧 Viewport configurado.');
 
+        // pegar bairros de city
+        const bairros = []
+        const url = `https://www.google.com/maps/search/${city}+Bairros`;
+        console.log(`🌐 Navegando para URL: ${url}`);
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+        
+        
+        
+        
+        
+        
+        
+        
+        
         // Embaralha a ordem das categorias antes de processar
-        const shuffledCategories = [...this.categories].sort(() => Math.random() - 0.5);
-        const shuffledBairros = [...bairrosSorocaba].sort(() => Math.random() - 0.5);
+        const shuffledCategories = [...categories].sort(() => Math.random() - 0.5);
+        const shuffledBairros = [...bairros].sort(() => Math.random() - 0.5);
         console.log('🔧 Categorias embaralhadas:', shuffledCategories);
         console.log('🔧 Bairros embaralhados:', shuffledBairros);
 
@@ -83,7 +47,7 @@ export class GoogleMapsScraper {
                     console.log(`➡️  Buscando no bairro: ${bairro}`);
                     const url = `https://www.google.com/maps/search/${encodeURIComponent(category)}+${encodeURIComponent(bairro)}+Sorocaba+SP`;
                     console.log(`🌐 Navegando para URL: ${url}`);
-                    await page.goto(url, { waitUntil: 'networkidle2' });
+                    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
                     console.log('⏳ Aguardando seletor do container de resultados...');
                     await page.waitForSelector('.m6QErb.DxyBCb.kA9KIf.dS8AEf', { timeout: 10000 });
@@ -99,14 +63,15 @@ export class GoogleMapsScraper {
                     }
 
                     const scrollTarget = scrollContainers[1];
-
+                    const randomScrollPosition = Math.floor(Math.random() * (2000 - 500 + 1)) + 500;
+                    console.log(`🔽 Rolando para a posição aleatória: ${randomScrollPosition}px`);
                     let isAtBottom = false;
                     let attempts = 0;
-                    const maxScrolls = 2000;
+                    const maxScrolls = randomScrollPosition;
 
                     console.log('🔽 Iniciando scroll para carregar todos os resultados...');
                     while (!isAtBottom && attempts < maxScrolls) {
-                        console.log(`🔽 Scroll attempt ${attempts + 1}`);
+                        console.log(`🔽 Scroll attempt ${attempts + 1} - ${category} no bairro ${bairro}`);
                         await page.evaluate((el) => {
                             el.scrollBy(0, 200);
                         }, scrollTarget);

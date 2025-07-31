@@ -21,6 +21,7 @@ model Tenant {
   Session         Session[]
   Webhooks        Webhooks[]
   CoinTransaction CoinTransaction[]
+  phone           String?           @unique
 
   @@map("tenants")
 }
@@ -129,6 +130,7 @@ model TenantLead {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   uuid      String     @unique @default(uuid())
+  messageId String?    @map("message_id")
 
   @@map("tenant_leads")
 }
@@ -150,7 +152,7 @@ model Coin {
   id        Int      @id @default(autoincrement())
   user      User     @relation(fields: [userId], references: [id])
   userId    Int      @map("user_id")
-  balance   Int      @default(0)
+  balance   Float    @default(0)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   uuid      String   @unique @default(uuid())
@@ -168,7 +170,7 @@ model CoinTransaction {
   lead        Lead?               @relation(fields: [leadId], references: [id])
   leadId      Int?                @map("lead_id")
   temperature Temperature         @default(FRIO)
-  amount      Int
+  amount      Float
   type        CoinTransactionType
   description String?
   createdAt   DateTime            @default(now()) @map("created_at")
@@ -176,6 +178,24 @@ model CoinTransaction {
   tenantId    Int                 @map("tenant_id")
 
   @@map("coin_transactions")
+}
+
+model City {
+  id           Int            @id @default(autoincrement())
+  name         String
+  state        String?
+  Neighborhood Neighborhood[]
+
+  @@map("cities")
+}
+
+model Neighborhood {
+  id     Int    @id @default(autoincrement())
+  name   String
+  cityId Int    @map("city_id")
+  city   City   @relation(fields: [cityId], references: [id])
+
+  @@map("neighborhoods")
 }
 
 enum Temperature {
