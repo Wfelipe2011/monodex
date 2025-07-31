@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { NestFactory } from '@nestjs/core';
 import { NotiflyModule } from './notifly.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
