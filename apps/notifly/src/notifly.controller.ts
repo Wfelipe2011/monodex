@@ -17,7 +17,7 @@ export class NotiflyController {
     } = databaseInfo
     return {
       message: 'Notifly API is running',
-      version: 'v1.0.0',
+      version: 'v1.0.1',
       timestamp: new Date().toISOString(),
       database_info: {
         active: +countActive.toString(),

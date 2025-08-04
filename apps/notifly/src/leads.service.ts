@@ -16,7 +16,6 @@ export class LeadsService implements OnModuleInit {
 
   onModuleInit() {
     this.logger.log('[onModuleInit] LeadsService initialized');
-    this.handleCron();
   }
 
   @Cron('0 13,18 * * 2-4') // Terça a Quinta às 10h e 15h (horário de São Paulo convertido pra UTC)
