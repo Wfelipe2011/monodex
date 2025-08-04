@@ -8,7 +8,11 @@ export class NotiflyController {
 
   @Get()
   async healthCheck() {
-    return { status: 'ok' };
+    return {
+      message: 'Notifly API is running',
+      version: 'v1.0.0',
+      timestamp: new Date().toISOString()
+    };
   }
 
   @Get('response-leads')
@@ -19,9 +23,9 @@ export class NotiflyController {
 
   @Post('response-leads')
   async responseLeads(@Body() body: WhatsAppWebhook, @Query() query, @Res() res) {
-    if(body.entry[0].changes[0].value['messages']) {
+    if (body.entry[0].changes[0].value['messages']) {
       const message = body.entry[0].changes[0].value['messages'][0]
-      if(message.type === 'button' && message['button'].text === 'Sim') {
+      if (message.type === 'button' && message['button'].text === 'Sim') {
         await this.leadsService.responseLeads(message);
       } else {
         console.log('[responseLeads] Received text response:', message);

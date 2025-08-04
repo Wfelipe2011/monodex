@@ -12,23 +12,27 @@ export class LeadsService implements OnModuleInit {
   constructor(
     private prisma: PrismaService,
     private httpService: HttpService,
-  ) {}
+  ) { }
 
   onModuleInit() {
     this.logger.log('[onModuleInit] LeadsService initialized');
     this.handleCron();
   }
 
-  // @Cron(CronExpression.EVERY_MINUTE)
+  @Cron('0 13,18 * * 2-4') // Terça a Quinta às 10h e 15h (horário de São Paulo convertido pra UTC)
   async handleCron() {
     this.logger.log('[handleCron] Executando tarefa agendada...');
     const currentHour = new Date().getHours();
     const currentDay = new Date().getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
     console.log(`[handleCron] Hora atual: ${currentHour}, Dia atual: ${currentDay}`);
-    const validHours = [10, 11, 13, 14, 15, 16]; // Horários válidos: 12h, 13h, 14h, 17h, 18h, 0h, 1h, 2h, 3h, 4h, 5h
-    const validDays = [1, 2, 3, 4, 5]; // Segunda, Terça, Quinta, Sexta
-    // if (validHours.includes(currentHour) && validDays.includes(currentDay)) {
-    if (true) {
+    const schedule = {
+      2: [18], // Terça-feira às 15h
+      3: [18], // Quarta-feira às 15h
+      4: [13, 18], // Quinta-feira às 10h e 15h
+    };
+
+    const scheduledHours = schedule[currentDay] || [];
+    if (scheduledHours.includes(currentHour)) {
       this.logger.log('[handleCron] Hora e dia válidos, iniciando contato com leads...');
 
       const tentants = await this.prisma.tenant.findMany({
@@ -115,95 +119,104 @@ export class LeadsService implements OnModuleInit {
       },
     });
     this.logger.log(`[contactLeads] Encontrados ${leads.length} leads para contato`);
-    const [lead] = leads.sort(() => Math.random() - 0.5);
-    console.log(`[contactLeads] Selecionando lead aleatório: ${lead.id} (${lead.phone})`);
-    const res = await this.httpService.axiosRef.post<WhatsAppSendMessageResponse>(
-      `https://graph.facebook.com/v22.0/688645744332614/messages`,
-      {
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        // to: `55${lead.phone.replace(/[^0-9]/g, '')}`,
-        to: `5515981785706`,
-        type: 'template',
-        template: {
-          name: 'amigavel',
-          language: {
-            code: 'pt_BR',
-          },
-          components: [
+    const leadsSorted = leads.sort(() => Math.random() - 0.5);
+    const leadsToContact = leadsSorted.slice(0, 20);
+    for (const lead of leadsToContact) {
+      try {
+        await this.prisma.$transaction(async (tsx) => {
+          console.log(`[contactLeads] Selecionando lead aleatório: ${lead.id} (${lead.phone})`);
+          const res = await this.httpService.axiosRef.post<WhatsAppSendMessageResponse>(
+            `https://graph.facebook.com/v22.0/688645744332614/messages`,
             {
-              type: 'body',
-              parameters: [
-                {
-                  parameter_name: 'nome',
-                  type: 'text',
-                  text: lead.name,
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: `55${lead.phone.replace(/[^0-9]/g, '')}`,
+              // to: `5515981785706`,
+              type: 'template',
+              template: {
+                name: 'amigavel',
+                language: {
+                  code: 'pt_BR',
                 },
-                {
-                  parameter_name: 'empresa',
-                  type: 'text',
-                  text: tenant.name,
-                },
-                {
-                  parameter_name: 'descricao',
-                  type: 'text',
-                  text: 'Oferecemos serviços como: criação de sites profissionais, otimização para Google e aumento da sua presença online.',
-                },
-              ],
+                components: [
+                  {
+                    type: 'body',
+                    parameters: [
+                      {
+                        parameter_name: 'nome',
+                        type: 'text',
+                        text: lead.name,
+                      },
+                      {
+                        parameter_name: 'empresa',
+                        type: 'text',
+                        text: tenant.name,
+                      },
+                      {
+                        parameter_name: 'descricao',
+                        type: 'text',
+                        text: 'Oferecemos serviços como: criação de sites profissionais, otimização para Google e aumento da sua presença online.',
+                      },
+                    ],
+                  },
+                ],
+              },
             },
-          ],
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-      },
-    );
+            {
+              headers: {
+                Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+                'Content-Type': 'application/json',
+              },
+            },
+          );
 
-    this.logger.log(`[contactLeads] Mensagem enviada para o lead ${lead.id} (${lead.phone}): ${res.data}`);
-    await this.prisma.tenantLead.create({
-      data: {
-        tenantId: tenant.id,
-        leadId: lead.id,
-        contacted: true,
-        replied: false,
-        deleted: false,
-        messageId: res.data.messages[0].id,
-      },
-    });
+          this.logger.log(`[contactLeads] Mensagem enviada para o lead ${lead.id} (${lead.phone}): ${res.data}`);
+          await tsx.tenantLead.create({
+            data: {
+              tenantId: tenant.id,
+              leadId: lead.id,
+              contacted: true,
+              replied: false,
+              deleted: false,
+              messageId: res.data.messages[0].id,
+            },
+          });
 
-    const user = await this.prisma.user.findFirst({
-      where: {
-        tenantId: tenant.id,
-      },
-    });
+          const user = await tsx.user.findFirst({
+            where: {
+              tenantId: tenant.id,
+            },
+          });
 
-    await this.prisma.coin.update({
-      where: {
-        userId_tenantId: {
-          tenantId: tenant.id,
-          userId: user.id,
-        },
-      },
-      data: {
-        balance: {
-          decrement: 0.50,
-        },
-      },
-    });
-    await this.prisma.coinTransaction.create({
-      data: {
-        userId: user.id,
-        tenantId: tenant.id,
-        leadId: lead.id,
-        type: 'DEBITO',
-        amount: -0.50,
-        description: `Lead ${lead.id} (${lead.phone}) contatado`,
-      },
-    });
-    this.logger.log(`[contactLeads] Lead ${lead.id} (${lead.phone}) marcado como contatado.`);
+          await tsx.coin.update({
+            where: {
+              userId_tenantId: {
+                tenantId: tenant.id,
+                userId: user.id,
+              },
+            },
+            data: {
+              balance: {
+                decrement: 0.35,
+              },
+            },
+          });
+          await tsx.coinTransaction.create({
+            data: {
+              userId: user.id,
+              tenantId: tenant.id,
+              leadId: lead.id,
+              type: 'DEBITO',
+              amount: -0.35,
+              description: `Lead ${lead.id} (${lead.phone}) contatado`,
+            },
+          });
+          this.logger.log(`[contactLeads] Lead ${lead.id} (${lead.phone}) marcado como contatado.`);
+        })
+      } catch (error) {
+        this.logger.error(`[contactLeads] Erro ao enviar mensagem para o lead ${lead.id} (${lead.phone}): ${error}`);
+      }
+    }
   }
 
   @Cron('0 0 0 * * *')
@@ -271,86 +284,87 @@ export class LeadsService implements OnModuleInit {
       const tenantLink = `https://wa.me/+55${lead.lead.phone.replace(/[^0-9]/g, '')}`;
       const message = `Olá ${lead.tenant.name}, o ${lead.lead.name} demonstrou interesse em seus serviços e respondeu sua mensagem.\nVocê pode entrar em contato com ele através do link: ${tenantLink}.`;
       console.log(`[responseLeads] Sending message to tenant: ${message}`);
-      await this.httpService.axiosRef.post(
-        `https://graph.facebook.com/v22.0/688645744332614/messages`,
-        //   to: `55${lead.tenant.phone.replace(/[^0-9]/g, '')}`,
-        {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: '5515981785706',
-          type: 'template',
-          template: {
-            name: 'lembrete_entrar_contato_cliente',
-            language: {
-              code: 'pt_BR',
+      await this.prisma.$transaction(async (tsx) => {
+        await this.httpService.axiosRef.post(
+          `https://graph.facebook.com/v22.0/688645744332614/messages`,
+          {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: `55${lead.tenant.phone.replace(/[^0-9]/g, '')}`,
+            // to: '5515981785706',
+            type: 'template',
+            template: {
+              name: 'lembrete_entrar_contato_cliente',
+              language: {
+                code: 'pt_BR',
+              },
+              components: [
+                {
+                  type: 'header',
+                  parameters: [
+                    {
+                      parameter_name: 'customer_name',
+                      type: 'text',
+                      text: lead.tenant.name,
+                    },
+                  ],
+                },
+                {
+                  type: 'body',
+                  parameters: [
+                    {
+                      parameter_name: 'end_customer_name',
+                      type: 'text',
+                      text: lead.lead.name,
+                    },
+                    {
+                      parameter_name: 'end_customer_phone',
+                      type: 'text',
+                      text: tenantLink,
+                    },
+                  ],
+                },
+              ],
             },
-            components: [
-              {
-                type: 'header',
-                parameters: [
-                  {
-                    parameter_name: 'customer_name',
-                    type: 'text',
-                    text: lead.tenant.name,
-                  },
-                ],
-              },
-              {
-                type: 'body',
-                parameters: [
-                  {
-                    parameter_name: 'end_customer_name',
-                    type: 'text',
-                    text: lead.lead.name,
-                  },
-                  {
-                    parameter_name: 'end_customer_phone',
-                    type: 'text',
-                    text: tenantLink,
-                  },
-                ],
-              },
-            ],
           },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-            'Content-Type': 'application/json',
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
           },
-        },
-      );
-      console.log(`[responseLeads] Message sent to tenant: ${message}`);
+        );
+        console.log(`[responseLeads] Message sent to tenant: ${message}`);
 
-      const user = await this.prisma.user.findFirst({
-        where: {
-          tenantId: lead.tenant.id,
-        },
-      });
-      await this.prisma.coin.update({
-        where: {
-          userId_tenantId: {
+        const user = await tsx.user.findFirst({
+          where: {
             tenantId: lead.tenant.id,
+          },
+        });
+        await tsx.coin.update({
+          where: {
+            userId_tenantId: {
+              tenantId: lead.tenant.id,
+              userId: user.id,
+            },
+          },
+          data: {
+            balance: {
+              increment: 0.00,
+            },
+          },
+        });
+        await tsx.coinTransaction.create({
+          data: {
             userId: user.id,
+            tenantId: lead.tenant.id,
+            leadId: lead.lead.id,
+            type: 'CREDITO',
+            amount: 0.00,
+            description: `Cashback - Lead respondeu SIM à mensagem`,
           },
-        },
-        data: {
-          balance: {
-            increment: 0.05,
-          },
-        },
-      });
-      await this.prisma.coinTransaction.create({
-        data: {
-          userId: user.id,
-          tenantId: lead.tenant.id,
-          leadId: lead.lead.id,
-          type: 'CREDITO',
-          amount: 0.05,
-          description: `Lead ${lead.lead.id} (${lead.lead.phone}) respondeu SIM à mensagem`,
-        },
-      });
-      console.log(`[responseLeads] Coin updated for user ${user.id} in tenant ${lead.tenant.id}: -10 coins`);
+        });
+      })
     }
   }
 
