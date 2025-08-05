@@ -11,6 +11,7 @@ services:
       - WHATSAPP_PASSWORD=${WHATSAPP_PASSWORD}
       - NOTIFLY_PORT=${NOTIFLY_PORT}
       - JWT_SECRET=${JWT_SECRET}
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
     deploy:
       replicas: 1
       resources:
