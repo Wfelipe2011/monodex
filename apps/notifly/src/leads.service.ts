@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
