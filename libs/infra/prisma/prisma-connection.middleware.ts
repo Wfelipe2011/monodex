@@ -17,7 +17,7 @@ export class PrismaConnectionMiddleware implements NestMiddleware {
                 await this.prisma.connectToDatabase();
                 this.logger.log('Conexão reestabelecida com sucesso.');
             } catch (error) {
-                this.logger.error(`Falha ao reconectar: ${error.message}`);
+                this.logger.error(`Falha ao reconectar: ${error['message']}`);
             }
         }
         next();

@@ -15,9 +15,19 @@ export class NotiflyController {
       countActive,
       countIdle,
     } = databaseInfo
+    console.log('Database Info:', {
+      message: 'Notifly API is running',
+      version: 'v1.0.2',
+      timestamp: new Date().toISOString(),
+      database_info: {
+        active: +countActive.toString(),
+        idle: +countIdle.toString(),
+        max_connections: +max_connections,
+      },
+    });
     return {
       message: 'Notifly API is running',
-      version: 'v1.0.1',
+      version: 'v1.0.2',
       timestamp: new Date().toISOString(),
       database_info: {
         active: +countActive.toString(),
