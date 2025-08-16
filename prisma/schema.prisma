@@ -198,6 +198,35 @@ model Neighborhood {
   @@map("neighborhoods")
 }
 
+model WhatsapContact {
+  id        Int      @id @default(autoincrement())
+  name      String?
+  phone     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages Message[]
+
+  @@map("whatsapp_contacts")
+}
+
+model Message {
+  id        Int     @id @default(autoincrement())
+  contact   WhatsapContact @relation(fields: [whatsappContactId], references: [id])
+  whatsappContactId Int
+
+  body      String
+  direction MessageDirection
+  createdAt DateTime         @default(now())
+
+  @@map("messages")
+}
+
+enum MessageDirection {
+  ENTRADA
+  SAIDA
+}
+
 enum Temperature {
   FRIO
   MORNO

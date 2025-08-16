@@ -2,6 +2,7 @@ import { All, Body, Controller, Get, Post, Query, Req, Res } from '@nestjs/commo
 import { LeadsService } from './leads.service';
 import { WhatsAppWebhook } from './interfaces';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
+import { MessageDirection } from '@prisma/client';
 
 @Controller()
 export class NotiflyController {
@@ -15,26 +16,19 @@ export class NotiflyController {
       countActive,
       countIdle,
     } = databaseInfo
-    console.log('Database Info:', {
+
+    const payload = {
       message: 'Notifly API is running',
-      version: 'v1.0.2',
+      version: 'v1.1.0',
       timestamp: new Date().toISOString(),
       database_info: {
         active: +countActive.toString(),
         idle: +countIdle.toString(),
         max_connections: +max_connections,
       },
-    });
-    return {
-      message: 'Notifly API is running',
-      version: 'v1.0.2',
-      timestamp: new Date().toISOString(),
-      database_info: {
-        active: +countActive.toString(),
-        idle: +countIdle.toString(),
-        max_connections: +max_connections,
-      },
-    };
+    }
+    console.log('Database Info:', payload);
+    return payload;
   }
 
   @Get('response-leads')
@@ -47,6 +41,18 @@ export class NotiflyController {
   async responseLeads(@Body() body: WhatsAppWebhook, @Query() query, @Res() res) {
     if (body.entry[0].changes[0].value['messages']) {
       const message = body.entry[0].changes[0].value['messages'][0]
+      await this.prisma.message.create({
+        data: {
+          body: message?.text?.body || message?.button?.text || JSON.stringify(message),
+          direction: MessageDirection.ENTRADA,
+          contact: {
+            connectOrCreate: {
+              where: { phone: message.from },
+              create: { phone: message.from }
+            }
+          }
+        }
+      }).catch((e) => console.log("Erro", JSON.stringify(message, null, 2)))
       if (message.type === 'button' && message['button'].text === 'Sim') {
         await this.leadsService.responseLeads(message);
       } else {
