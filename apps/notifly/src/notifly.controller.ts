@@ -8,7 +8,7 @@ import { MessageDirection } from '@prisma/client';
 export class NotiflyController {
   constructor(private readonly leadsService: LeadsService, private prisma: PrismaService,) { }
 
-  @Get()
+  @Get('health-check')
   async healthCheck() {
     const databaseInfo = await this.getDatabaseInfo();
     const {
