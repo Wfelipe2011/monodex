@@ -27,7 +27,7 @@ export class NotiflyController {
         max_connections: +max_connections,
       },
     }
-    console.log('Database Info:', payload);
+
     return payload;
   }
 
