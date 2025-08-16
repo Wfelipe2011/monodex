@@ -53,7 +53,7 @@ export class NotiflyController {
           }
         }
       }).catch((e) => console.log("Erro", JSON.stringify(message, null, 2)))
-      if (message.type === 'button' && message['button'].text === 'Sim') {
+      if (message['button'].text === 'Sim' || message?.text?.body?.includes('Sim')) {
         await this.leadsService.responseLeads(message);
       } else {
         console.log('[responseLeads] Received text response:', message);
