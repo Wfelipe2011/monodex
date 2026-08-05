@@ -33,6 +33,7 @@ export class PrismaService extends PrismaClient {
       try {
         await this.$connect();
         this.logger.log('✅ Banco conectado com sucesso.');
+        this.isConnected = true;
         return;
       } catch (error) {
         this.logger.warn(`Tentativa ${6 - retries} de reconexão falhou: ${error['message'] || error}`);

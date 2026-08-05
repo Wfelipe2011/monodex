@@ -10,12 +10,12 @@ export class LeadsService {
     logger = new Logger(LeadsService.name);
     constructor(private prisma: PrismaService) { }
 
-    @Cron('0 12,13,14,17,18 * * 1,2,4,5')
+    // @Cron('0 12,13,14,17,18 * * 1,2,4,5')
     async contactLeads() {
         this.logger.log('[contactLeads] Buscando leads para contato...');
         const leadsTenant = await this.prisma.tenantLead.findMany({
             where: {
-                tenantId: 4,
+                tenantId: 4
             },
             select: {
                 leadId: true,
@@ -31,16 +31,16 @@ export class LeadsService {
                 deletedAt: null,
                 category: {
                     in: [
-                        'Construtoras',
+                        // 'Construtoras',
                         'Escritórios de advocacia',
-                        'Clínicas médicas',
-                        'Clínicas odontológicas',
-                        'Consultórios',
-                        'Estéticas',
-                        'Consutorias',
-                        'Cursos de inglês',
-                        'Agência Marketing Digital',
-                        'Web Design',
+                        // 'Clínicas médicas',
+                        // 'Clínicas odontológicas',
+                        // 'Consultórios',
+                        // 'Estéticas',
+                        // 'Consutorias',
+                        // 'Cursos de inglês',
+                        // 'Agência Marketing Digital',
+                        // 'Web Design',
                     ]
                 },
                 phone: {
@@ -63,7 +63,7 @@ export class LeadsService {
         });
         this.logger.log(`[contactLeads] Encontrados ${leads.length} leads para contato`);
         const shuffledLeads = leads.sort(() => Math.random() - 0.5)
-        const sliceRandom = Math.floor(Math.random() * (10 - 5 + 1)) + 5;
+        const sliceRandom = Math.floor(Math.random() * (10 - 5 + 1)) + 5; // Gera um número aleatório entre 5 e 10
         const leadsToContact = shuffledLeads.slice(0, sliceRandom);
         this.logger.log('[contactLeads] Leads selecionados para contato: ' + JSON.stringify(leadsToContact.map(l => ({ id: l.id, phone: l.phone, website: l.website }))));
 
@@ -127,6 +127,41 @@ export class LeadsService {
         }
     }
 
+    // @Cron('0 0 0 * * *')
+    async deleteOldLeads() {
+        this.logger.log('[deleteOldLeads] Deletando leads antigos...');
+        const fiveDaysAgo = new Date();
+        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 3);
+        const leadsToDelete = await this.prisma.tenantLead.findMany({
+            where: {
+                tenantId: 4,
+                contacted: true,
+                replied: false,
+                deleted: false,
+                updatedAt: {
+                    lt: fiveDaysAgo,
+                },
+                
+            }
+        });
+        this.logger.log(`[deleteOldLeads] Encontrados ${leadsToDelete.length} leads para deletar`);
+        for (const lead of leadsToDelete) {
+            try {
+                await this.prisma.tenantLead.update({
+                    where: {
+                        id: lead.id,
+                    },
+                    data: {
+                       deleted: true,
+                    }
+                });
+                this.logger.log(`[deleteOldLeads] Lead deletado: id=${lead.id}`);
+            } catch (error) {
+                this.logger.error(`[deleteOldLeads] Erro ao deletar lead ${lead.id}: ${error}`);
+            }
+        }
+    }
+
     async responseLeads(body: { phoneNumber: string, textMessage: string }) {
         console.log('[responseLeads] Received response:', body);
         const { phoneNumber, textMessage } = body;
@@ -150,6 +185,7 @@ export class LeadsService {
             data: {
                 contacted: true,
                 replied: true,
+                deleted: false,
             }
         });
         await this.prisma.lead.update({
@@ -164,6 +200,11 @@ export class LeadsService {
     }
 
     async auth(): Promise<{ token: string }> {
+        const user = await this.prisma.user.findFirst({
+            where: {
+                id: 4
+            }
+        })
         console.log('[auth] Authenticating...');
         const res = await fetch('https://baileys.wfelipe.com.br/auth/login', {
             method: 'POST',
@@ -172,8 +213,8 @@ export class LeadsService {
                 'User-Agent': 'insomnia/11.1.0',
             },
             body: JSON.stringify({
-                username: process.env.WHATSAPP_USERNAME,
-                password: process.env.WHATSAPP_PASSWORD,
+                username: user.username,
+                hashedPassword: user.password, // Assuming the password is already hashed
             }),
         });
         const data = await res.json();
