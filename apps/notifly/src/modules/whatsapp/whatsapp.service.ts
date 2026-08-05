@@ -10,10 +10,7 @@ import {
   Contact,
   Chat,
   proto,
-
 } from '@whiskeysockets/baileys';
-// @ts-ignore
-import { makeInMemoryStore } from '@whiskeysockets/baileys';
 import * as fs from 'fs';
 import { NewWebhook } from './types';
 import { HashService } from '../../hash.service';
@@ -25,7 +22,7 @@ type QRCodeData = { raw: string; imageUrl: string; createdAt: Date };
 
 @Injectable()
 export class WhatsappService implements OnModuleInit {
-  private userStores: Map<number, ReturnType<typeof makeInMemoryStore>> = new Map();
+  // private userStores: Map<number, ReturnType<typeof makeInMemoryStore>> = new Map();
   private userSockets: Map<number, UserSocket> = new Map();
   private userListeners: Map<number, (keyof BaileysEventMap)[]> = new Map();
   private qrCodes: Map<number, QRCodeData> = new Map();
@@ -95,10 +92,10 @@ export class WhatsappService implements OnModuleInit {
     this.eventEmitters.set(userId, emitter);
 
     try {
-      const store = makeInMemoryStore({})
+      // const store = makeInMemoryStore({})
       const socket = makeWASocket({
         auth: state,
-        printQRInTerminal: true,
+        printQRInTerminal: false,
         browser: Browsers.macOS('Chrome'),
         markOnlineOnConnect: false,
         connectTimeoutMs: 45_000,
@@ -112,31 +109,6 @@ export class WhatsappService implements OnModuleInit {
         fireInitQueries: false,
         syncFullHistory: false,
       });
-      try {
-        store.bind(socket.ev);
-      } catch (error) {
-        console.log('error on store bid', error)
-      }
-      this.userStores.set(userId, store)
-
-      // socket.ev.on('chats.upsert', () => {
-      //   const chats = store.chats.all()
-      //   console.log("🚀 ~ WhatsappService ~ socket.ev.on ~ chats:", JSON.stringify(chats, null, 2))
-      // })
-      // socket.ev.on('contacts.upsert', () => {
-      //   const contacts = store.contacts
-      //   console.log("🚀 ~ WhatsappService ~ socket.ev.on ~ contacts:", JSON.stringify(contacts, null, 2))
-      // })
-      // socket.ev.on('labels.association', (association) => {
-      //   // console.log('labels.association: ', JSON.stringify(association, null, 2))
-      //   const labels = store.labels.findAll()
-      //   console.log("🚀 ~ WhatsappService ~ socket.ev.on ~ labels:", JSON.stringify(labels, null, 2))
-
-      //   const labelAssociations = store.labelAssociations.all()
-      //   console.log("🚀 ~ WhatsappService ~ socket.ev.on ~ labelAssociations:", labelAssociations);
-      //   return association
-      // })
-
 
       socket.ev.on('connection.update', (update) => this.handleConnectionUpdate(userId, update));
       socket.ev.on('creds.update', saveCreds);
@@ -204,30 +176,46 @@ export class WhatsappService implements OnModuleInit {
     });
     this.contacts.set(userId, [...contactsAlreadySaved, ...newContacts]);
 
-    const toSave = contacts.map(c => {
-      return new Promise(async (resolve) => {
-        const alreadyExists = await this.postgresService.contacts.findFirst({
-          where: {
-            contactInformation: c.id,
-            userId
-          }
-        })
-        if (!alreadyExists && c.id) {
-          await this.postgresService.contacts.create({
-            data: {
-              notifyName: c.notify,
-              name: c.name,
-              type: c.id?.includes('@g.us') ? 'GROUP' : 'INDIVIDUAL',
-              contactInformation: c.id,
-              userId,
-            }
-          })
+    const contactsToSave: {
+      notifyName: string;
+      name: string;
+      type: 'GROUP' | 'INDIVIDUAL';
+      contactInformation: string;
+      userId: number;
+    }[] = []
+    const contactsAlreadySavedInDb = await this.postgresService.contacts.findMany({
+      where: {
+        userId,
+        contactInformation: {
+          in: contacts.map((c) => c.id)
         }
-        resolve(true)
-      })
+      }
     })
-
-    await Promise.all(toSave)
+    if (contactsAlreadySavedInDb.length) {
+      const contactsToSaveRaw = contacts.filter((contact) => {
+        return !contactsAlreadySavedInDb.some((savedContact) => savedContact.contactInformation === contact.id);
+      });
+      contactsToSave.push(...contactsToSaveRaw.map((c) => ({
+        notifyName: c.notify || '',
+        name: c.name || '',
+        type: c.id?.includes('@g.us') ? 'GROUP' : 'INDIVIDUAL' as 'GROUP' | 'INDIVIDUAL',
+        contactInformation: c.id,
+        userId,
+      })))
+    } else {
+      contactsToSave.push(...contacts.map((c) => ({
+        notifyName: c.notify || '',
+        name: c.name || '',
+        type: c.id?.includes('@g.us') ? 'GROUP' : 'INDIVIDUAL' as 'GROUP' | 'INDIVIDUAL',
+        contactInformation: c.id,
+        userId,
+      })))
+    }
+    if (contactsToSave?.length) {
+      await this.postgresService.contacts.createMany({
+        data: contactsToSave
+      })
+    }
   }
 
   private async getMessage(userId: number, messageRaw: proto.IWebMessageInfo) {
@@ -333,7 +321,7 @@ export class WhatsappService implements OnModuleInit {
     const socket = this.userSockets.get(userId);
     if (socket) socket.end(undefined)
 
-    this.userStores.delete(userId);
+    // this.userStores.delete(userId);
     this.userSockets.delete(userId);
     this.qrCodes.delete(userId);
     this.eventEmitters.delete(userId);
@@ -434,13 +422,6 @@ export class WhatsappService implements OnModuleInit {
     });
   }
 
-  // public getCurrentQrCode(userId: number) {
-  //   if (this.qrCodes.has(userId)) {
-  //     const qr = this.qrCodes.get(userId)!;
-  //     return qr.imageUrl;
-  //   }
-  //   return null;
-  // }
   getCurrentQrCode(userId: number): string | undefined {
     return this.qrCodes.get(userId)?.imageUrl;
   }
