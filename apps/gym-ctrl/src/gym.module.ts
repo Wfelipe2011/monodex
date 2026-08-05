@@ -3,11 +3,13 @@ import { PrismaModule } from '@core/infra';
 import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
 import { AuthModule } from './modules/auth.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { GymController } from './gym.controller';
 
 @Module({
   imports: [
     AuthModule,
+    AdminModule,
     PrismaModule,
     ConfigModule.forRoot({
       isGlobal: true,

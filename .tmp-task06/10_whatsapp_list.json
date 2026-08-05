@@ -1,0 +1,2 @@
+[{"id":1,"provider":"CLOUD_API","phoneNumberId":"688645744332614","displayPhone":null,"tokenEnvKey":"WHATSAPP_TOKEN","tenantId":null,"enabled":true,"createdAt":"2026-08-05T02:15:50.705Z","updatedAt":"2026-08-05T02:17:26.623Z"},{"id":2,"provider":"CLOUD_API","phoneNumberId":"updated-pnid-123","displayPhone":"+5511999","tokenEnvKey":"WHATSAPP_TOKEN","tenantId":null,"enabled":true,"createdAt":"2026-08-05T14:06:10.320Z","updatedAt":"2026-08-05T14:06:12.510Z"}]
+HTTP:200

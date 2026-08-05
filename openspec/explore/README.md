@@ -11,8 +11,8 @@ Gerado em 2026-08-04 no modo `/opsx-explore`. Sem changes OpenSpec ativos na ép
 
 ## Conclusões rápidas da exploração
 
-1. **Rodar:** Node 20, Postgres externo, `npm i`, prisma generate/migrate, `.env`, `*:dev`. Sem seed oficial de tenant/user.
-2. **Super admin:** não existe — só `ADMIN`/`USER` de tenant + login no gym; sem UI.
-3. **Multi-tenant:** schema sim, operação não (tenant 4 no captura, 8 no notifly, mapa welcome em memória).
+1. **Rodar:** Node 20, Postgres externo, `npm i`, prisma generate/migrate, `.env`, `*:dev`. Seed de outreach: `prisma/seed-outreach.ts` (não bootstrap de SUPER_ADMIN).
+2. **Super admin:** não existe — só `ADMIN`/`USER` + `POST /auth/login` no gym (API/Swagger, sem UI). Explore 02 (05/08): **etapa só backend** — role `SUPER_ADMIN` + endpoints `/admin/*` (tenants, users, coins, outreach-config, whatsapp-accounts, ops). Frontend fora.
+3. **Multi-tenant:** schema sim; notifly pós-outreach lê configs do DB (welcome, cron, WABA). Captura ainda com hardcodes (`tenantId` 4) — ver `03`.
 4. **Externos:** PostgreSQL, Meta WhatsApp Cloud API, Baileys (`baileys.wfelipe.com.br`), Google Maps via Puppeteer, Docker Hub CI.
-5. **DB gaps:** configs/pricing/templates/WABA/schedules no código; `Tenant.phone` já existe mas welcome não usa.
+5. **DB:** `WhatsappAccount` + `TenantOutreachConfig` já no schema; gaps restantes p/ painel: role `SUPER_ADMIN`, opcional `Tenant.active`, tensão email unique; captura/ScrapeJob/Messages fora do MVP do painel.

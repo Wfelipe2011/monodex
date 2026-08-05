@@ -1,0 +1,2 @@
+{"coin":{"userId":5,"balance":25,"uuid":"89ef8efa-4e0f-48fd-b5c5-01a539b39e7c"},"transaction":{"id":3,"userId":5,"tenantId":12,"amount":25,"type":"CREDITO","description":"E2E onboarding credit | bySuperAdmin:1","createdAt":"2026-08-05T14:10:15.627Z","leadId":null}}
+HTTP:201

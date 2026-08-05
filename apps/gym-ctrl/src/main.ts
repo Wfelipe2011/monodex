@@ -17,6 +17,7 @@ async function bootstrap() {
     .setDescription('API para gestão de leads')
     .setVersion('1.0')
     .addTag('leads')
+    .addBearerAuth()
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);

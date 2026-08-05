@@ -1,0 +1,2 @@
+{"id":7,"tenantId":12,"enabled":true,"costPerLead":0.35,"cashbackOnReply":0,"outreachTemplateName":"amigavel","notifyTenantTemplateName":"lembrete_entrar_contato_cliente","schedule":{"2":[18],"3":[18],"4":[13,18]},"categories":["Construtoras","Cl�nicas m�dicas"],"createdAt":"2026-08-05T14:10:17.151Z","updatedAt":"2026-08-05T14:10:17.151Z"}
+HTTP:200

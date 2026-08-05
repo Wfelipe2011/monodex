@@ -11,6 +11,7 @@ datasource db {
 model Tenant {
   id               Int                   @id @default(autoincrement())
   name             String
+  active           Boolean               @default(true)
   users            User[]
   leads            TenantLead[]
   createdAt        DateTime              @default(now()) @map("created_at")
@@ -255,6 +256,7 @@ enum CoinTransactionType {
 enum Roles {
   ADMIN
   USER
+  SUPER_ADMIN
 }
 
 enum WhatsappProvider {
