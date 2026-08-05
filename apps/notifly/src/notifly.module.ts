@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { PrismaModule } from '@core/infra';
 import { LeadsService } from './leads.service';
+import { PlatformWhatsappService } from './platform-whatsapp.service';
 import { ScheduleModule } from '@nestjs/schedule';
 import { HttpModule } from '@nestjs/axios';
 import { NotiflyController } from './notifly.controller';
@@ -10,7 +11,7 @@ import { PrismaConnectionMiddleware } from '@core/infra/prisma/prisma-connection
 @Module({
   imports: [PrismaModule, ScheduleModule.forRoot(), HttpModule],
   controllers: [NotiflyController, WhatsappController],
-  providers: [LeadsService],
+  providers: [LeadsService, PlatformWhatsappService],
 })
 export class NotiflyModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

@@ -10,6 +10,7 @@ export class LeadsService {
     logger = new Logger(LeadsService.name);
     constructor(private prisma: PrismaService) { }
 
+    // Outbound oficial = Cloud API (notifly). Baileys aqui = legado/futuro — fora de operationalize-tenant-outreach.
     // @Cron('0 12,13,14,17,18 * * 1,2,4,5')
     async contactLeads() {
         this.logger.log('[contactLeads] Buscando leads para contato...');

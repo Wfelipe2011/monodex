@@ -2,10 +2,13 @@ import "dotenv/config";
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { Tenant } from '@prisma/client';
+import { Cron } from '@nestjs/schedule';
+import { Prisma, Tenant, TenantOutreachConfig } from '@prisma/client';
 import { Message } from './interfaces';
+import { PlatformWhatsappService } from './platform-whatsapp.service';
 import { WhatsAppSendMessageResponse } from './WhatsAppSendMessageResponse';
+
+type TenantWithOutreach = Tenant & { outreachConfig: TenantOutreachConfig };
 
 @Injectable()
 export class LeadsService implements OnModuleInit {
@@ -13,12 +16,35 @@ export class LeadsService implements OnModuleInit {
   constructor(
     private prisma: PrismaService,
     private httpService: HttpService,
+    private platformWhatsapp: PlatformWhatsappService,
   ) { }
 
   onModuleInit() {
     this.logger.log('[onModuleInit] LeadsService initialized');
     this.handleCron();
-    console.log('env', { WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN });
+    const tokenPresent = Boolean(process.env.WHATSAPP_TOKEN);
+    this.logger.log(`[onModuleInit] WHATSAPP_TOKEN present=${tokenPresent}`);
+  }
+
+  /** schedule Json: mapa dia-da-semana → horas UTC, ex. { "2": [18], "4": [13, 18] } */
+  private isWithinSchedule(
+    schedule: Prisma.JsonValue,
+    day: number,
+    hour: number,
+  ): boolean {
+    if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) {
+      return false;
+    }
+    const map = schedule as Record<string, unknown>;
+    const hours = map[String(day)];
+    return Array.isArray(hours) && hours.includes(hour);
+  }
+
+  private asStringArray(value: Prisma.JsonValue): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value.filter((item): item is string => typeof item === 'string');
   }
 
   @Cron('0 13,18 * * 2-4') // Terça a Quinta às 10h e 15h (horário de São Paulo convertido pra UTC)
@@ -27,51 +53,77 @@ export class LeadsService implements OnModuleInit {
     const currentHour = new Date().getHours();
     const currentDay = new Date().getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
     console.log(`[handleCron] Hora atual: ${currentHour}, Dia atual: ${currentDay}`);
-    const schedule = {
-      2: [18], // Terça-feira às 15h
-      3: [18], // Quarta-feira às 15h
-      4: [13, 18], // Quinta-feira às 10h e 15h
-    };
 
-    const scheduledHours = schedule[currentDay] || [];
-    if (scheduledHours.includes(currentHour)) {
-      this.logger.log('[handleCron] Hora e dia válidos, iniciando contato com leads...');
+    const tenants = await this.prisma.tenant.findMany({
+      where: {
+        outreachConfig: {
+          enabled: true,
+        },
+        NOT: {
+          OR: [{ phone: null }, { phone: '' }],
+        },
+      },
+      include: {
+        outreachConfig: true,
+      },
+    });
 
-      const tentants = await this.prisma.tenant.findMany({
+    console.log(
+      `[handleCron] Encontrados ${tenants.length} tenants com outreach enabled + phone`,
+    );
+
+    for (const tenant of tenants) {
+      const config = tenant.outreachConfig;
+      if (!config) {
+        continue;
+      }
+
+      if (!this.isWithinSchedule(config.schedule, currentDay, currentHour)) {
+        this.logger.log(
+          `[handleCron] Tenant ${tenant.name} (ID: ${tenant.id}) fora da janela de schedule; pulando`,
+        );
+        continue;
+      }
+
+      const saldo = await this.prisma.coin.findFirst({
         where: {
-          id: 8,
+          tenantId: tenant.id,
+        },
+        select: {
+          balance: true,
         },
       });
-      console.log(`[handleCron] Encontrados ${tentants.length} tenants para contato`);
-      for (const tenant of tentants) {
-        const saldo = await this.prisma.coin.findFirst({
-          where: {
-            tenantId: tenant.id,
-          },
-          select: {
-            balance: true,
-          },
-        });
-        if (saldo.balance < 1) {
-          this.logger.warn(
-            `[handleCron] Tenant ${tenant.name} (ID: ${tenant.id}) não possui saldo suficiente para contatar leads. Saldo atual: ${saldo.balance}`,
-          );
-          continue;
-        }
-        this.logger.log(`[handleCron] Iniciando contato com leads do tenant: ${tenant.name} (ID: ${tenant.id})`);
-        try {
-          await this.contactLeads(tenant);
-          this.logger.log(`[handleCron] Contato com leads do tenant ${tenant.name} concluído.`);
-        } catch (error) {
-          console.log(error['response']['data']);
-          this.logger.error(`[handleCron] Erro ao contatar leads do tenant ${tenant.name}: ${error}`);
-        }
+      if (!saldo || saldo.balance < config.costPerLead) {
+        this.logger.warn(
+          `[handleCron] Tenant ${tenant.name} (ID: ${tenant.id}) não possui saldo suficiente para contatar leads. Saldo atual: ${saldo?.balance ?? 0}, costPerLead: ${config.costPerLead}`,
+        );
+        continue;
+      }
+
+      this.logger.log(
+        `[handleCron] Iniciando contato com leads do tenant: ${tenant.name} (ID: ${tenant.id})`,
+      );
+      try {
+        await this.contactLeads(tenant as TenantWithOutreach);
+        this.logger.log(
+          `[handleCron] Contato com leads do tenant ${tenant.name} concluído.`,
+        );
+      } catch (error) {
+        console.log(error['response']?.['data']);
+        this.logger.error(
+          `[handleCron] Erro ao contatar leads do tenant ${tenant.name}: ${error}`,
+        );
       }
     }
   }
 
-  async contactLeads(tenant: Tenant) {
-    this.logger.log('[contactLeads] Buscando leads para contato...');
+  async contactLeads(tenant: TenantWithOutreach) {
+    const config = tenant.outreachConfig;
+    const categories = this.asStringArray(config.categories);
+    this.logger.log(
+      `[contactLeads] Buscando leads para contato (tenant=${tenant.id}, categories=${categories.length})...`,
+    );
+
     const leadsTenant = await this.prisma.tenantLead.findMany({
       where: {
         tenantId: tenant.id,
@@ -89,18 +141,7 @@ export class LeadsService implements OnModuleInit {
         },
         deletedAt: null,
         category: {
-          in: [
-            'Construtoras',
-            'Escritórios de advocacia',
-            'Clínicas médicas',
-            'Clínicas odontológicas',
-            'Consultórios',
-            'Estéticas',
-            'Consutorias',
-            // 'Cursos de inglês',
-            // 'Agência Marketing Digital',
-            // 'Web Design',
-          ],
+          in: categories,
         },
         phone: {
           not: {
@@ -123,12 +164,14 @@ export class LeadsService implements OnModuleInit {
     this.logger.log(`[contactLeads] Encontrados ${leads.length} leads para contato`);
     const leadsSorted = leads.sort(() => Math.random() - 0.5);
     const leadsToContact = leadsSorted.slice(0, 20);
+    const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
+
     for (const lead of leadsToContact) {
       try {
         await this.prisma.$transaction(async (tsx) => {
           console.log(`[contactLeads] Selecionando lead aleatório: ${lead.id} (${lead.phone})`);
           const res = await this.httpService.axiosRef.post<WhatsAppSendMessageResponse>(
-            `https://graph.facebook.com/v22.0/688645744332614/messages`,
+            messagesUrl,
             {
               messaging_product: 'whatsapp',
               recipient_type: 'individual',
@@ -136,7 +179,7 @@ export class LeadsService implements OnModuleInit {
               // to: `5515981785706`,
               type: 'template',
               template: {
-                name: 'amigavel',
+                name: config.outreachTemplateName,
                 language: {
                   code: 'pt_BR',
                 },
@@ -166,7 +209,7 @@ export class LeadsService implements OnModuleInit {
             },
             {
               headers: {
-                Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+                Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json',
               },
             },
@@ -199,7 +242,7 @@ export class LeadsService implements OnModuleInit {
             },
             data: {
               balance: {
-                decrement: 0.35,
+                decrement: config.costPerLead,
               },
             },
           });
@@ -209,7 +252,7 @@ export class LeadsService implements OnModuleInit {
               tenantId: tenant.id,
               leadId: lead.id,
               type: 'DEBITO',
-              amount: -0.35,
+              amount: -config.costPerLead,
               description: `Lead ${lead.id} (${lead.phone}) contatado`,
             },
           });
@@ -262,7 +305,11 @@ export class LeadsService implements OnModuleInit {
       },
       include: {
         lead: true,
-        tenant: true,
+        tenant: {
+          include: {
+            outreachConfig: true,
+          },
+        },
       },
     });
 
@@ -283,12 +330,21 @@ export class LeadsService implements OnModuleInit {
     });
     console.log(`[responseLeads] Lead ${lead.lead.id} (${lead.lead.phone}) updated: contacted=true, replied=true`);
     if (body.type === 'button' && body.button.text === 'Sim') {
+      const config = lead.tenant.outreachConfig;
+      if (!config) {
+        this.logger.warn(
+          `[responseLeads] Tenant ${lead.tenant.id} sem TenantOutreachConfig; pulando notify/cashback`,
+        );
+        return;
+      }
+
       const tenantLink = `https://wa.me/+55${lead.lead.phone.replace(/[^0-9]/g, '')}`;
       const message = `Olá ${lead.tenant.name}, o ${lead.lead.name} demonstrou interesse em seus serviços e respondeu sua mensagem.\nVocê pode entrar em contato com ele através do link: ${tenantLink}.`;
       console.log(`[responseLeads] Sending message to tenant: ${message}`);
+      const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
       await this.prisma.$transaction(async (tsx) => {
         await this.httpService.axiosRef.post(
-          `https://graph.facebook.com/v22.0/688645744332614/messages`,
+          messagesUrl,
           {
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
@@ -296,7 +352,7 @@ export class LeadsService implements OnModuleInit {
             // to: '5515981785706',
             type: 'template',
             template: {
-              name: 'lembrete_entrar_contato_cliente',
+              name: config.notifyTenantTemplateName,
               language: {
                 code: 'pt_BR',
               },
@@ -331,7 +387,7 @@ export class LeadsService implements OnModuleInit {
           },
           {
             headers: {
-              Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+              Authorization: `Bearer ${token}`,
               'Content-Type': 'application/json',
             },
           },
@@ -352,7 +408,7 @@ export class LeadsService implements OnModuleInit {
           },
           data: {
             balance: {
-              increment: 0.00,
+              increment: config.cashbackOnReply,
             },
           },
         });
@@ -362,7 +418,7 @@ export class LeadsService implements OnModuleInit {
             tenantId: lead.tenant.id,
             leadId: lead.lead.id,
             type: 'CREDITO',
-            amount: 0.00,
+            amount: config.cashbackOnReply,
             description: `Cashback - Lead respondeu SIM à mensagem`,
           },
         });

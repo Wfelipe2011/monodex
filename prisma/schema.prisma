@@ -9,19 +9,21 @@ datasource db {
 }
 
 model Tenant {
-  id              Int               @id @default(autoincrement())
-  name            String
-  users           User[]
-  leads           TenantLead[]
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
-  uuid            String            @unique @default(uuid())
-  UserLead        UserLead[]
-  Coin            Coin[]
-  Session         Session[]
-  Webhooks        Webhooks[]
-  CoinTransaction CoinTransaction[]
-  phone           String?           @unique
+  id               Int                   @id @default(autoincrement())
+  name             String
+  users            User[]
+  leads            TenantLead[]
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+  uuid             String                @unique @default(uuid())
+  UserLead         UserLead[]
+  Coin             Coin[]
+  Session          Session[]
+  Webhooks         Webhooks[]
+  CoinTransaction  CoinTransaction[]
+  phone            String?               @unique
+  outreachConfig   TenantOutreachConfig?
+  whatsappAccounts WhatsappAccount[]
 
   @@map("tenants")
 }
@@ -253,4 +255,40 @@ enum CoinTransactionType {
 enum Roles {
   ADMIN
   USER
+}
+
+enum WhatsappProvider {
+  CLOUD_API
+}
+
+model WhatsappAccount {
+  id            Int              @id @default(autoincrement())
+  provider      WhatsappProvider @default(CLOUD_API)
+  phoneNumberId String           @map("phone_number_id")
+  displayPhone  String?          @map("display_phone")
+  tokenEnvKey   String           @default("WHATSAPP_TOKEN") @map("token_env_key")
+  tenantId      Int?             @map("tenant_id")
+  tenant        Tenant?          @relation(fields: [tenantId], references: [id])
+  enabled       Boolean          @default(true)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  @@map("whatsapp_accounts")
+}
+
+model TenantOutreachConfig {
+  id                       Int      @id @default(autoincrement())
+  tenantId                 Int      @unique @map("tenant_id")
+  tenant                   Tenant   @relation(fields: [tenantId], references: [id])
+  enabled                  Boolean  @default(false)
+  costPerLead              Float    @map("cost_per_lead")
+  cashbackOnReply          Float    @default(0) @map("cashback_on_reply")
+  outreachTemplateName     String   @map("outreach_template_name")
+  notifyTenantTemplateName String   @map("notify_tenant_template_name")
+  schedule                 Json
+  categories               Json
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@map("tenant_outreach_configs")
 }
