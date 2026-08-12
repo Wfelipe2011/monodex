@@ -1,0 +1,465 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Monodex",
+    "description": "Collection da API Monodex (gym-ctrl admin + notifly).\n\n## Como usar\n1. Importe este arquivo no Postman.\n2. Ajuste as variáveis da collection: `gymBaseUrl`, `notiflyBaseUrl`, `adminEmail`, `adminPassword`.\n3. Rode **Auth → Login** — o script salva `token` automaticamente.\n4. Rotas `/admin/*` usam Bearer Token (`{{token}}`) e exigem role `SUPER_ADMIN`.\n\n## Seed local\n```bash\nNODE_ENV=development npx ts-node prisma/seed-platform-admin.ts\n```\nDefaults: `platform-admin@local.dev` / `platform-admin-dev`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gymBaseUrl", "value": "http://localhost:3001" },
+    { "key": "notiflyBaseUrl", "value": "http://localhost:3000" },
+    { "key": "adminEmail", "value": "platform-admin@local.dev" },
+    { "key": "adminPassword", "value": "platform-admin-dev" },
+    { "key": "token", "value": "" },
+    { "key": "tenantId", "value": "1" },
+    { "key": "userId", "value": "1" },
+    { "key": "whatsappAccountId", "value": "1" },
+    { "key": "tenantUuid", "value": "00000000-0000-0000-0000-000000000000" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) {",
+                  "    pm.collectionVariables.set('token', json.token);",
+                  "    pm.test('Token salvo na collection', () => pm.expect(json.token).to.be.a('string'));",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": "{{gymBaseUrl}}/auth/login",
+            "description": "Retorna `{ token }`. O test script grava em `{{token}}`."
+          }
+        },
+        {
+          "name": "Health Check (gym)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/health-check"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Health & Ops",
+      "item": [
+        {
+          "name": "Admin Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/health",
+            "description": "Requer SUPER_ADMIN."
+          }
+        },
+        {
+          "name": "Ops Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/ops/summary"
+          }
+        },
+        {
+          "name": "Leads Count (global)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/leads/count"
+          }
+        },
+        {
+          "name": "Tenant Leads Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/leads/stats"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Tenants",
+      "item": [
+        {
+          "name": "List Tenants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gymBaseUrl}}/admin/tenants",
+              "host": ["{{gymBaseUrl}}"],
+              "path": ["admin", "tenants"],
+              "query": [
+                {
+                  "key": "active",
+                  "value": "true",
+                  "description": "Opcional: filtrar por active",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Tenant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('tenantId', String(json.id));",
+                  "  if (json.uuid) pm.collectionVariables.set('tenantUuid', json.uuid);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Academia Centro\",\n  \"phone\": \"15999998888\",\n  \"active\": true\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants",
+            "description": "`phone` é o número que recebe o notifyTenantTemplateName (sem +55 obrigatório no código — o notifly prefixa 55)."
+          }
+        },
+        {
+          "name": "Get Tenant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}"
+          }
+        },
+        {
+          "name": "Update Tenant",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Academia Centro\",\n  \"phone\": \"15999998888\",\n  \"active\": true\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/users"
+          }
+        },
+        {
+          "name": "Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('userId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maria Silva\",\n  \"username\": \"maria.admin\",\n  \"email\": \"maria@academia.com\",\n  \"password\": \"senha-segura\",\n  \"roles\": [\"ADMIN\"]\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/users",
+            "description": "Roles permitidas no tenant: não incluir SUPER_ADMIN."
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maria Silva\",\n  \"roles\": [\"ADMIN\"]\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/users/{{userId}}"
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"nova-senha\"\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/users/{{userId}}/reset-password"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Coins",
+      "item": [
+        {
+          "name": "List Coins",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/coins"
+          }
+        },
+        {
+          "name": "List Coin Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/coin-transactions?limit=50",
+              "host": ["{{gymBaseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "coin-transactions"],
+              "query": [{ "key": "limit", "value": "50" }]
+            }
+          }
+        },
+        {
+          "name": "Credit Coins",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"amount\": 10,\n  \"description\": \"Credito inicial onboarding\",\n  \"type\": \"CREDITO\"\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/coins/credit",
+            "description": "`type` opcional: CREDITO | BONUS."
+          }
+        },
+        {
+          "name": "Debit Coins",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"amount\": 3,\n  \"description\": \"Ajuste operacional\"\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/coins/debit"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Outreach Config",
+      "item": [
+        {
+          "name": "Get Outreach Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config"
+          }
+        },
+        {
+          "name": "Upsert Outreach Config (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\",\n  \"schedule\": {\n    \"2\": [18],\n    \"3\": [18],\n    \"4\": [13, 18]\n  },\n  \"categories\": [\n    \"Construtoras\",\n    \"Escritórios de advocacia\",\n    \"Clínicas médicas\",\n    \"Clínicas odontológicas\",\n    \"Consultórios\",\n    \"Estéticas\",\n    \"Consutorias\"\n  ]\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config",
+            "description": "Templates = nomes aprovados na Meta. `schedule`: dia da semana (0=Dom) → horas."
+          }
+        },
+        {
+          "name": "Patch Outreach Config",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\"\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — WhatsApp Accounts",
+      "item": [
+        {
+          "name": "List WhatsApp Accounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/whatsapp-accounts",
+            "description": "Contas da plataforma (tenantId null). Token Meta nunca retorna."
+          }
+        },
+        {
+          "name": "Create WhatsApp Account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('whatsappAccountId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/whatsapp-accounts",
+            "description": "Nunca envie o access token. Só `tokenEnvKey` apontando para a env (ex.: WHATSAPP_TOKEN no .env do notifly)."
+          }
+        },
+        {
+          "name": "Get WhatsApp Account",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/whatsapp-accounts/{{whatsappAccountId}}"
+          }
+        },
+        {
+          "name": "Patch WhatsApp Account",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/whatsapp-accounts/{{whatsappAccountId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifly",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{notiflyBaseUrl}}/health-check"
+          }
+        },
+        {
+          "name": "Welcome Redirect",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{notiflyBaseUrl}}/sites/welcome/{{tenantUuid}}",
+            "description": "Redirect para wa.me com o phone do tenant, ou fallback HTML se uuid/phone inválido."
+          }
+        },
+        {
+          "name": "Webhook Verify (GET)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{notiflyBaseUrl}}/response-leads?hub.mode=subscribe&hub.verify_token=TOKEN&hub.challenge=12345",
+              "host": ["{{notiflyBaseUrl}}"],
+              "path": ["response-leads"],
+              "query": [
+                { "key": "hub.mode", "value": "subscribe" },
+                { "key": "hub.verify_token", "value": "TOKEN" },
+                { "key": "hub.challenge", "value": "12345" }
+              ]
+            },
+            "description": "Verificação Meta webhook — responde o hub.challenge."
+          }
+        },
+        {
+          "name": "Webhook Incoming (POST) — Sim",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_ID\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15550001111\",\n              \"phone_number_id\": \"688645744332614\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": { \"name\": \"Lead Teste\" },\n                \"wa_id\": \"5511999990000\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"5511999990000\",\n                \"id\": \"wamid.INCOMING\",\n                \"timestamp\": \"1710000000\",\n                \"type\": \"button\",\n                \"button\": {\n                  \"payload\": \"Sim\",\n                  \"text\": \"Sim\"\n                },\n                \"context\": {\n                  \"from\": \"15550001111\",\n                  \"id\": \"wamid.SUBSTITUA_PELO_MESSAGE_ID_DO_TENANT_LEAD\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}"
+            },
+            "url": "{{notiflyBaseUrl}}/response-leads",
+            "description": "Simula reply \"Sim\". Substitua `context.id` pelo `TenantLead.messageId` (wamid) gravado no envio."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Fluxo onboarding (ordem sugerida)",
+      "description": "Ordem típica após Login:\n1. Create Tenant (salva tenantId)\n2. Create User (salva userId)\n3. Credit Coins\n4. Upsert Outreach Config\n5. Create/List WhatsApp Account\n6. (opcional) seed-outreach ou ajustar phoneNumberId\n7. Subir notifly com WHATSAPP_TOKEN",
+      "item": [
+        {
+          "name": "README — veja descrição da pasta",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/health-check",
+            "description": "Placeholder. Siga a descrição da pasta \"Fluxo onboarding\"."
+          }
+        }
+      ]
+    }
+  ]
+}

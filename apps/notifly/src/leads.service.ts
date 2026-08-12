@@ -2,7 +2,7 @@ import "dotenv/config";
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma, Tenant, TenantOutreachConfig } from '@prisma/client';
 import { Message } from './interfaces';
 import { PlatformWhatsappService } from './platform-whatsapp.service';
@@ -47,7 +47,7 @@ export class LeadsService implements OnModuleInit {
     return value.filter((item): item is string => typeof item === 'string');
   }
 
-  @Cron('0 13,18 * * 2-4') // Terça a Quinta às 10h e 15h (horário de São Paulo convertido pra UTC)
+  @Cron(CronExpression.EVERY_HOUR) // Terça a Quinta às 10h e 15h (horário de São Paulo convertido pra UTC)
   async handleCron() {
     this.logger.log('[handleCron] Executando tarefa agendada...');
     const currentHour = new Date().getHours();
@@ -163,48 +163,47 @@ export class LeadsService implements OnModuleInit {
     });
     this.logger.log(`[contactLeads] Encontrados ${leads.length} leads para contato`);
     const leadsSorted = leads.sort(() => Math.random() - 0.5);
-    const leadsToContact = leadsSorted.slice(0, 20);
+    const leadsToContact = leadsSorted.slice(0, 5);
     const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
 
     for (const lead of leadsToContact) {
       try {
         await this.prisma.$transaction(async (tsx) => {
           console.log(`[contactLeads] Selecionando lead aleatório: ${lead.id} (${lead.phone})`);
+          // test_gladson (e similares): BODY sem variáveis; HEADER IMAGE via env opcional
+          const headerImageUrl = process.env.WHATSAPP_OUTREACH_HEADER_IMAGE_URL;
+          const templateComponents: Array<Record<string, unknown>> = [];
+          if (headerImageUrl) {
+            templateComponents.push({
+              type: 'header',
+              parameters: [
+                {
+                  type: 'image',
+                  image: { link: headerImageUrl },
+                },
+              ],
+            });
+          } else {
+            this.logger.warn(
+              '[contactLeads] WHATSAPP_OUTREACH_HEADER_IMAGE_URL ausente; enviando template sem header image (Meta pode rejeitar templates com HEADER IMAGE)',
+            );
+          }
+
           const res = await this.httpService.axiosRef.post<WhatsAppSendMessageResponse>(
             messagesUrl,
             {
               messaging_product: 'whatsapp',
               recipient_type: 'individual',
               to: `55${lead.phone.replace(/[^0-9]/g, '')}`,
-              // to: `5515981785706`,
               type: 'template',
               template: {
                 name: config.outreachTemplateName,
                 language: {
                   code: 'pt_BR',
                 },
-                components: [
-                  {
-                    type: 'body',
-                    parameters: [
-                      {
-                        parameter_name: 'nome',
-                        type: 'text',
-                        text: lead.name,
-                      },
-                      {
-                        parameter_name: 'empresa',
-                        type: 'text',
-                        text: tenant.name,
-                      },
-                      {
-                        parameter_name: 'descricao',
-                        type: 'text',
-                        text: 'Oferecemos serviços como: criação de sites profissionais, otimização para Google e aumento da sua presença online.',
-                      },
-                    ],
-                  },
-                ],
+                ...(templateComponents.length > 0
+                  ? { components: templateComponents }
+                  : {}),
               },
             },
             {
@@ -329,7 +328,7 @@ export class LeadsService implements OnModuleInit {
       },
     });
     console.log(`[responseLeads] Lead ${lead.lead.id} (${lead.lead.phone}) updated: contacted=true, replied=true`);
-    if (body.type === 'button' && body.button.text === 'Sim') {
+    if (body.type === 'button' && body.button.text === 'Tenho Interesse!') {
       const config = lead.tenant.outreachConfig;
       if (!config) {
         this.logger.warn(
@@ -338,18 +337,25 @@ export class LeadsService implements OnModuleInit {
         return;
       }
 
-      const tenantLink = `https://wa.me/+55${lead.lead.phone.replace(/[^0-9]/g, '')}`;
-      const message = `Olá ${lead.tenant.name}, o ${lead.lead.name} demonstrou interesse em seus serviços e respondeu sua mensagem.\nVocê pode entrar em contato com ele através do link: ${tenantLink}.`;
-      console.log(`[responseLeads] Sending message to tenant: ${message}`);
+      const leadPhoneDigits = lead.lead.phone.replace(/[^0-9]/g, '');
+      const customerPhone = leadPhoneDigits.startsWith('55')
+        ? leadPhoneDigits
+        : `55${leadPhoneDigits}`;
+      const customerLead =
+        process.env.WHATSAPP_NOTIFY_CUSTOMER_LEAD ??
+        'interessado em contratar *Certificados Digitais*';
+      console.log(
+        `[responseLeads] Notificando tenant=${lead.tenant.id} lead=${lead.lead.name} phone=${customerPhone}`,
+      );
       const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
       await this.prisma.$transaction(async (tsx) => {
+        // lembrete_entrar_contato_interessado: NAMED body + URL button {{1}}
         await this.httpService.axiosRef.post(
           messagesUrl,
           {
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
             to: `55${lead.tenant.phone.replace(/[^0-9]/g, '')}`,
-            // to: '5515981785706',
             type: 'template',
             template: {
               name: config.notifyTenantTemplateName,
@@ -358,27 +364,33 @@ export class LeadsService implements OnModuleInit {
               },
               components: [
                 {
-                  type: 'header',
+                  type: 'body',
                   parameters: [
                     {
-                      parameter_name: 'customer_name',
                       type: 'text',
-                      text: lead.tenant.name,
+                      parameter_name: 'customer_lead',
+                      text: customerLead,
+                    },
+                    {
+                      type: 'text',
+                      parameter_name: 'customer_name',
+                      text: lead.lead.name,
+                    },
+                    {
+                      type: 'text',
+                      parameter_name: 'customer_phone',
+                      text: customerPhone,
                     },
                   ],
                 },
                 {
-                  type: 'body',
+                  type: 'button',
+                  sub_type: 'url',
+                  index: '0',
                   parameters: [
                     {
-                      parameter_name: 'end_customer_name',
                       type: 'text',
-                      text: lead.lead.name,
-                    },
-                    {
-                      parameter_name: 'end_customer_phone',
-                      type: 'text',
-                      text: tenantLink,
+                      text: customerPhone,
                     },
                   ],
                 },
@@ -392,7 +404,7 @@ export class LeadsService implements OnModuleInit {
             },
           },
         );
-        console.log(`[responseLeads] Message sent to tenant: ${message}`);
+        console.log(`[responseLeads] Notify template enviado ao tenant ${lead.tenant.phone}`);
 
         const user = await tsx.user.findFirst({
           where: {
@@ -419,7 +431,7 @@ export class LeadsService implements OnModuleInit {
             leadId: lead.lead.id,
             type: 'CREDITO',
             amount: config.cashbackOnReply,
-            description: `Cashback - Lead respondeu SIM à mensagem`,
+            description: `Cashback - Lead respondeu Tenho Interesse!`,
           },
         });
       })

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { WhatsappProvider } from '@prisma/client';
 
-const GRAPH_API_VERSION = 'v22.0';
+const GRAPH_API_VERSION = 'v23.0';
 
 export type PlatformWhatsappCredentials = {
   phoneNumberId: string;

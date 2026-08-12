@@ -10,7 +10,7 @@
  */
 import { PrismaClient, WhatsappProvider } from '@prisma/client';
 
-const PLATFORM_PHONE_NUMBER_ID = '688645744332614';
+const PLATFORM_PHONE_NUMBER_ID = '1292251013966333';
 const DEFAULT_OPERATIONAL_TENANT_ID = 8;
 
 const SCHEDULE = {
@@ -20,13 +20,12 @@ const SCHEDULE = {
 };
 
 const CATEGORIES = [
-  'Construtoras',
-  'Escritórios de advocacia',
-  'Clínicas médicas',
-  'Clínicas odontológicas',
-  'Consultórios',
-  'Estéticas',
-  'Consutorias',
+  'contadores',
+  'contabilidade',
+  'cartórios',
+  'despachantes',
+  'consultórios',
+  'clínicas',
 ];
 
 const prisma = new PrismaClient();
@@ -103,8 +102,8 @@ async function upsertOutreachConfig(tenantId: number) {
       enabled: true,
       costPerLead: 0.35,
       cashbackOnReply: 0,
-      outreachTemplateName: 'amigavel',
-      notifyTenantTemplateName: 'lembrete_entrar_contato_cliente',
+      outreachTemplateName: 'test_gladson',
+      notifyTenantTemplateName: 'lembrete_entrar_contato_interessado',
       schedule: SCHEDULE,
       categories: CATEGORIES,
     },
@@ -112,8 +111,8 @@ async function upsertOutreachConfig(tenantId: number) {
       enabled: true,
       costPerLead: 0.35,
       cashbackOnReply: 0,
-      outreachTemplateName: 'amigavel',
-      notifyTenantTemplateName: 'lembrete_entrar_contato_cliente',
+      outreachTemplateName: 'test_gladson',
+      notifyTenantTemplateName: 'lembrete_entrar_contato_interessado',
       schedule: SCHEDULE,
       categories: CATEGORIES,
     },
