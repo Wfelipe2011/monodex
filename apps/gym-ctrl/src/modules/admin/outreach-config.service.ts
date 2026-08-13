@@ -48,6 +48,9 @@ export class OutreachConfigService {
         notifyTenantTemplateName: dto.notifyTenantTemplateName,
         schedule: dto.schedule as Prisma.InputJsonValue,
         categories: dto.categories as Prisma.InputJsonValue,
+        leadsPerRun: dto.leadsPerRun ?? 5,
+        headerImageUrl: dto.headerImageUrl ?? null,
+        sendIntervalSeconds: dto.sendIntervalSeconds ?? 5,
       },
       update: {
         enabled,
@@ -57,6 +60,9 @@ export class OutreachConfigService {
         notifyTenantTemplateName: dto.notifyTenantTemplateName,
         schedule: dto.schedule as Prisma.InputJsonValue,
         categories: dto.categories as Prisma.InputJsonValue,
+        leadsPerRun: dto.leadsPerRun ?? 5,
+        headerImageUrl: dto.headerImageUrl ?? null,
+        sendIntervalSeconds: dto.sendIntervalSeconds ?? 5,
       },
     });
   }
@@ -89,6 +95,15 @@ export class OutreachConfigService {
       schedule: (dto.schedule ?? existing.schedule) as Prisma.InputJsonValue,
       categories: (dto.categories ??
         existing.categories) as Prisma.InputJsonValue,
+      ...(dto.leadsPerRun !== undefined
+        ? { leadsPerRun: dto.leadsPerRun }
+        : {}),
+      ...(dto.headerImageUrl !== undefined
+        ? { headerImageUrl: dto.headerImageUrl }
+        : {}),
+      ...(dto.sendIntervalSeconds !== undefined
+        ? { sendIntervalSeconds: dto.sendIntervalSeconds }
+        : {}),
     };
 
     this.assertEnableAllowed(tenant, {
@@ -119,6 +134,15 @@ export class OutreachConfigService {
           : {}),
         ...(dto.categories !== undefined
           ? { categories: dto.categories as Prisma.InputJsonValue }
+          : {}),
+        ...(dto.leadsPerRun !== undefined
+          ? { leadsPerRun: dto.leadsPerRun }
+          : {}),
+        ...(dto.headerImageUrl !== undefined
+          ? { headerImageUrl: dto.headerImageUrl }
+          : {}),
+        ...(dto.sendIntervalSeconds !== undefined
+          ? { sendIntervalSeconds: dto.sendIntervalSeconds }
           : {}),
       },
     });

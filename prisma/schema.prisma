@@ -101,9 +101,12 @@ model Webhooks {
 model Lead {
   id          Int          @id @default(autoincrement())
   name        String
-  phone       String       @unique
+  phone       String
   website     String?
   category    String
+  categories  String[]     @default([])
+  cityId      Int          @map("city_id")
+  city        City         @relation(fields: [cityId], references: [id])
   rating      Float?
   reviews     Int?
   temperature Temperature  @default(FRIO)
@@ -115,6 +118,7 @@ model Lead {
 
   CoinTransaction CoinTransaction[]
 
+  @@unique([phone, cityId])
   @@map("leads")
 }
 
@@ -184,10 +188,13 @@ model CoinTransaction {
 }
 
 model City {
-  id           Int            @id @default(autoincrement())
-  name         String
-  state        String?
-  Neighborhood Neighborhood[]
+  id              Int               @id @default(autoincrement())
+  name            String
+  state           String?
+  Neighborhood    Neighborhood[]
+  leads           Lead[]
+  scrapeTargets   ScrapeTarget[]
+  scrapeCoverages ScrapeCoverage[]
 
   @@map("cities")
 }
@@ -289,8 +296,38 @@ model TenantOutreachConfig {
   notifyTenantTemplateName String   @map("notify_tenant_template_name")
   schedule                 Json
   categories               Json
+  leadsPerRun              Int      @default(5) @map("leads_per_run")
+  headerImageUrl           String?  @map("header_image_url")
+  sendIntervalSeconds      Int      @default(5) @map("send_interval_seconds")
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
 
   @@map("tenant_outreach_configs")
+}
+
+model ScrapeTarget {
+  id        Int      @id @default(autoincrement())
+  cityId    Int      @map("city_id")
+  city      City     @relation(fields: [cityId], references: [id])
+  category  String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([cityId, category])
+  @@map("scrape_targets")
+}
+
+model ScrapeCoverage {
+  id            Int      @id @default(autoincrement())
+  cityId        Int      @map("city_id")
+  city          City     @relation(fields: [cityId], references: [id])
+  category      String
+  firstRunAt    DateTime @map("first_run_at")
+  lastRunAt     DateTime @map("last_run_at")
+  lastStatus    String   @map("last_status")
+  lastLeadCount Int?     @map("last_lead_count")
+
+  @@unique([cityId, category])
+  @@map("scrape_coverages")
 }

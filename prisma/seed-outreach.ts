@@ -106,6 +106,9 @@ async function upsertOutreachConfig(tenantId: number) {
       notifyTenantTemplateName: 'lembrete_entrar_contato_interessado',
       schedule: SCHEDULE,
       categories: CATEGORIES,
+      leadsPerRun: 5,
+      sendIntervalSeconds: 5,
+      headerImageUrl: null,
     },
     update: {
       enabled: true,

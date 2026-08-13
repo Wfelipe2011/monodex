@@ -28,7 +28,11 @@ export class OutreachConfigController {
   constructor(private readonly outreachConfigService: OutreachConfigService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Obter outreach config do tenant (404 se não houver)' })
+  @ApiOperation({
+    summary: 'Obter outreach config do tenant (404 se não houver)',
+    description:
+      'Devolve o model completo, incluindo leadsPerRun, headerImageUrl e sendIntervalSeconds.',
+  })
   get(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.outreachConfigService.get(tenantId);
   }
@@ -37,7 +41,8 @@ export class OutreachConfigController {
   @ApiOperation({
     summary: 'Upsert completo de outreach config',
     description:
-      'Cria ou substitui a config. enabled=true exige tenant.active e phone preenchido.',
+      'Cria ou substitui a config. enabled=true exige tenant.active e phone preenchido. ' +
+      'leadsPerRun, headerImageUrl e sendIntervalSeconds são opcionais (defaults 5 / null / 5).',
   })
   upsert(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -52,7 +57,8 @@ export class OutreachConfigController {
   @ApiOperation({
     summary: 'Patch parcial de outreach config',
     description:
-      'Altera só campos enviados. enabled=true exige tenant pronto + campos obrigatórios já persistidos.',
+      'Altera só campos enviados (inclui leadsPerRun, headerImageUrl, sendIntervalSeconds). ' +
+      'enabled=true exige tenant pronto + campos obrigatórios já persistidos.',
   })
   patch(
     @Param('tenantId', ParseIntPipe) tenantId: number,

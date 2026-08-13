@@ -14,6 +14,7 @@
     { "key": "tenantId", "value": "1" },
     { "key": "userId", "value": "1" },
     { "key": "whatsappAccountId", "value": "1" },
+    { "key": "scrapeTargetId", "value": "1" },
     { "key": "tenantUuid", "value": "00000000-0000-0000-0000-000000000000" }
   ],
   "auth": {
@@ -310,7 +311,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"enabled\": true,\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\",\n  \"schedule\": {\n    \"2\": [18],\n    \"3\": [18],\n    \"4\": [13, 18]\n  },\n  \"categories\": [\n    \"Construtoras\",\n    \"Escritórios de advocacia\",\n    \"Clínicas médicas\",\n    \"Clínicas odontológicas\",\n    \"Consultórios\",\n    \"Estéticas\",\n    \"Consutorias\"\n  ]\n}"
+              "raw": "{\n  \"enabled\": true,\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\",\n  \"schedule\": {\n    \"2\": [18],\n    \"3\": [18],\n    \"4\": [13, 18]\n  },\n  \"categories\": [\n    \"Construtoras\",\n    \"Escritórios de advocacia\",\n    \"Clínicas médicas\",\n    \"Clínicas odontológicas\",\n    \"Consultórios\",\n    \"Estéticas\",\n    \"Consutorias\"\n  ],\n  \"leadsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
             },
             "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config",
             "description": "Templates = nomes aprovados na Meta. `schedule`: dia da semana (0=Dom) → horas."
@@ -323,7 +324,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\"\n}"
+              "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\",\n  \"leadsPerRun\": 5\n}"
             },
             "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config"
           }
@@ -387,6 +388,103 @@
               "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
             },
             "url": "{{gymBaseUrl}}/admin/whatsapp-accounts/{{whatsappAccountId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Scrape",
+      "item": [
+        {
+          "name": "Create Scrape Target",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('scrapeTargetId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cityName\": \"Taubaté\",\n  \"state\": \"SP\",\n  \"category\": \"Construtoras\",\n  \"enabled\": true\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/scrape-targets",
+            "description": "Resolve/cria City e faz upsert no par cityId+category. Não dispara scrape. O test script grava `id` em `{{scrapeTargetId}}`."
+          }
+        },
+        {
+          "name": "List Scrape Targets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/scrape-targets"
+          }
+        },
+        {
+          "name": "Get Scrape Target",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/scrape-targets/{{scrapeTargetId}}"
+          }
+        },
+        {
+          "name": "Patch Scrape Target",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/scrape-targets/{{scrapeTargetId}}",
+            "description": "`enabled: false` faz o cron pular o par cidade×categoria."
+          }
+        },
+        {
+          "name": "Delete Scrape Target",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/scrape-targets/{{scrapeTargetId}}",
+            "description": "Apaga só o target. City, Neighborhood e ScrapeCoverage permanecem."
+          }
+        },
+        {
+          "name": "List Scrape Coverages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gymBaseUrl}}/admin/scrape-coverages",
+              "host": ["{{gymBaseUrl}}"],
+              "path": ["admin", "scrape-coverages"],
+              "query": [
+                {
+                  "key": "cityId",
+                  "value": "1",
+                  "description": "Opcional: filtrar por cidade",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "Construtoras",
+                  "description": "Opcional: filtrar por categoria",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Somente leitura. Retorna [] se nunca scrapou."
           }
         }
       ]

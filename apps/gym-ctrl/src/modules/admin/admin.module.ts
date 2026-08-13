@@ -13,6 +13,10 @@ import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { WhatsappAccountsController } from './whatsapp-accounts.controller';
 import { WhatsappAccountsService } from './whatsapp-accounts.service';
+import { ScrapeTargetsController } from './scrape-targets.controller';
+import { ScrapeTargetsService } from './scrape-targets.service';
+import { ScrapeCoveragesController } from './scrape-coverages.controller';
+import { ScrapeCoveragesService } from './scrape-coverages.service';
 
 @Module({
   imports: [PrismaModule],
@@ -23,6 +27,8 @@ import { WhatsappAccountsService } from './whatsapp-accounts.service';
     CoinsController,
     OutreachConfigController,
     WhatsappAccountsController,
+    ScrapeTargetsController,
+    ScrapeCoveragesController,
     OpsController,
   ],
   providers: [
@@ -31,6 +37,8 @@ import { WhatsappAccountsService } from './whatsapp-accounts.service';
     CoinsService,
     OutreachConfigService,
     WhatsappAccountsService,
+    ScrapeTargetsService,
+    ScrapeCoveragesService,
     OpsService,
   ],
 })

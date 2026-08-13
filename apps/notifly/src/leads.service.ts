@@ -3,10 +3,18 @@ import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Prisma, Tenant, TenantOutreachConfig } from '@prisma/client';
+import { Lead, Prisma, Tenant, TenantOutreachConfig } from '@prisma/client';
 import { Message } from './interfaces';
 import { PlatformWhatsappService } from './platform-whatsapp.service';
 import { WhatsAppSendMessageResponse } from './WhatsAppSendMessageResponse';
+import {
+  buildCategoryAverages,
+  computeY,
+  excludeUsedPhones,
+  isPremium,
+  selectStratifiedBatch,
+  uniqueByPhone,
+} from './premium-mix';
 
 type TenantWithOutreach = Tenant & { outreachConfig: TenantOutreachConfig };
 
@@ -21,7 +29,7 @@ export class LeadsService implements OnModuleInit {
 
   onModuleInit() {
     this.logger.log('[onModuleInit] LeadsService initialized');
-    this.handleCron();
+    // this.handleCron();
     const tokenPresent = Boolean(process.env.WHATSAPP_TOKEN);
     this.logger.log(`[onModuleInit] WHATSAPP_TOKEN present=${tokenPresent}`);
   }
@@ -45,6 +53,13 @@ export class LeadsService implements OnModuleInit {
       return [];
     }
     return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  private sleep(ms: number): Promise<void> {
+    if (ms <= 0) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   @Cron(CronExpression.EVERY_HOUR) // Terça a Quinta às 10h e 15h (horário de São Paulo convertido pra UTC)
@@ -117,6 +132,20 @@ export class LeadsService implements OnModuleInit {
     }
   }
 
+  private categoryWhere(tenantCategories: string[]): Prisma.LeadWhereInput {
+    return {
+      OR: [
+        { categories: { hasSome: tenantCategories } },
+        {
+          AND: [
+            { categories: { isEmpty: true } },
+            { category: { in: tenantCategories } },
+          ],
+        },
+      ],
+    };
+  }
+
   async contactLeads(tenant: TenantWithOutreach) {
     const config = tenant.outreachConfig;
     const categories = this.asStringArray(config.categories);
@@ -124,70 +153,129 @@ export class LeadsService implements OnModuleInit {
       `[contactLeads] Buscando leads para contato (tenant=${tenant.id}, categories=${categories.length})...`,
     );
 
-    const leadsTenant = await this.prisma.tenantLead.findMany({
+    if (categories.length === 0) {
+      this.logger.log(
+        `[contactLeads] Tenant ${tenant.id} sem categories configuradas; não selecionando leads`,
+      );
+      return;
+    }
+
+    if (config.costPerLead <= 0) {
+      this.logger.warn(
+        `[contactLeads] Tenant ${tenant.id} com costPerLead=${config.costPerLead}; não enviando`,
+      );
+      return;
+    }
+
+    const coin = await this.prisma.coin.findFirst({
       where: {
         tenantId: tenant.id,
       },
       select: {
-        leadId: true,
-        contacted: true,
+        balance: true,
       },
     });
+    const balance = coin?.balance ?? 0;
+    const affordable = Math.floor(balance / config.costPerLead);
+    if (affordable <= 0) {
+      this.logger.warn(
+        `[contactLeads] Tenant ${tenant.id} sem saldo para um lead. Saldo: ${balance}, costPerLead: ${config.costPerLead}`,
+      );
+      return;
+    }
+
+    const used = await this.prisma.tenantLead.findMany({
+      where: {
+        tenantId: tenant.id,
+      },
+      select: {
+        lead: { select: { phone: true } },
+      },
+    });
+    const usedPhones = [...new Set(used.map((row) => row.lead.phone))];
+    const usedPhoneSet = new Set(usedPhones);
+    const categoryFilter = this.categoryWhere(categories);
 
     const leads = await this.prisma.lead.findMany({
       where: {
-        id: {
-          notIn: leadsTenant.map((lt) => lt.leadId),
-        },
         deletedAt: null,
-        category: {
-          in: categories,
-        },
-        phone: {
-          not: {
-            contains: '153',
+        AND: [
+          categoryFilter,
+          {
+            phone: {
+              not: {
+                contains: '153',
+              },
+              ...(usedPhones.length > 0 ? { notIn: usedPhones } : {}),
+            },
           },
-        },
-        OR: [
-          { website: '' },
-          { website: { contains: 'facebo', mode: 'insensitive' } },
-          { website: { contains: 'instagra', mode: 'insensitive' } },
-          { website: { contains: 'sites', mode: 'insensitive' } },
-          { website: { contains: 'link', mode: 'insensitive' } },
-          { website: { contains: 'w.app', mode: 'insensitive' } },
-          { website: { contains: 'wixsite', mode: 'insensitive' } },
-          { website: { contains: 'wa.me', mode: 'insensitive' } },
-          { website: { contains: 'whatsapp', mode: 'insensitive' } },
         ],
       },
     });
-    this.logger.log(`[contactLeads] Encontrados ${leads.length} leads para contato`);
-    const leadsSorted = leads.sort(() => Math.random() - 0.5);
-    const leadsToContact = leadsSorted.slice(0, 5);
-    const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
 
-    for (const lead of leadsToContact) {
+    const uniquePool = uniqueByPhone(excludeUsedPhones(leads, usedPhoneSet));
+
+    const allForAvg = await this.prisma.lead.findMany({
+      where: {
+        deletedAt: null,
+        ...categoryFilter,
+      },
+      select: {
+        categories: true,
+        category: true,
+        reviews: true,
+      },
+    });
+    const avgByCategory = buildCategoryAverages(allForAvg, categories);
+
+    const premium: Lead[] = [];
+    const regular: Lead[] = [];
+    for (const candidate of uniquePool) {
+      if (isPremium(candidate, avgByCategory, categories)) {
+        premium.push(candidate);
+      } else {
+        regular.push(candidate);
+      }
+    }
+
+    const P = premium.length;
+    const R = regular.length;
+    const X = Math.min(config.leadsPerRun, affordable, P + R);
+    const Y = computeY(P, R, X);
+    const leadsToContact = selectStratifiedBatch(premium, regular, X, Y);
+    this.logger.log(
+      `[contactLeads] Mix X=${X} P=${P} R=${R} Y=${Y} (leadsPerRun=${config.leadsPerRun}, affordable=${affordable}, uniquePhones=${uniquePool.length})`,
+    );
+
+    if (leadsToContact.length === 0) {
+      return;
+    }
+
+    const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
+    const headerImageUrl =
+      config.headerImageUrl?.trim() || process.env.WHATSAPP_OUTREACH_HEADER_IMAGE_URL;
+    const templateComponents: Array<Record<string, unknown>> = [];
+    if (headerImageUrl) {
+      templateComponents.push({
+        type: 'header',
+        parameters: [
+          {
+            type: 'image',
+            image: { link: headerImageUrl },
+          },
+        ],
+      });
+    } else {
+      this.logger.warn(
+        '[contactLeads] headerImageUrl e WHATSAPP_OUTREACH_HEADER_IMAGE_URL ausentes; enviando template sem header image (Meta pode rejeitar templates com HEADER IMAGE)',
+      );
+    }
+
+    for (let i = 0; i < leadsToContact.length; i++) {
+      const lead = leadsToContact[i];
       try {
         await this.prisma.$transaction(async (tsx) => {
           console.log(`[contactLeads] Selecionando lead aleatório: ${lead.id} (${lead.phone})`);
-          // test_gladson (e similares): BODY sem variáveis; HEADER IMAGE via env opcional
-          const headerImageUrl = process.env.WHATSAPP_OUTREACH_HEADER_IMAGE_URL;
-          const templateComponents: Array<Record<string, unknown>> = [];
-          if (headerImageUrl) {
-            templateComponents.push({
-              type: 'header',
-              parameters: [
-                {
-                  type: 'image',
-                  image: { link: headerImageUrl },
-                },
-              ],
-            });
-          } else {
-            this.logger.warn(
-              '[contactLeads] WHATSAPP_OUTREACH_HEADER_IMAGE_URL ausente; enviando template sem header image (Meta pode rejeitar templates com HEADER IMAGE)',
-            );
-          }
 
           const res = await this.httpService.axiosRef.post<WhatsAppSendMessageResponse>(
             messagesUrl,
@@ -260,7 +348,13 @@ export class LeadsService implements OnModuleInit {
       } catch (error) {
         this.logger.error(`[contactLeads] Erro ao enviar mensagem para o lead ${lead.id} (${lead.phone}): ${error}`);
       }
+
+      if (i < leadsToContact.length - 1) {
+        await this.sleep(config.sendIntervalSeconds * 1000);
+      }
     }
+
+    await this.sleep(config.sendIntervalSeconds * 1000);
   }
 
   @Cron('0 0 0 * * *')
@@ -436,11 +530,5 @@ export class LeadsService implements OnModuleInit {
         });
       })
     }
-  }
-
-  async shuffleLeads(leads: any[]) {
-    console.log(`[shuffleLeads] Shuffling ${leads.length} leads`);
-    const shuffledLeads = leads.sort(() => Math.random() - 0.5);
-    return shuffledLeads;
   }
 }

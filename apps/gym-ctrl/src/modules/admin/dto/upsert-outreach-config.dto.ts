@@ -3,10 +3,13 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsInt,
   IsNumber,
   IsObject,
   IsOptional,
   IsString,
+  IsUrl,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -52,4 +55,32 @@ export class UpsertOutreachConfigDto {
   @ArrayMinSize(1)
   @IsString({ each: true })
   categories: string[];
+
+  @ApiPropertyOptional({
+    description: 'Leads contactados por execução (default 5)',
+    example: 5,
+    default: 5,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  leadsPerRun?: number;
+
+  @ApiPropertyOptional({
+    description: 'URL https da imagem de header do template',
+    example: 'https://example.com/header.png',
+  })
+  @IsOptional()
+  @IsUrl({ require_protocol: true, protocols: ['https'] })
+  headerImageUrl?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Intervalo em segundos entre envios (default 5)',
+    example: 5,
+    default: 5,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sendIntervalSeconds?: number;
 }
