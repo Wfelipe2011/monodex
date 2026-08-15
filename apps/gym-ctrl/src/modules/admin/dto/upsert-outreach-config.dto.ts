@@ -9,6 +9,8 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
+  MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
@@ -28,6 +30,17 @@ export class UpsertOutreachConfigDto {
   @IsOptional()
   @IsNumber()
   cashbackOnReply?: number;
+
+  @ApiProperty({
+    description: 'Texto positional {{1}} do body do template de outreach (quem entra em contato)',
+    example: 'Gladson Teixeira (contador em Pindamonhagaba)',
+    maxLength: 80,
+  })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  @Matches(/^[^\r\n\t]+$/)
+  outreachContactText: string;
 
   @ApiProperty({ example: 'amigavel' })
   @IsString()

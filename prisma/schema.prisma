@@ -299,6 +299,7 @@ model TenantOutreachConfig {
   leadsPerRun              Int      @default(5) @map("leads_per_run")
   headerImageUrl           String?  @map("header_image_url")
   sendIntervalSeconds      Int      @default(5) @map("send_interval_seconds")
+  outreachContactText      String   @map("outreach_contact_text")
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
 

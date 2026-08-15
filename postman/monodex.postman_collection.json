@@ -311,7 +311,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"enabled\": true,\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\",\n  \"schedule\": {\n    \"2\": [18],\n    \"3\": [18],\n    \"4\": [13, 18]\n  },\n  \"categories\": [\n    \"Construtoras\",\n    \"Escritórios de advocacia\",\n    \"Clínicas médicas\",\n    \"Clínicas odontológicas\",\n    \"Consultórios\",\n    \"Estéticas\",\n    \"Consutorias\"\n  ],\n  \"leadsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
+              "raw": "{\n  \"enabled\": true,\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\",\n  \"schedule\": {\n    \"2\": [18],\n    \"3\": [18],\n    \"4\": [13, 18]\n  },\n  \"categories\": [\n    \"Construtoras\",\n    \"Escritórios de advocacia\",\n    \"Clínicas médicas\",\n    \"Clínicas odontológicas\",\n    \"Consultórios\",\n    \"Estéticas\",\n    \"Consutorias\"\n  },\n  \"leadsPerRun\": 5,\n  \"sendIntervalSeconds\": 5,\n  \"outreachContactText\": \"Gladson Teixeira (contador em Pindamonhagaba)\"\n}"
             },
             "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config",
             "description": "Templates = nomes aprovados na Meta. `schedule`: dia da semana (0=Dom) → horas."
@@ -324,7 +324,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\",\n  \"leadsPerRun\": 5\n}"
+              "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\",\n  \"leadsPerRun\": 5,\n  \"outreachContactText\": \"Gladson Teixeira (contador em Pindamonhagaba)\"\n}"
             },
             "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config"
           }

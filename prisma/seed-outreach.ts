@@ -109,6 +109,7 @@ async function upsertOutreachConfig(tenantId: number) {
       leadsPerRun: 5,
       sendIntervalSeconds: 5,
       headerImageUrl: null,
+      outreachContactText: 'Gladson Teixeira (contador em Pindamonhagaba)',
     },
     update: {
       enabled: true,

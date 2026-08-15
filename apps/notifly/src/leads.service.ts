@@ -251,6 +251,13 @@ export class LeadsService implements OnModuleInit {
       return;
     }
 
+    if (!config.outreachContactText?.trim()) {
+      this.logger.warn(
+        '[contactLeads] outreachContactText ausente; pulando envios do tenant',
+      );
+      return;
+    }
+
     const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
     const headerImageUrl =
       config.headerImageUrl?.trim() || process.env.WHATSAPP_OUTREACH_HEADER_IMAGE_URL;
@@ -269,6 +276,17 @@ export class LeadsService implements OnModuleInit {
       this.logger.warn(
         '[contactLeads] headerImageUrl e WHATSAPP_OUTREACH_HEADER_IMAGE_URL ausentes; enviando template sem header image (Meta pode rejeitar templates com HEADER IMAGE)',
       );
+    }
+    if (config.outreachContactText?.trim()) {
+      templateComponents.push({
+        type: 'body',
+        parameters: [
+          {
+            type: 'text',
+            text: config.outreachContactText.trim(),
+          },
+        ],
+      });
     }
 
     for (let i = 0; i < leadsToContact.length; i++) {

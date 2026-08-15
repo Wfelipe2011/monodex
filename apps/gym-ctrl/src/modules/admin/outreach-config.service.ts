@@ -30,9 +30,12 @@ export class OutreachConfigService {
     const enabled = dto.enabled ?? false;
     const cashbackOnReply = dto.cashbackOnReply ?? 0;
 
+    const outreachContactText = dto.outreachContactText.trim();
+
     this.assertEnableAllowed(tenant, {
       enabled,
       costPerLead: dto.costPerLead,
+      outreachContactText,
       outreachTemplateName: dto.outreachTemplateName,
       notifyTenantTemplateName: dto.notifyTenantTemplateName,
     });
@@ -44,6 +47,7 @@ export class OutreachConfigService {
         enabled,
         costPerLead: dto.costPerLead,
         cashbackOnReply,
+        outreachContactText,
         outreachTemplateName: dto.outreachTemplateName,
         notifyTenantTemplateName: dto.notifyTenantTemplateName,
         schedule: dto.schedule as Prisma.InputJsonValue,
@@ -56,6 +60,7 @@ export class OutreachConfigService {
         enabled,
         costPerLead: dto.costPerLead,
         cashbackOnReply,
+        outreachContactText,
         outreachTemplateName: dto.outreachTemplateName,
         notifyTenantTemplateName: dto.notifyTenantTemplateName,
         schedule: dto.schedule as Prisma.InputJsonValue,
@@ -84,10 +89,16 @@ export class OutreachConfigService {
       );
     }
 
+    const outreachContactText =
+      dto.outreachContactText !== undefined
+        ? dto.outreachContactText.trim()
+        : existing.outreachContactText;
+
     const merged = {
       enabled: dto.enabled ?? existing.enabled,
       costPerLead: dto.costPerLead ?? existing.costPerLead,
       cashbackOnReply: dto.cashbackOnReply ?? existing.cashbackOnReply,
+      outreachContactText,
       outreachTemplateName:
         dto.outreachTemplateName ?? existing.outreachTemplateName,
       notifyTenantTemplateName:
@@ -109,6 +120,7 @@ export class OutreachConfigService {
     this.assertEnableAllowed(tenant, {
       enabled: merged.enabled,
       costPerLead: merged.costPerLead,
+      outreachContactText: merged.outreachContactText,
       outreachTemplateName: merged.outreachTemplateName,
       notifyTenantTemplateName: merged.notifyTenantTemplateName,
     });
@@ -122,6 +134,9 @@ export class OutreachConfigService {
           : {}),
         ...(dto.cashbackOnReply !== undefined
           ? { cashbackOnReply: dto.cashbackOnReply }
+          : {}),
+        ...(dto.outreachContactText !== undefined
+          ? { outreachContactText }
           : {}),
         ...(dto.outreachTemplateName !== undefined
           ? { outreachTemplateName: dto.outreachTemplateName }
@@ -174,6 +189,7 @@ export class OutreachConfigService {
     fields: {
       enabled: boolean;
       costPerLead: number;
+      outreachContactText: string;
       outreachTemplateName: string;
       notifyTenantTemplateName: string;
     },
@@ -193,6 +209,11 @@ export class OutreachConfigService {
     if (!(fields.costPerLead > 0)) {
       throw new BadRequestException(
         'Não é possível habilitar outreach: costPerLead deve ser > 0',
+      );
+    }
+    if (!fields.outreachContactText?.trim()) {
+      throw new BadRequestException(
+        'Não é possível habilitar outreach: outreachContactText obrigatório',
       );
     }
     if (!fields.outreachTemplateName?.trim()) {
