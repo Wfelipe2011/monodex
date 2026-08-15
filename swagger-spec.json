@@ -501,7 +501,7 @@
     },
     "/admin/tenants/{tenantId}/outreach-config": {
       "get": {
-        "description": "Devolve o model completo, incluindo leadsPerRun, headerImageUrl e sendIntervalSeconds.",
+        "description": "Devolve o model completo, incluindo outreachContactText, leadsPerRun, headerImageUrl e sendIntervalSeconds.",
         "operationId": "OutreachConfigController_get",
         "parameters": [
           {
@@ -529,7 +529,7 @@
         ]
       },
       "put": {
-        "description": "Cria ou substitui a config. enabled=true exige tenant.active e phone preenchido. leadsPerRun, headerImageUrl e sendIntervalSeconds são opcionais (defaults 5 / null / 5).",
+        "description": "Cria ou substitui a config. outreachContactText é obrigatório (máx. 80, sem newline/tab). enabled=true exige tenant.active, phone e outreachContactText preenchidos. leadsPerRun, headerImageUrl e sendIntervalSeconds são opcionais (defaults 5 / null / 5).",
         "operationId": "OutreachConfigController_upsert",
         "parameters": [
           {
@@ -567,7 +567,7 @@
         ]
       },
       "patch": {
-        "description": "Altera só campos enviados (inclui leadsPerRun, headerImageUrl, sendIntervalSeconds). enabled=true exige tenant pronto + campos obrigatórios já persistidos.",
+        "description": "Altera só campos enviados (inclui outreachContactText, leadsPerRun, headerImageUrl, sendIntervalSeconds). enabled=true exige tenant pronto + outreachContactText e campos obrigatórios já persistidos.",
         "operationId": "OutreachConfigController_patch",
         "parameters": [
           {
@@ -1305,6 +1305,14 @@
             "description": "Cashback ao receber reply",
             "default": 0
           },
+          "outreachContactText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "pattern": "/^[^\\r\\n\\t]+$/",
+            "description": "Texto positional {{1}} do body do template de outreach (quem entra em contato)",
+            "example": "Gladson Teixeira (contador em Pindamonhagaba)"
+          },
           "outreachTemplateName": {
             "type": "string",
             "minLength": 1,
@@ -1367,6 +1375,7 @@
         },
         "required": [
           "costPerLead",
+          "outreachContactText",
           "outreachTemplateName",
           "notifyTenantTemplateName",
           "schedule",
@@ -1387,6 +1396,14 @@
           "cashbackOnReply": {
             "type": "number",
             "description": "Cashback ao receber reply"
+          },
+          "outreachContactText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "pattern": "/^[^\\r\\n\\t]+$/",
+            "description": "Texto positional {{1}} do body do template de outreach (quem entra em contato)",
+            "example": "Gladson Teixeira (contador em Pindamonhagaba)"
           },
           "outreachTemplateName": {
             "type": "string",
