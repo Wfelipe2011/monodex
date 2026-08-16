@@ -1,8 +1,7 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { City } from '@prisma/client';
 import { GoogleMapsScraper } from './scraper/google-maps.scraper';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
-import { Cron } from '@nestjs/schedule';
 import { GoogleMapsNeighborhoodScraper } from './scraper/google-maps-neighborhood.scraper';
 
 type CoverageStatus = 'success' | 'failed' | 'partial';
@@ -13,7 +12,7 @@ type CityScrapeGroup = {
 };
 
 @Injectable()
-export class CapturaScraperService implements OnModuleInit {
+export class CapturaScraperService {
   private readonly logger = new Logger(CapturaScraperService.name);
   private running = false;
 
@@ -23,16 +22,9 @@ export class CapturaScraperService implements OnModuleInit {
     private prisma: PrismaService,
   ) {}
 
-  async onModuleInit() {
-    this.logger.log(
-      '[onModuleInit] Scrape agendado: 06:00 diário (America/Sao_Paulo). Fontes: ScrapeTarget enabled no banco.',
-    );
-  }
-
-  /** Todo dia às 06:00 (horário de Brasília). */
-  @Cron('0 6 * * *', { timeZone: 'America/Sao_Paulo' })
+  /** Disparado pelo cron dinâmico (`PlatformJobSchedule` SCRAPE). */
   async handleMorningScrape() {
-    this.logger.log('[cron] Scrape das 06:00 disparado');
+    this.logger.log('[cron] Scrape disparado');
 
     const targets = await this.prisma.scrapeTarget.findMany({
       where: { enabled: true },

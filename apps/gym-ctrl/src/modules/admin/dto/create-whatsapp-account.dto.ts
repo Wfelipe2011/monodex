@@ -14,6 +14,11 @@ export class CreateWhatsappAccountDto {
   @MinLength(1)
   phoneNumberId: string;
 
+  @ApiProperty({ description: 'WhatsApp Business Account ID (WABA)', example: '123456789012345' })
+  @IsString()
+  @MinLength(1)
+  wabaId: string;
+
   @ApiPropertyOptional({ description: 'Telefone de exibição', example: '+5511999998888' })
   @IsOptional()
   @IsString()

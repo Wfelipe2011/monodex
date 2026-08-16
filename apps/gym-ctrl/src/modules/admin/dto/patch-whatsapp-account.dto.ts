@@ -15,6 +15,12 @@ export class PatchWhatsappAccountDto {
   @MinLength(1)
   phoneNumberId?: string;
 
+  @ApiPropertyOptional({ description: 'WhatsApp Business Account ID (WABA)' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  wabaId?: string;
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()

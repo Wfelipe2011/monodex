@@ -501,7 +501,7 @@
     },
     "/admin/tenants/{tenantId}/outreach-config": {
       "get": {
-        "description": "Devolve o model completo, incluindo outreachContactText, leadsPerRun, headerImageUrl e sendIntervalSeconds.",
+        "description": "Devolve ids de catálogo, slotBindings, knobs de envio e relações mínimas dos templates (id, name, language, status).",
         "operationId": "OutreachConfigController_get",
         "parameters": [
           {
@@ -515,7 +515,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -529,7 +536,7 @@
         ]
       },
       "put": {
-        "description": "Cria ou substitui a config. outreachContactText é obrigatório (máx. 80, sem newline/tab). enabled=true exige tenant.active, phone e outreachContactText preenchidos. leadsPerRun, headerImageUrl e sendIntervalSeconds são opcionais (defaults 5 / null / 5).",
+        "description": "Cria ou substitui a config. Obrigatórios: costPerLead, outreachTemplateId, notifyTemplateId, slotBindings, schedule, categories. Campos legado (outreachTemplateName, notifyTenantTemplateName, outreachContactText, headerImageUrl) retornam 400. enabled=true exige tenant ativo com phone, templates APPROVED e cobertura de slots. leadsPerRun e sendIntervalSeconds default 5.",
         "operationId": "OutreachConfigController_upsert",
         "parameters": [
           {
@@ -553,7 +560,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -567,7 +581,7 @@
         ]
       },
       "patch": {
-        "description": "Altera só campos enviados (inclui outreachContactText, leadsPerRun, headerImageUrl, sendIntervalSeconds). enabled=true exige tenant pronto + outreachContactText e campos obrigatórios já persistidos.",
+        "description": "Altera só campos enviados. Merge com a config existente. Campos legado retornam 400. enabled=true exige templates APPROVED e bindings completos já persistidos ou no body.",
         "operationId": "OutreachConfigController_patch",
         "parameters": [
           {
@@ -591,7 +605,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -718,6 +739,197 @@
         "summary": "Atualizar conta WhatsApp da plataforma",
         "tags": [
           "Admin — WhatsApp Accounts"
+        ]
+      }
+    },
+    "/admin/whatsapp-templates/sync": {
+      "post": {
+        "operationId": "WhatsappTemplatesController_sync",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sincronizar catálogo de templates a partir da WABA da plataforma",
+        "tags": [
+          "Admin — WhatsApp Templates"
+        ]
+      }
+    },
+    "/admin/whatsapp-templates": {
+      "get": {
+        "operationId": "WhatsappTemplatesController_list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar templates do catálogo (inclui slots parseados)",
+        "tags": [
+          "Admin — WhatsApp Templates"
+        ]
+      }
+    },
+    "/admin/whatsapp-templates/{id}/test": {
+      "post": {
+        "operationId": "WhatsappTemplatesController_test",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestWhatsappTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Enviar template do catálogo para um número (sem TenantLead/coin)",
+        "tags": [
+          "Admin — WhatsApp Templates"
+        ]
+      }
+    },
+    "/admin/platform-job-schedules": {
+      "get": {
+        "operationId": "PlatformJobSchedulesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar schedules de jobs da plataforma (sync templates e scrape)",
+        "tags": [
+          "Admin — Platform Job Schedules"
+        ]
+      }
+    },
+    "/admin/platform-job-schedules/{jobKey}": {
+      "get": {
+        "operationId": "PlatformJobSchedulesController_getByJobKey",
+        "parameters": [
+          {
+            "name": "jobKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "WHATSAPP_TEMPLATE_SYNC",
+                "SCRAPE"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Obter schedule por jobKey",
+        "tags": [
+          "Admin — Platform Job Schedules"
+        ]
+      },
+      "put": {
+        "description": "jobKey deve ser WHATSAPP_TEMPLATE_SYNC ou SCRAPE. Workers fazem poll; PUT não notifica processos.",
+        "operationId": "PlatformJobSchedulesController_upsert",
+        "parameters": [
+          {
+            "name": "jobKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "WHATSAPP_TEMPLATE_SYNC",
+                "SCRAPE"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertPlatformJobScheduleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Atualizar (upsert) cron, timezone e enabled de um job da plataforma",
+        "tags": [
+          "Admin — Platform Job Schedules"
         ]
       }
     },
@@ -1287,6 +1499,34 @@
           "amount"
         ]
       },
+      "SlotBindingsDto": {
+        "type": "object",
+        "properties": {
+          "outreach": {
+            "type": "object",
+            "description": "Bindings do template de outreach, keyed por slot",
+            "example": {
+              "body.1": {
+                "type": "literal",
+                "value": "Gladson Teixeira"
+              }
+            }
+          },
+          "notify": {
+            "type": "object",
+            "description": "Bindings do template de notify, keyed por slot",
+            "example": {
+              "body.customer_name": {
+                "type": "lead.name"
+              }
+            }
+          }
+        },
+        "required": [
+          "outreach",
+          "notify"
+        ]
+      },
       "UpsertOutreachConfigDto": {
         "type": "object",
         "properties": {
@@ -1305,23 +1545,18 @@
             "description": "Cashback ao receber reply",
             "default": 0
           },
-          "outreachContactText": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 80,
-            "pattern": "/^[^\\r\\n\\t]+$/",
-            "description": "Texto positional {{1}} do body do template de outreach (quem entra em contato)",
-            "example": "Gladson Teixeira (contador em Pindamonhagaba)"
+          "outreachTemplateId": {
+            "type": "number",
+            "minimum": 1,
+            "description": "FK do template de outreach no catálogo"
           },
-          "outreachTemplateName": {
-            "type": "string",
-            "minLength": 1,
-            "example": "amigavel"
+          "notifyTemplateId": {
+            "type": "number",
+            "minimum": 1,
+            "description": "FK do template de notify no catálogo"
           },
-          "notifyTenantTemplateName": {
-            "type": "string",
-            "minLength": 1,
-            "example": "lembrete_entrar_contato_cliente"
+          "slotBindings": {
+            "$ref": "#/components/schemas/SlotBindingsDto"
           },
           "schedule": {
             "type": "object",
@@ -1358,13 +1593,6 @@
             "example": 5,
             "default": 5
           },
-          "headerImageUrl": {
-            "type": "string",
-            "nullable": true,
-            "format": "uri",
-            "description": "URL https da imagem de header do template",
-            "example": "https://example.com/header.png"
-          },
           "sendIntervalSeconds": {
             "type": "number",
             "minimum": 0,
@@ -1375,9 +1603,9 @@
         },
         "required": [
           "costPerLead",
-          "outreachContactText",
-          "outreachTemplateName",
-          "notifyTenantTemplateName",
+          "outreachTemplateId",
+          "notifyTemplateId",
+          "slotBindings",
           "schedule",
           "categories"
         ]
@@ -1397,21 +1625,18 @@
             "type": "number",
             "description": "Cashback ao receber reply"
           },
-          "outreachContactText": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 80,
-            "pattern": "/^[^\\r\\n\\t]+$/",
-            "description": "Texto positional {{1}} do body do template de outreach (quem entra em contato)",
-            "example": "Gladson Teixeira (contador em Pindamonhagaba)"
+          "outreachTemplateId": {
+            "type": "number",
+            "minimum": 1,
+            "description": "FK do template de outreach no catálogo"
           },
-          "outreachTemplateName": {
-            "type": "string",
-            "minLength": 1
+          "notifyTemplateId": {
+            "type": "number",
+            "minimum": 1,
+            "description": "FK do template de notify no catálogo"
           },
-          "notifyTenantTemplateName": {
-            "type": "string",
-            "minLength": 1
+          "slotBindings": {
+            "$ref": "#/components/schemas/SlotBindingsDto"
           },
           "schedule": {
             "type": "object",
@@ -1442,13 +1667,6 @@
             "description": "Leads contactados por execução",
             "example": 5
           },
-          "headerImageUrl": {
-            "type": "string",
-            "nullable": true,
-            "format": "uri",
-            "description": "URL https da imagem de header do template",
-            "example": "https://example.com/header.png"
-          },
           "sendIntervalSeconds": {
             "type": "number",
             "minimum": 0,
@@ -1465,6 +1683,12 @@
             "minLength": 1,
             "description": "Meta Cloud API phone_number_id",
             "example": "688645744332614"
+          },
+          "wabaId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "WhatsApp Business Account ID (WABA)",
+            "example": "123456789012345"
           },
           "displayPhone": {
             "type": "string",
@@ -1488,7 +1712,8 @@
           }
         },
         "required": [
-          "phoneNumberId"
+          "phoneNumberId",
+          "wabaId"
         ]
       },
       "PatchWhatsappAccountDto": {
@@ -1498,6 +1723,11 @@
             "type": "string",
             "minLength": 1,
             "description": "Meta Cloud API phone_number_id"
+          },
+          "wabaId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "WhatsApp Business Account ID (WABA)"
           },
           "displayPhone": {
             "type": "string",
@@ -1516,6 +1746,60 @@
             "nullable": true
           }
         }
+      },
+      "TestWhatsappTemplateDto": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Telefone de destino (dígitos; 55 será prefixado se faltar)",
+            "example": "11999999999"
+          },
+          "variables": {
+            "type": "object",
+            "description": "Valores por slot key (literal ou tipo de binding)",
+            "example": {
+              "body.1": "Demo"
+            },
+            "default": {}
+          },
+          "leadId": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Lead opcional para resolver bindings lead.*",
+            "example": 1
+          }
+        },
+        "required": [
+          "to"
+        ]
+      },
+      "UpsertPlatformJobScheduleDto": {
+        "type": "object",
+        "properties": {
+          "cronExpression": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "FIVE_FIELD_CRON",
+            "description": "Expressão cron de 5 campos",
+            "example": "0 8 * * *"
+          },
+          "timeZone": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Timezone IANA",
+            "default": "America/Sao_Paulo",
+            "example": "America/Sao_Paulo"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "cronExpression"
+        ]
       },
       "CreateScrapeTargetDto": {
         "type": "object",

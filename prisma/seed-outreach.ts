@@ -1,17 +1,50 @@
 /**
- * Idempotent seed: platform WhatsappAccount + TenantOutreachConfig for the operational tenant.
+ * Idempotent seed: platform WhatsappAccount + stub templates + TenantOutreachConfig.
  *
  * Tenant resolution:
  * - Uses TENANT_ID env when set
  * - Otherwise defaults to id 8 (current notifly operational tenant)
  * - If that tenant does not exist, exits with instructions to set TENANT_ID
  *
+ * WABA: WHATSAPP_WABA_ID env, or placeholder SET_WABA_ID (warn). Does not call Graph.
+ *
  * Usage: npx ts-node prisma/seed-outreach.ts
  */
-import { PrismaClient, WhatsappProvider } from '@prisma/client';
+import {
+  PlatformJobKey,
+  Prisma,
+  PrismaClient,
+  WhatsappProvider,
+} from '@prisma/client';
+import { parseTemplateSlots } from '../libs/shared/whatsapp-template-slots';
 
 const PLATFORM_PHONE_NUMBER_ID = '1292251013966333';
 const DEFAULT_OPERATIONAL_TENANT_ID = 8;
+const PLACEHOLDER_WABA_ID = 'SET_WABA_ID';
+const TEMPLATE_LANGUAGE = 'pt_BR';
+
+const OUTREACH_TEMPLATE_NAME = 'test_gladson';
+const NOTIFY_TEMPLATE_NAME = 'lembrete_entrar_contato_interessado';
+
+const DEFAULT_SCHEDULES: Array<{
+  jobKey: PlatformJobKey;
+  cronExpression: string;
+  timeZone: string;
+  enabled: boolean;
+}> = [
+  {
+    jobKey: PlatformJobKey.WHATSAPP_TEMPLATE_SYNC,
+    cronExpression: '0 5 * * *',
+    timeZone: 'America/Sao_Paulo',
+    enabled: true,
+  },
+  {
+    jobKey: PlatformJobKey.SCRAPE,
+    cronExpression: '0 6 * * *',
+    timeZone: 'America/Sao_Paulo',
+    enabled: true,
+  },
+];
 
 const SCHEDULE = {
   2: [18],
@@ -28,9 +61,77 @@ const CATEGORIES = [
   'clínicas',
 ];
 
+const OUTREACH_COMPONENTS = [
+  { type: 'HEADER', format: 'IMAGE' },
+  {
+    type: 'BODY',
+    text: 'Olá, {{1}} — temos uma indicação para o seu negócio.',
+  },
+];
+
+const NOTIFY_COMPONENTS = [
+  {
+    type: 'BODY',
+    text: 'O lead {{customer_name}} ({{customer_phone}}) pediu contato. {{customer_lead}}',
+    example: {
+      body_text_named_params: [
+        { param_name: 'customer_name', example: 'Maria' },
+        { param_name: 'customer_phone', example: '11999999999' },
+        { param_name: 'customer_lead', example: 'customer_lead' },
+      ],
+    },
+  },
+  {
+    type: 'BUTTONS',
+    buttons: [
+      {
+        type: 'URL',
+        text: 'WhatsApp',
+        url: 'https://wa.me/{{1}}',
+      },
+    ],
+  },
+];
+
 const prisma = new PrismaClient();
 
+function resolveWabaId(): string {
+  const fromEnv = process.env.WHATSAPP_WABA_ID?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  console.warn(
+    `[seed-outreach] WHATSAPP_WABA_ID ausente; usando placeholder "${PLACEHOLDER_WABA_ID}". ` +
+      `Não invente um WABA de produção — PATCH a conta depois do sync.`,
+  );
+  return PLACEHOLDER_WABA_ID;
+}
+
+function defaultSlotBindings(headerImageUrl: string | undefined) {
+  const outreach: Record<string, { type: string; value?: string }> = {
+    'body.1': {
+      type: 'literal',
+      value: 'Gladson Teixeira (contador em Pindamonhagaba)',
+    },
+  };
+  if (headerImageUrl) {
+    outreach['header.image'] = { type: 'header_image', value: headerImageUrl };
+  } else {
+    outreach['header.image'] = { type: 'header_image', value: '' };
+  }
+  return {
+    outreach,
+    notify: {
+      'body.customer_name': { type: 'lead.name' },
+      'body.customer_phone': { type: 'lead.phone' },
+      'body.customer_lead': { type: 'literal', value: 'customer_lead' },
+      'button.0.url': { type: 'lead.phone' },
+    },
+  };
+}
+
 async function upsertPlatformAccount() {
+  const wabaId = resolveWabaId();
   const existing = await prisma.whatsappAccount.findFirst({
     where: {
       tenantId: null,
@@ -45,6 +146,7 @@ async function upsertPlatformAccount() {
       data: {
         tokenEnvKey: 'WHATSAPP_TOKEN',
         enabled: true,
+        wabaId,
       },
     });
     console.log(`[seed-outreach] Platform WhatsappAccount updated id=${updated.id}`);
@@ -56,11 +158,81 @@ async function upsertPlatformAccount() {
       provider: WhatsappProvider.CLOUD_API,
       phoneNumberId: PLATFORM_PHONE_NUMBER_ID,
       tokenEnvKey: 'WHATSAPP_TOKEN',
+      wabaId,
       tenantId: null,
       enabled: true,
     },
   });
   console.log(`[seed-outreach] Platform WhatsappAccount created id=${created.id}`);
+  return created;
+}
+
+async function ensureDefaultSchedules() {
+  for (const spec of DEFAULT_SCHEDULES) {
+    const existing = await prisma.platformJobSchedule.findUnique({
+      where: { jobKey: spec.jobKey },
+    });
+    if (existing) {
+      console.log(
+        `[seed-outreach] PlatformJobSchedule ${spec.jobKey} already exists cron="${existing.cronExpression}" (kept)`,
+      );
+      continue;
+    }
+    await prisma.platformJobSchedule.create({ data: spec });
+    console.log(
+      `[seed-outreach] PlatformJobSchedule ${spec.jobKey} created cron="${spec.cronExpression}"`,
+    );
+  }
+}
+
+async function ensureStubTemplate(
+  whatsappAccountId: number,
+  name: string,
+  components: unknown[],
+) {
+  const existing = await prisma.whatsappMessageTemplate.findUnique({
+    where: {
+      whatsappAccountId_name_language: {
+        whatsappAccountId,
+        name,
+        language: TEMPLATE_LANGUAGE,
+      },
+    },
+  });
+  if (existing) {
+    console.log(
+      `[seed-outreach] Template ${name}/${TEMPLATE_LANGUAGE} exists id=${existing.id}`,
+    );
+    return existing;
+  }
+
+  const byName = await prisma.whatsappMessageTemplate.findFirst({
+    where: { whatsappAccountId, name },
+  });
+  if (byName) {
+    console.log(
+      `[seed-outreach] Template ${name} found by name id=${byName.id} lang=${byName.language}`,
+    );
+    return byName;
+  }
+
+  const slots = parseTemplateSlots(components);
+  const created = await prisma.whatsappMessageTemplate.create({
+    data: {
+      whatsappAccountId,
+      name,
+      language: TEMPLATE_LANGUAGE,
+      status: 'APPROVED',
+      category: 'UTILITY',
+      parameterFormat: name === OUTREACH_TEMPLATE_NAME ? 'POSITIONAL' : 'NAMED',
+      components: components as Prisma.InputJsonValue,
+      slots: slots as unknown as Prisma.InputJsonValue,
+      lastSyncedAt: new Date(),
+    },
+  });
+  console.log(
+    `[seed-outreach] Stub template ${name}/${TEMPLATE_LANGUAGE} created id=${created.id}`,
+  );
   return created;
 }
 
@@ -94,47 +266,89 @@ async function resolveOperationalTenantId(): Promise<number> {
   return tenant.id;
 }
 
-async function upsertOutreachConfig(tenantId: number) {
-  const config = await prisma.tenantOutreachConfig.upsert({
+async function upsertOutreachConfig(
+  tenantId: number,
+  outreachTemplateId: number,
+  notifyTemplateId: number,
+) {
+  const headerImageUrl = process.env.WHATSAPP_OUTREACH_HEADER_IMAGE_URL?.trim();
+  const slotBindings = defaultSlotBindings(headerImageUrl);
+  const existing = await prisma.tenantOutreachConfig.findUnique({
     where: { tenantId },
-    create: {
-      tenantId,
-      enabled: true,
-      costPerLead: 0.35,
-      cashbackOnReply: 0,
-      outreachTemplateName: 'test_gladson',
-      notifyTenantTemplateName: 'lembrete_entrar_contato_interessado',
-      schedule: SCHEDULE,
-      categories: CATEGORIES,
-      leadsPerRun: 5,
-      sendIntervalSeconds: 5,
-      headerImageUrl: null,
-      outreachContactText: 'Gladson Teixeira (contador em Pindamonhagaba)',
-    },
-    update: {
-      enabled: true,
-      costPerLead: 0.35,
-      cashbackOnReply: 0,
-      outreachTemplateName: 'test_gladson',
-      notifyTenantTemplateName: 'lembrete_entrar_contato_interessado',
-      schedule: SCHEDULE,
-      categories: CATEGORIES,
-    },
+  });
+
+  if (!existing) {
+    const created = await prisma.tenantOutreachConfig.create({
+      data: {
+        tenantId,
+        enabled: true,
+        costPerLead: 0.35,
+        cashbackOnReply: 0,
+        outreachTemplateId,
+        notifyTemplateId,
+        slotBindings: slotBindings as Prisma.InputJsonValue,
+        schedule: SCHEDULE,
+        categories: CATEGORIES,
+        leadsPerRun: 5,
+        sendIntervalSeconds: 5,
+      },
+    });
+    console.log(
+      `[seed-outreach] TenantOutreachConfig created id=${created.id} tenantId=${tenantId}`,
+    );
+    return created;
+  }
+
+  const updateData: Prisma.TenantOutreachConfigUpdateInput = {
+    enabled: true,
+    costPerLead: 0.35,
+    cashbackOnReply: 0,
+    schedule: SCHEDULE,
+    categories: CATEGORIES,
+  };
+  if (existing.outreachTemplateId == null) {
+    updateData.outreachTemplate = { connect: { id: outreachTemplateId } };
+  }
+  if (existing.notifyTemplateId == null) {
+    updateData.notifyTemplate = { connect: { id: notifyTemplateId } };
+  }
+
+  const updated = await prisma.tenantOutreachConfig.update({
+    where: { tenantId },
+    data: updateData,
   });
   console.log(
-    `[seed-outreach] TenantOutreachConfig upserted id=${config.id} tenantId=${tenantId}`,
+    `[seed-outreach] TenantOutreachConfig updated id=${updated.id} tenantId=${tenantId} (slotBindings kept)`,
   );
-  return config;
+  return updated;
 }
 
 async function main() {
   const account = await upsertPlatformAccount();
+  await ensureDefaultSchedules();
+  const outreachTemplate = await ensureStubTemplate(
+    account.id,
+    OUTREACH_TEMPLATE_NAME,
+    OUTREACH_COMPONENTS,
+  );
+  const notifyTemplate = await ensureStubTemplate(
+    account.id,
+    NOTIFY_TEMPLATE_NAME,
+    NOTIFY_COMPONENTS,
+  );
   const tenantId = await resolveOperationalTenantId();
-  const config = await upsertOutreachConfig(tenantId);
+  const config = await upsertOutreachConfig(
+    tenantId,
+    outreachTemplate.id,
+    notifyTemplate.id,
+  );
 
   console.log('[seed-outreach] Done.', {
     platformAccountId: account.id,
     phoneNumberId: account.phoneNumberId,
+    wabaId: account.wabaId,
+    outreachTemplateId: outreachTemplate.id,
+    notifyTemplateId: notifyTemplate.id,
     outreachConfigId: config.id,
     tenantId: config.tenantId,
   });

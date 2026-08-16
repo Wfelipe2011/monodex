@@ -3,7 +3,19 @@ import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Lead, Prisma, Tenant, TenantOutreachConfig } from '@prisma/client';
+import {
+  Lead,
+  Prisma,
+  Tenant,
+  TenantOutreachConfig,
+  WhatsappMessageTemplate,
+} from '@prisma/client';
+import {
+  resolveBindingValue,
+  SlotBinding,
+} from '@core/shared/whatsapp-template-bindings';
+import { TemplateSlot } from '@core/shared/whatsapp-template-slots';
+import { buildTemplateSendBody } from '@core/shared/whatsapp-template-payload';
 import { Message } from './interfaces';
 import { PlatformWhatsappService } from './platform-whatsapp.service';
 import { WhatsAppSendMessageResponse } from './WhatsAppSendMessageResponse';
@@ -16,7 +28,19 @@ import {
   uniqueByPhone,
 } from './premium-mix';
 
-type TenantWithOutreach = Tenant & { outreachConfig: TenantOutreachConfig };
+type OutreachConfigWithTemplates = TenantOutreachConfig & {
+  outreachTemplate: WhatsappMessageTemplate | null;
+  notifyTemplate: WhatsappMessageTemplate | null;
+};
+
+type TenantWithOutreach = Tenant & { outreachConfig: OutreachConfigWithTemplates };
+
+type LeadWithCity = Lead & { city?: { name: string } | null };
+
+const OUTREACH_INCLUDE = {
+  outreachTemplate: true,
+  notifyTemplate: true,
+} as const;
 
 @Injectable()
 export class LeadsService implements OnModuleInit {
@@ -79,7 +103,9 @@ export class LeadsService implements OnModuleInit {
         },
       },
       include: {
-        outreachConfig: true,
+        outreachConfig: {
+          include: OUTREACH_INCLUDE,
+        },
       },
     });
 
@@ -211,6 +237,7 @@ export class LeadsService implements OnModuleInit {
           },
         ],
       },
+      include: { city: true },
     });
 
     const uniquePool = uniqueByPhone(excludeUsedPhones(leads, usedPhoneSet));
@@ -251,66 +278,45 @@ export class LeadsService implements OnModuleInit {
       return;
     }
 
-    if (!config.outreachContactText?.trim()) {
+    const outreachTemplate = config.outreachTemplate;
+    if (!outreachTemplate || outreachTemplate.status.toUpperCase() !== 'APPROVED') {
       this.logger.warn(
-        '[contactLeads] outreachContactText ausente; pulando envios do tenant',
+        `[contactLeads] outreachTemplate ausente ou status≠APPROVED (tenant=${tenant.id}, status=${outreachTemplate?.status ?? 'null'}); não enviando`,
       );
       return;
     }
 
     const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
-    const headerImageUrl =
-      config.headerImageUrl?.trim() || process.env.WHATSAPP_OUTREACH_HEADER_IMAGE_URL;
-    const templateComponents: Array<Record<string, unknown>> = [];
-    if (headerImageUrl) {
-      templateComponents.push({
-        type: 'header',
-        parameters: [
-          {
-            type: 'image',
-            image: { link: headerImageUrl },
-          },
-        ],
-      });
-    } else {
-      this.logger.warn(
-        '[contactLeads] headerImageUrl e WHATSAPP_OUTREACH_HEADER_IMAGE_URL ausentes; enviando template sem header image (Meta pode rejeitar templates com HEADER IMAGE)',
-      );
-    }
-    if (config.outreachContactText?.trim()) {
-      templateComponents.push({
-        type: 'body',
-        parameters: [
-          {
-            type: 'text',
-            text: config.outreachContactText.trim(),
-          },
-        ],
-      });
-    }
+    const slots = this.asSlots(outreachTemplate.slots);
+    const bindings = this.roleBindings(config.slotBindings, 'outreach');
 
     for (let i = 0; i < leadsToContact.length; i++) {
-      const lead = leadsToContact[i];
+      const lead = leadsToContact[i] as LeadWithCity;
       try {
+        const values = this.resolveRoleValues(slots, bindings, {
+          lead,
+          tenant,
+        });
+        if (!values) {
+          this.logger.warn(
+            `[contactLeads] slot literal/header_image vazio; skip POST lead=${lead.id}`,
+          );
+        } else {
         await this.prisma.$transaction(async (tsx) => {
           console.log(`[contactLeads] Selecionando lead aleatório: ${lead.id} (${lead.phone})`);
 
+          const sendBody = buildTemplateSendBody({
+            name: outreachTemplate.name,
+            language: outreachTemplate.language,
+            slots,
+            values,
+          });
           const res = await this.httpService.axiosRef.post<WhatsAppSendMessageResponse>(
             messagesUrl,
             {
-              messaging_product: 'whatsapp',
+              ...sendBody,
               recipient_type: 'individual',
               to: `55${lead.phone.replace(/[^0-9]/g, '')}`,
-              type: 'template',
-              template: {
-                name: config.outreachTemplateName,
-                language: {
-                  code: 'pt_BR',
-                },
-                ...(templateComponents.length > 0
-                  ? { components: templateComponents }
-                  : {}),
-              },
             },
             {
               headers: {
@@ -362,7 +368,8 @@ export class LeadsService implements OnModuleInit {
             },
           });
           this.logger.log(`[contactLeads] Lead ${lead.id} (${lead.phone}) marcado como contatado.`);
-        })
+        });
+        }
       } catch (error) {
         this.logger.error(`[contactLeads] Erro ao enviar mensagem para o lead ${lead.id} (${lead.phone}): ${error}`);
       }
@@ -415,10 +422,12 @@ export class LeadsService implements OnModuleInit {
         messageId: body.context?.id,
       },
       include: {
-        lead: true,
+        lead: { include: { city: true } },
         tenant: {
           include: {
-            outreachConfig: true,
+            outreachConfig: {
+              include: OUTREACH_INCLUDE,
+            },
           },
         },
       },
@@ -449,65 +458,44 @@ export class LeadsService implements OnModuleInit {
         return;
       }
 
-      const leadPhoneDigits = lead.lead.phone.replace(/[^0-9]/g, '');
-      const customerPhone = leadPhoneDigits.startsWith('55')
-        ? leadPhoneDigits
-        : `55${leadPhoneDigits}`;
-      const customerLead =
-        process.env.WHATSAPP_NOTIFY_CUSTOMER_LEAD ??
-        'interessado em contratar *Certificados Digitais*';
+      const notifyTemplate = config.notifyTemplate;
+      if (!notifyTemplate || notifyTemplate.status.toUpperCase() !== 'APPROVED') {
+        this.logger.warn(
+          `[responseLeads] notifyTemplate ausente ou status≠APPROVED (tenant=${lead.tenant.id}, status=${notifyTemplate?.status ?? 'null'}); pulando notify/cashback`,
+        );
+        return;
+      }
+
       console.log(
-        `[responseLeads] Notificando tenant=${lead.tenant.id} lead=${lead.lead.name} phone=${customerPhone}`,
+        `[responseLeads] Notificando tenant=${lead.tenant.id} lead=${lead.lead.name} phone=${lead.lead.phone}`,
       );
       const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
+      const slots = this.asSlots(notifyTemplate.slots);
+      const bindings = this.roleBindings(config.slotBindings, 'notify');
+      const values = this.resolveRoleValues(slots, bindings, {
+        lead: lead.lead as LeadWithCity,
+        tenant: lead.tenant,
+      });
+      if (!values) {
+        this.logger.warn(
+          `[responseLeads] slot literal/header_image vazio; skip notify tenant=${lead.tenant.id}`,
+        );
+        return;
+      }
+
       await this.prisma.$transaction(async (tsx) => {
-        // lembrete_entrar_contato_interessado: NAMED body + URL button {{1}}
+        const sendBody = buildTemplateSendBody({
+          name: notifyTemplate.name,
+          language: notifyTemplate.language,
+          slots,
+          values,
+        });
         await this.httpService.axiosRef.post(
           messagesUrl,
           {
-            messaging_product: 'whatsapp',
+            ...sendBody,
             recipient_type: 'individual',
             to: `55${lead.tenant.phone.replace(/[^0-9]/g, '')}`,
-            type: 'template',
-            template: {
-              name: config.notifyTenantTemplateName,
-              language: {
-                code: 'pt_BR',
-              },
-              components: [
-                {
-                  type: 'body',
-                  parameters: [
-                    {
-                      type: 'text',
-                      parameter_name: 'customer_lead',
-                      text: customerLead,
-                    },
-                    {
-                      type: 'text',
-                      parameter_name: 'customer_name',
-                      text: lead.lead.name,
-                    },
-                    {
-                      type: 'text',
-                      parameter_name: 'customer_phone',
-                      text: customerPhone,
-                    },
-                  ],
-                },
-                {
-                  type: 'button',
-                  sub_type: 'url',
-                  index: '0',
-                  parameters: [
-                    {
-                      type: 'text',
-                      text: customerPhone,
-                    },
-                  ],
-                },
-              ],
-            },
           },
           {
             headers: {
@@ -548,5 +536,76 @@ export class LeadsService implements OnModuleInit {
         });
       })
     }
+  }
+
+  private asSlots(value: Prisma.JsonValue): TemplateSlot[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value as TemplateSlot[];
+  }
+
+  private roleBindings(
+    slotBindings: Prisma.JsonValue,
+    role: 'outreach' | 'notify',
+  ): Record<string, SlotBinding> {
+    if (!slotBindings || typeof slotBindings !== 'object' || Array.isArray(slotBindings)) {
+      return {};
+    }
+    const roleObj = (slotBindings as Record<string, unknown>)[role];
+    if (!roleObj || typeof roleObj !== 'object' || Array.isArray(roleObj)) {
+      return {};
+    }
+    const out: Record<string, SlotBinding> = {};
+    for (const [key, raw] of Object.entries(roleObj as Record<string, unknown>)) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        continue;
+      }
+      const rec = raw as Record<string, unknown>;
+      if (typeof rec.type !== 'string') {
+        continue;
+      }
+      out[key] = {
+        type: rec.type,
+        value: typeof rec.value === 'string' ? rec.value : rec.value == null ? null : String(rec.value),
+      };
+    }
+    return out;
+  }
+
+  private resolveRoleValues(
+    slots: TemplateSlot[],
+    bindings: Record<string, SlotBinding>,
+    ctx: { lead: LeadWithCity; tenant: Tenant },
+  ): Record<string, string> | null {
+    const now = new Date();
+    const resolveCtx = {
+      lead: {
+        name: ctx.lead.name,
+        phone: ctx.lead.phone,
+        cityName: ctx.lead.city?.name ?? null,
+        category: ctx.lead.category,
+        rating: ctx.lead.rating,
+      },
+      tenant: { phone: ctx.tenant.phone },
+      now,
+    };
+    const values: Record<string, string> = {};
+    for (const slot of slots) {
+      const binding = bindings[slot.key];
+      if (!binding) {
+        this.logger.warn(`[resolveRoleValues] binding ausente para slot ${slot.key}`);
+        return null;
+      }
+      const value = resolveBindingValue(binding, resolveCtx);
+      if (
+        (binding.type === 'literal' || binding.type === 'header_image') &&
+        !value
+      ) {
+        return null;
+      }
+      values[slot.key] = value;
+    }
+    return values;
   }
 }

@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -8,12 +9,10 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  IsUrl,
-  Matches,
-  MaxLength,
   Min,
-  MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { SlotBindingsDto } from './upsert-outreach-config.dto';
 
 /** PATCH: parcial — só campos enviados. */
 export class PatchOutreachConfigDto {
@@ -32,29 +31,23 @@ export class PatchOutreachConfigDto {
   @IsNumber()
   cashbackOnReply?: number;
 
-  @ApiPropertyOptional({
-    description: 'Texto positional {{1}} do body do template de outreach (quem entra em contato)',
-    example: 'Gladson Teixeira (contador em Pindamonhagaba)',
-    maxLength: 80,
-  })
+  @ApiPropertyOptional({ description: 'FK do template de outreach no catálogo' })
   @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(80)
-  @Matches(/^[^\r\n\t]+$/)
-  outreachContactText?: string;
+  @IsInt()
+  @Min(1)
+  outreachTemplateId?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'FK do template de notify no catálogo' })
   @IsOptional()
-  @IsString()
-  @MinLength(1)
-  outreachTemplateName?: string;
+  @IsInt()
+  @Min(1)
+  notifyTemplateId?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: SlotBindingsDto })
   @IsOptional()
-  @IsString()
-  @MinLength(1)
-  notifyTenantTemplateName?: string;
+  @ValidateNested()
+  @Type(() => SlotBindingsDto)
+  slotBindings?: SlotBindingsDto;
 
   @ApiPropertyOptional({
     description: 'Mapa dia-da-semana → horas UTC',
@@ -79,14 +72,6 @@ export class PatchOutreachConfigDto {
   @IsInt()
   @Min(1)
   leadsPerRun?: number;
-
-  @ApiPropertyOptional({
-    description: 'URL https da imagem de header do template',
-    example: 'https://example.com/header.png',
-  })
-  @IsOptional()
-  @IsUrl({ require_protocol: true, protocols: ['https'] })
-  headerImageUrl?: string | null;
 
   @ApiPropertyOptional({
     description: 'Intervalo em segundos entre envios',

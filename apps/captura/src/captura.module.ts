@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CapturaController } from './captura.controller';
 import { CapturaScraperService } from './captura-scraper.service';
+import { DynamicScrapeCronService } from './dynamic-scrape-cron.service';
 import { PrismaModule } from '@core/infra';
 import { ScheduleModule } from '@nestjs/schedule';
 import { GoogleMapsScraper } from './scraper/google-maps.scraper';
@@ -11,6 +12,12 @@ import { GoogleMapsNeighborhoodScraper } from './scraper/google-maps-neighborhoo
 @Module({
   imports: [PrismaModule, ScheduleModule.forRoot(), HttpModule],
   controllers: [CapturaController],
-  providers: [CapturaScraperService, GoogleMapsScraper, LeadsService, GoogleMapsNeighborhoodScraper],
+  providers: [
+    CapturaScraperService,
+    DynamicScrapeCronService,
+    GoogleMapsScraper,
+    LeadsService,
+    GoogleMapsNeighborhoodScraper,
+  ],
 })
 export class CapturaModule { }

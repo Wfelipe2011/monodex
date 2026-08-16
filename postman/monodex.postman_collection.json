@@ -6,20 +6,64 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "gymBaseUrl", "value": "http://localhost:3001" },
-    { "key": "notiflyBaseUrl", "value": "http://localhost:3000" },
-    { "key": "adminEmail", "value": "platform-admin@local.dev" },
-    { "key": "adminPassword", "value": "platform-admin-dev" },
-    { "key": "token", "value": "" },
-    { "key": "tenantId", "value": "1" },
-    { "key": "userId", "value": "1" },
-    { "key": "whatsappAccountId", "value": "1" },
-    { "key": "scrapeTargetId", "value": "1" },
-    { "key": "tenantUuid", "value": "00000000-0000-0000-0000-000000000000" }
+    {
+      "key": "gymBaseUrl",
+      "value": "http://localhost:3001"
+    },
+    {
+      "key": "notiflyBaseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "adminEmail",
+      "value": "platform-admin@local.dev"
+    },
+    {
+      "key": "adminPassword",
+      "value": "platform-admin-dev"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "tenantId",
+      "value": "1"
+    },
+    {
+      "key": "userId",
+      "value": "1"
+    },
+    {
+      "key": "whatsappAccountId",
+      "value": "1"
+    },
+    {
+      "key": "wabaId",
+      "value": "SET_WABA_ID"
+    },
+    {
+      "key": "templateId",
+      "value": "1"
+    },
+    {
+      "key": "scrapeTargetId",
+      "value": "1"
+    },
+    {
+      "key": "tenantUuid",
+      "value": "00000000-0000-0000-0000-000000000000"
+    }
   ],
   "auth": {
     "type": "bearer",
-    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
   },
   "item": [
     {
@@ -45,9 +89,16 @@
             }
           ],
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
@@ -59,7 +110,9 @@
         {
           "name": "Health Check (gym)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
             "header": [],
             "url": "{{gymBaseUrl}}/health-check"
@@ -115,8 +168,13 @@
             "header": [],
             "url": {
               "raw": "{{gymBaseUrl}}/admin/tenants",
-              "host": ["{{gymBaseUrl}}"],
-              "path": ["admin", "tenants"],
+              "host": [
+                "{{gymBaseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants"
+              ],
               "query": [
                 {
                   "key": "active",
@@ -147,13 +205,18 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Academia Centro\",\n  \"phone\": \"15999998888\",\n  \"active\": true\n}"
             },
             "url": "{{gymBaseUrl}}/admin/tenants",
-            "description": "`phone` é o número que recebe o notifyTenantTemplateName (sem +55 obrigatório no código — o notifly prefixa 55)."
+            "description": "`phone` é o número que recebe o notify do tenant (sem +55 obrigatório no código — o notifly prefixa 55)."
           }
         },
         {
@@ -168,7 +231,12 @@
           "name": "Update Tenant",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Academia Centro\",\n  \"phone\": \"15999998888\",\n  \"active\": true\n}"
@@ -207,7 +275,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Maria Silva\",\n  \"username\": \"maria.admin\",\n  \"email\": \"maria@academia.com\",\n  \"password\": \"senha-segura\",\n  \"roles\": [\"ADMIN\"]\n}"
@@ -220,7 +293,12 @@
           "name": "Update User",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Maria Silva\",\n  \"roles\": [\"ADMIN\"]\n}"
@@ -232,7 +310,12 @@
           "name": "Reset Password",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"password\": \"nova-senha\"\n}"
@@ -260,9 +343,21 @@
             "header": [],
             "url": {
               "raw": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/coin-transactions?limit=50",
-              "host": ["{{gymBaseUrl}}"],
-              "path": ["admin", "tenants", "{{tenantId}}", "coin-transactions"],
-              "query": [{ "key": "limit", "value": "50" }]
+              "host": [
+                "{{gymBaseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantId}}",
+                "coin-transactions"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
             }
           }
         },
@@ -270,7 +365,12 @@
           "name": "Credit Coins",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"userId\": {{userId}},\n  \"amount\": 10,\n  \"description\": \"Credito inicial onboarding\",\n  \"type\": \"CREDITO\"\n}"
@@ -283,7 +383,12 @@
           "name": "Debit Coins",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"userId\": {{userId}},\n  \"amount\": 3,\n  \"description\": \"Ajuste operacional\"\n}"
@@ -308,23 +413,33 @@
           "name": "Upsert Outreach Config (PUT)",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"enabled\": true,\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\",\n  \"schedule\": {\n    \"2\": [18],\n    \"3\": [18],\n    \"4\": [13, 18]\n  },\n  \"categories\": [\n    \"Construtoras\",\n    \"Escritórios de advocacia\",\n    \"Clínicas médicas\",\n    \"Clínicas odontológicas\",\n    \"Consultórios\",\n    \"Estéticas\",\n    \"Consutorias\"\n  },\n  \"leadsPerRun\": 5,\n  \"sendIntervalSeconds\": 5,\n  \"outreachContactText\": \"Gladson Teixeira (contador em Pindamonhagaba)\"\n}"
+              "raw": "{\n  \"enabled\": true,\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"slotBindings\": {\n    \"outreach\": {\n      \"body.1\": {\n        \"type\": \"literal\",\n        \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\"\n      },\n      \"header.image\": {\n        \"type\": \"header_image\",\n        \"value\": \"\"\n      }\n    },\n    \"notify\": {\n      \"body.customer_name\": {\n        \"type\": \"lead.name\"\n      },\n      \"body.customer_phone\": {\n        \"type\": \"lead.phone\"\n      },\n      \"body.customer_lead\": {\n        \"type\": \"literal\",\n        \"value\": \"customer_lead\"\n      }\n    }\n  },\n  \"schedule\": {\n    \"2\": [\n      18\n    ],\n    \"3\": [\n      18\n    ],\n    \"4\": [\n      13,\n      18\n    ]\n  },\n  \"categories\": [\n    \"Construtoras\",\n    \"Escritórios de advocacia\",\n    \"Clínicas médicas\",\n    \"Clínicas odontológicas\",\n    \"Consultórios\",\n    \"Estéticas\",\n    \"Consutorias\"\n  ],\n  \"leadsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
             },
             "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config",
-            "description": "Templates = nomes aprovados na Meta. `schedule`: dia da semana (0=Dom) → horas."
+            "description": "Templates = FKs do catalogo. `slotBindings.outreach` / `.notify` keyed por slot. `schedule`: dia da semana (0=Dom) → horas."
           }
         },
         {
           "name": "Patch Outreach Config",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateName\": \"amigavel\",\n  \"notifyTenantTemplateName\": \"lembrete_entrar_contato_cliente\",\n  \"leadsPerRun\": 5,\n  \"outreachContactText\": \"Gladson Teixeira (contador em Pindamonhagaba)\"\n}"
+              "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"leadsPerRun\": 5,\n  \"slotBindings\": {\n    \"outreach\": {\n      \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" }\n    },\n    \"notify\": {\n      \"body.customer_name\": { \"type\": \"lead.name\" },\n      \"body.customer_phone\": { \"type\": \"lead.phone\" },\n      \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n    }\n  }\n}"
             },
             "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config"
           }
@@ -361,13 +476,18 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
+              "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"wabaId\": \"{{wabaId}}\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
             },
             "url": "{{gymBaseUrl}}/admin/whatsapp-accounts",
-            "description": "Nunca envie o access token. Só `tokenEnvKey` apontando para a env (ex.: WHATSAPP_TOKEN no .env do notifly)."
+            "description": "Nunca envie o access token. Só `tokenEnvKey` apontando para a env (ex.: WHATSAPP_TOKEN no .env do notifly). `wabaId` é obrigatório para sync do catálogo."
           }
         },
         {
@@ -382,12 +502,131 @@
           "name": "Patch WhatsApp Account",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
+              "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"wabaId\": \"{{wabaId}}\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
             },
             "url": "{{gymBaseUrl}}/admin/whatsapp-accounts/{{whatsappAccountId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Platform Job Schedules",
+      "item": [
+        {
+          "name": "Get Job Schedule SCRAPE",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/platform-job-schedules/SCRAPE",
+            "description": "SUPER_ADMIN. Default seed: 0 6 * * * America/Sao_Paulo."
+          }
+        },
+        {
+          "name": "Put Job Schedule SCRAPE",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cronExpression\": \"0 8 * * *\",\n  \"timeZone\": \"America/Sao_Paulo\",\n  \"enabled\": true\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/platform-job-schedules/SCRAPE",
+            "description": "Workers fazem poll; PUT não notifica processos."
+          }
+        },
+        {
+          "name": "Get Job Schedule WHATSAPP_TEMPLATE_SYNC",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/platform-job-schedules/WHATSAPP_TEMPLATE_SYNC",
+            "description": "SUPER_ADMIN. Default seed: 0 5 * * * America/Sao_Paulo."
+          }
+        },
+        {
+          "name": "Put Job Schedule WHATSAPP_TEMPLATE_SYNC",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cronExpression\": \"0 5 * * *\",\n  \"timeZone\": \"America/Sao_Paulo\",\n  \"enabled\": true\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/platform-job-schedules/WHATSAPP_TEMPLATE_SYNC"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — WhatsApp Templates",
+      "item": [
+        {
+          "name": "Sync WhatsApp Templates",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/whatsapp-templates/sync",
+            "description": "SUPER_ADMIN. Sincroniza catálogo a partir da WABA da plataforma."
+          }
+        },
+        {
+          "name": "List WhatsApp Templates",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const rows = Array.isArray(json) ? json : (json.items || json.data || []);",
+                  "  if (rows[0] && rows[0].id) pm.collectionVariables.set('templateId', String(rows[0].id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/whatsapp-templates",
+            "description": "SUPER_ADMIN. Query opcional: status, name."
+          }
+        },
+        {
+          "name": "Test WhatsApp Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"11999999999\",\n  \"variables\": {}\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/whatsapp-templates/{{templateId}}/test",
+            "description": "SUPER_ADMIN. Envia o template do catálogo sem TenantLead/coin."
           }
         }
       ]
@@ -413,7 +652,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"cityName\": \"Taubaté\",\n  \"state\": \"SP\",\n  \"category\": \"Construtoras\",\n  \"enabled\": true\n}"
@@ -442,7 +686,12 @@
           "name": "Patch Scrape Target",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"enabled\": false\n}"
@@ -467,8 +716,13 @@
             "header": [],
             "url": {
               "raw": "{{gymBaseUrl}}/admin/scrape-coverages",
-              "host": ["{{gymBaseUrl}}"],
-              "path": ["admin", "scrape-coverages"],
+              "host": [
+                "{{gymBaseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "scrape-coverages"
+              ],
               "query": [
                 {
                   "key": "cityId",
@@ -491,7 +745,9 @@
     },
     {
       "name": "Notifly",
-      "auth": { "type": "noauth" },
+      "auth": {
+        "type": "noauth"
+      },
       "item": [
         {
           "name": "Health Check",
@@ -517,12 +773,25 @@
             "header": [],
             "url": {
               "raw": "{{notiflyBaseUrl}}/response-leads?hub.mode=subscribe&hub.verify_token=TOKEN&hub.challenge=12345",
-              "host": ["{{notiflyBaseUrl}}"],
-              "path": ["response-leads"],
+              "host": [
+                "{{notiflyBaseUrl}}"
+              ],
+              "path": [
+                "response-leads"
+              ],
               "query": [
-                { "key": "hub.mode", "value": "subscribe" },
-                { "key": "hub.verify_token", "value": "TOKEN" },
-                { "key": "hub.challenge", "value": "12345" }
+                {
+                  "key": "hub.mode",
+                  "value": "subscribe"
+                },
+                {
+                  "key": "hub.verify_token",
+                  "value": "TOKEN"
+                },
+                {
+                  "key": "hub.challenge",
+                  "value": "12345"
+                }
               ]
             },
             "description": "Verificação Meta webhook — responde o hub.challenge."
@@ -532,7 +801,12 @@
           "name": "Webhook Incoming (POST) — Sim",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_ID\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15550001111\",\n              \"phone_number_id\": \"688645744332614\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": { \"name\": \"Lead Teste\" },\n                \"wa_id\": \"5511999990000\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"5511999990000\",\n                \"id\": \"wamid.INCOMING\",\n                \"timestamp\": \"1710000000\",\n                \"type\": \"button\",\n                \"button\": {\n                  \"payload\": \"Sim\",\n                  \"text\": \"Sim\"\n                },\n                \"context\": {\n                  \"from\": \"15550001111\",\n                  \"id\": \"wamid.SUBSTITUA_PELO_MESSAGE_ID_DO_TENANT_LEAD\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}"
@@ -550,7 +824,9 @@
         {
           "name": "README — veja descrição da pasta",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
             "header": [],
             "url": "{{gymBaseUrl}}/health-check",

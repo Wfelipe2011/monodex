@@ -18,6 +18,7 @@ import { OutreachConfigService } from './outreach-config.service';
 import { UpsertOutreachConfigDto } from './dto/upsert-outreach-config.dto';
 import { PatchOutreachConfigDto } from './dto/patch-outreach-config.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
+import { rejectLegacyOutreachFields } from './reject-legacy-outreach-fields';
 
 @ApiTags('Admin — Outreach Config')
 @ApiBearerAuth()
@@ -31,7 +32,7 @@ export class OutreachConfigController {
   @ApiOperation({
     summary: 'Obter outreach config do tenant (404 se não houver)',
     description:
-      'Devolve o model completo, incluindo outreachContactText, leadsPerRun, headerImageUrl e sendIntervalSeconds.',
+      'Devolve ids de catálogo, slotBindings, knobs de envio e relações mínimas dos templates (id, name, language, status).',
   })
   get(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.outreachConfigService.get(tenantId);
@@ -41,9 +42,10 @@ export class OutreachConfigController {
   @ApiOperation({
     summary: 'Upsert completo de outreach config',
     description:
-      'Cria ou substitui a config. outreachContactText é obrigatório (máx. 80, sem newline/tab). ' +
-      'enabled=true exige tenant.active, phone e outreachContactText preenchidos. ' +
-      'leadsPerRun, headerImageUrl e sendIntervalSeconds são opcionais (defaults 5 / null / 5).',
+      'Cria ou substitui a config. Obrigatórios: costPerLead, outreachTemplateId, notifyTemplateId, slotBindings, schedule, categories. ' +
+      'Campos legado (outreachTemplateName, notifyTenantTemplateName, outreachContactText, headerImageUrl) retornam 400. ' +
+      'enabled=true exige tenant ativo com phone, templates APPROVED e cobertura de slots. ' +
+      'leadsPerRun e sendIntervalSeconds default 5.',
   })
   upsert(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -51,6 +53,7 @@ export class OutreachConfigController {
     @Req() req: Request,
   ) {
     rejectSecretTokenFields(req.body);
+    rejectLegacyOutreachFields(req.body);
     return this.outreachConfigService.upsert(tenantId, dto);
   }
 
@@ -58,8 +61,8 @@ export class OutreachConfigController {
   @ApiOperation({
     summary: 'Patch parcial de outreach config',
     description:
-      'Altera só campos enviados (inclui outreachContactText, leadsPerRun, headerImageUrl, sendIntervalSeconds). ' +
-      'enabled=true exige tenant pronto + outreachContactText e campos obrigatórios já persistidos.',
+      'Altera só campos enviados. Merge com a config existente. ' +
+      'Campos legado retornam 400. enabled=true exige templates APPROVED e bindings completos já persistidos ou no body.',
   })
   patch(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -67,6 +70,7 @@ export class OutreachConfigController {
     @Req() req: Request,
   ) {
     rejectSecretTokenFields(req.body);
+    rejectLegacyOutreachFields(req.body);
     return this.outreachConfigService.patch(tenantId, dto);
   }
 }

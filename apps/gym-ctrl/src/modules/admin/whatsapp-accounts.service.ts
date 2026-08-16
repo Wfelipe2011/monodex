@@ -12,6 +12,7 @@ const accountSelect = {
   id: true,
   provider: true,
   phoneNumberId: true,
+  wabaId: true,
   displayPhone: true,
   tokenEnvKey: true,
   tenantId: true,
@@ -38,6 +39,7 @@ export class WhatsappAccountsService {
       data: {
         provider: WhatsappProvider.CLOUD_API,
         phoneNumberId: dto.phoneNumberId,
+        wabaId: dto.wabaId,
         displayPhone: dto.displayPhone,
         tokenEnvKey: dto.tokenEnvKey ?? 'WHATSAPP_TOKEN',
         tenantId: null,
@@ -72,6 +74,7 @@ export class WhatsappAccountsService {
         ...(dto.phoneNumberId !== undefined
           ? { phoneNumberId: dto.phoneNumberId }
           : {}),
+        ...(dto.wabaId !== undefined ? { wabaId: dto.wabaId } : {}),
         ...(dto.displayPhone !== undefined
           ? { displayPhone: dto.displayPhone }
           : {}),

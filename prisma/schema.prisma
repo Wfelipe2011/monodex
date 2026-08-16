@@ -271,39 +271,81 @@ enum WhatsappProvider {
 }
 
 model WhatsappAccount {
-  id            Int              @id @default(autoincrement())
-  provider      WhatsappProvider @default(CLOUD_API)
-  phoneNumberId String           @map("phone_number_id")
-  displayPhone  String?          @map("display_phone")
-  tokenEnvKey   String           @default("WHATSAPP_TOKEN") @map("token_env_key")
-  tenantId      Int?             @map("tenant_id")
-  tenant        Tenant?          @relation(fields: [tenantId], references: [id])
-  enabled       Boolean          @default(true)
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
+  id            Int                       @id @default(autoincrement())
+  provider      WhatsappProvider          @default(CLOUD_API)
+  phoneNumberId String                    @map("phone_number_id")
+  displayPhone  String?                   @map("display_phone")
+  tokenEnvKey   String                    @default("WHATSAPP_TOKEN") @map("token_env_key")
+  wabaId        String                    @map("waba_id")
+  tenantId      Int?                      @map("tenant_id")
+  tenant        Tenant?                   @relation(fields: [tenantId], references: [id])
+  enabled       Boolean                   @default(true)
+  createdAt     DateTime                  @default(now()) @map("created_at")
+  updatedAt     DateTime                  @updatedAt @map("updated_at")
+  templates     WhatsappMessageTemplate[]
 
   @@map("whatsapp_accounts")
 }
 
+model WhatsappMessageTemplate {
+  id                Int                    @id @default(autoincrement())
+  whatsappAccountId Int                    @map("whatsapp_account_id")
+  whatsappAccount   WhatsappAccount        @relation(fields: [whatsappAccountId], references: [id])
+  metaId            String?                @map("meta_id")
+  name              String
+  language          String
+  status            String
+  category          String?
+  parameterFormat   String?                @map("parameter_format")
+  components        Json
+  slots             Json
+  lastSyncedAt      DateTime               @map("last_synced_at")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+  outreachConfigs   TenantOutreachConfig[] @relation("OutreachTemplate")
+  notifyConfigs     TenantOutreachConfig[] @relation("NotifyTemplate")
+
+  @@unique([whatsappAccountId, name, language])
+  @@map("whatsapp_message_templates")
+}
+
 model TenantOutreachConfig {
-  id                       Int      @id @default(autoincrement())
-  tenantId                 Int      @unique @map("tenant_id")
-  tenant                   Tenant   @relation(fields: [tenantId], references: [id])
-  enabled                  Boolean  @default(false)
-  costPerLead              Float    @map("cost_per_lead")
-  cashbackOnReply          Float    @default(0) @map("cashback_on_reply")
-  outreachTemplateName     String   @map("outreach_template_name")
-  notifyTenantTemplateName String   @map("notify_tenant_template_name")
-  schedule                 Json
-  categories               Json
-  leadsPerRun              Int      @default(5) @map("leads_per_run")
-  headerImageUrl           String?  @map("header_image_url")
-  sendIntervalSeconds      Int      @default(5) @map("send_interval_seconds")
-  outreachContactText      String   @map("outreach_contact_text")
-  createdAt                DateTime @default(now()) @map("created_at")
-  updatedAt                DateTime @updatedAt @map("updated_at")
+  id                  Int                      @id @default(autoincrement())
+  tenantId            Int                      @unique @map("tenant_id")
+  tenant              Tenant                   @relation(fields: [tenantId], references: [id])
+  enabled             Boolean                  @default(false)
+  costPerLead         Float                    @map("cost_per_lead")
+  cashbackOnReply     Float                    @default(0) @map("cashback_on_reply")
+  outreachTemplateId  Int?                     @map("outreach_template_id")
+  notifyTemplateId    Int?                     @map("notify_template_id")
+  outreachTemplate    WhatsappMessageTemplate? @relation("OutreachTemplate", fields: [outreachTemplateId], references: [id])
+  notifyTemplate      WhatsappMessageTemplate? @relation("NotifyTemplate", fields: [notifyTemplateId], references: [id])
+  slotBindings        Json                     @default("{}") @map("slot_bindings")
+  schedule            Json
+  categories          Json
+  leadsPerRun         Int                      @default(5) @map("leads_per_run")
+  sendIntervalSeconds Int                      @default(5) @map("send_interval_seconds")
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
 
   @@map("tenant_outreach_configs")
+}
+
+enum PlatformJobKey {
+  WHATSAPP_TEMPLATE_SYNC
+  SCRAPE
+}
+
+model PlatformJobSchedule {
+  id             Int            @id @default(autoincrement())
+  jobKey         PlatformJobKey @unique @map("job_key")
+  cronExpression String         @map("cron_expression")
+  timeZone       String         @default("America/Sao_Paulo") @map("time_zone")
+  enabled        Boolean        @default(true)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@map("platform_job_schedules")
 }
 
 model ScrapeTarget {

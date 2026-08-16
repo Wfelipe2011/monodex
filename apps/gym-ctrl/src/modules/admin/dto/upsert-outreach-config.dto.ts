@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -8,14 +9,43 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  IsUrl,
-  Matches,
-  MaxLength,
   Min,
-  MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { BINDING_TYPES } from '@core/shared/whatsapp-template-bindings';
 
-/** PUT: upsert completo — campos required do Prisma (exceto defaults sensatos). */
+export class SlotBindingEntryDto {
+  @ApiProperty({ enum: BINDING_TYPES })
+  @IsString()
+  type: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  value?: string;
+}
+
+export class SlotBindingsDto {
+  @ApiProperty({
+    description: 'Bindings do template de outreach, keyed por slot',
+    example: {
+      'body.1': { type: 'literal', value: 'Gladson Teixeira' },
+    },
+  })
+  @IsObject()
+  outreach: Record<string, SlotBindingEntryDto>;
+
+  @ApiProperty({
+    description: 'Bindings do template de notify, keyed por slot',
+    example: {
+      'body.customer_name': { type: 'lead.name' },
+    },
+  })
+  @IsObject()
+  notify: Record<string, SlotBindingEntryDto>;
+}
+
+/** PUT: upsert completo — campos required (exceto defaults sensatos). */
 export class UpsertOutreachConfigDto {
   @ApiPropertyOptional({ description: 'Habilitar outreach', default: false })
   @IsOptional()
@@ -31,26 +61,20 @@ export class UpsertOutreachConfigDto {
   @IsNumber()
   cashbackOnReply?: number;
 
-  @ApiProperty({
-    description: 'Texto positional {{1}} do body do template de outreach (quem entra em contato)',
-    example: 'Gladson Teixeira (contador em Pindamonhagaba)',
-    maxLength: 80,
-  })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(80)
-  @Matches(/^[^\r\n\t]+$/)
-  outreachContactText: string;
+  @ApiProperty({ description: 'FK do template de outreach no catálogo' })
+  @IsInt()
+  @Min(1)
+  outreachTemplateId: number;
 
-  @ApiProperty({ example: 'amigavel' })
-  @IsString()
-  @MinLength(1)
-  outreachTemplateName: string;
+  @ApiProperty({ description: 'FK do template de notify no catálogo' })
+  @IsInt()
+  @Min(1)
+  notifyTemplateId: number;
 
-  @ApiProperty({ example: 'lembrete_entrar_contato_cliente' })
-  @IsString()
-  @MinLength(1)
-  notifyTenantTemplateName: string;
+  @ApiProperty({ type: SlotBindingsDto })
+  @ValidateNested()
+  @Type(() => SlotBindingsDto)
+  slotBindings: SlotBindingsDto;
 
   @ApiProperty({
     description: 'Mapa dia-da-semana → horas UTC',
@@ -78,14 +102,6 @@ export class UpsertOutreachConfigDto {
   @IsInt()
   @Min(1)
   leadsPerRun?: number;
-
-  @ApiPropertyOptional({
-    description: 'URL https da imagem de header do template',
-    example: 'https://example.com/header.png',
-  })
-  @IsOptional()
-  @IsUrl({ require_protocol: true, protocols: ['https'] })
-  headerImageUrl?: string | null;
 
   @ApiPropertyOptional({
     description: 'Intervalo em segundos entre envios (default 5)',
