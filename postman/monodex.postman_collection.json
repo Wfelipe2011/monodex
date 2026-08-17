@@ -53,6 +53,18 @@
     {
       "key": "tenantUuid",
       "value": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "key": "listId",
+      "value": "1"
+    },
+    {
+      "key": "leadId",
+      "value": "1"
+    },
+    {
+      "key": "campaignId",
+      "value": "1"
     }
   ],
   "auth": {
@@ -739,6 +751,404 @@
               ]
             },
             "description": "Somente leitura. Retorna [] se nunca scrapou."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lead Lists & Campaigns",
+      "description": "APIs SUPER_ADMIN para listas, leads, campanhas, sends e inbox.\n\nVariáveis: `tenantId`, `listId`, `leadId`, `campaignId`, `templateId`.\nScripts de create salvam ids automaticamente.\n\n## Checklist manual (dev + WHATSAPP_TOKEN)\n1. Criar lista + import CSV 3 leads\n2. Criar campanha com template APPROVED + bindings recipient.*\n3. Enable campanha; trigger cron ou wait window\n4. Verificar coin debit + TenantListSend + outbound message\n5. Simular webhook inbound button NOTIFY → tenant recebe notify (sem coin credit)\n6. Simular webhook status failed → lead elegível para outra campanha\n7. GET messages + POST text dentro 24h\n8. GET sends?status=failed\n\nSeed opcional: `npx ts-node prisma/seed-list-campaigns.ts`",
+      "item": [
+        {
+          "name": "Category Suggestions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/category-suggestions",
+            "description": "Distinct categories de Lead e TenantListLead do tenant."
+          }
+        },
+        {
+          "name": "List Lead Lists",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists"
+          }
+        },
+        {
+          "name": "Create Lead List",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('listId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Construtoras SP\",\n  \"costPerSend\": 1.5\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists",
+            "description": "costPerSend deve ser > 0."
+          }
+        },
+        {
+          "name": "Get Lead List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}"
+          }
+        },
+        {
+          "name": "Patch Lead List",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Construtoras SP (atualizada)\",\n  \"costPerSend\": 2\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}"
+          }
+        },
+        {
+          "name": "Download Import Template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/import-template",
+            "description": "Retorna CSV exemplo: name,phone,website,category,reviews"
+          }
+        },
+        {
+          "name": "Import Leads CSV",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "CSV com header name,phone,website,category,reviews"
+                }
+              ]
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/import",
+            "description": "Multipart field `file`. Falha atômica se linha inválida ou phone duplicado."
+          }
+        },
+        {
+          "name": "List Leads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads"
+          }
+        },
+        {
+          "name": "Create Lead",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('leadId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Construtora ABC\",\n  \"phone\": \"11987654321\",\n  \"website\": \"https://example.com\",\n  \"category\": \"Construtoras\",\n  \"reviews\": 42\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads",
+            "description": "phone normalizado; duplicata na lista retorna 400."
+          }
+        },
+        {
+          "name": "Bulk Create Leads",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leads\": [\n    {\n      \"name\": \"Lead Demo 1\",\n      \"phone\": \"11911111111\",\n      \"category\": \"Construtoras\"\n    },\n    {\n      \"name\": \"Lead Demo 2\",\n      \"phone\": \"11922222222\",\n      \"category\": \"Construtoras\"\n    }\n  ]\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/bulk",
+            "description": "Falha atômica se phone duplicado no body ou na lista."
+          }
+        },
+        {
+          "name": "Get Lead",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}"
+          }
+        },
+        {
+          "name": "Patch Lead",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Construtora ABC (atualizada)\",\n  \"reviews\": 50\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}"
+          }
+        },
+        {
+          "name": "Delete Lead",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}"
+          }
+        },
+        {
+          "name": "List Campaigns",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/campaigns"
+          }
+        },
+        {
+          "name": "Create Campaign",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('campaignId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Campanha Demo\",\n  \"enabled\": false,\n  \"templateId\": {{templateId}},\n  \"slotBindings\": {\n    \"send\": {\n      \"body.1\": {\n        \"type\": \"literal\",\n        \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\"\n      },\n      \"header.image\": {\n        \"type\": \"header_image\",\n        \"value\": \"\"\n      }\n    }\n  },\n  \"notifyTemplateId\": {{templateId}},\n  \"notifySlotBindings\": {\n    \"notify\": {\n      \"body.customer_name\": { \"type\": \"recipient.name\" },\n      \"body.customer_phone\": { \"type\": \"recipient.phone\" },\n      \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n    }\n  },\n  \"buttonActions\": [],\n  \"schedule\": {\n    \"2\": [18],\n    \"4\": [13]\n  },\n  \"sendsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/campaigns",
+            "description": "enabled=true exige template APPROVED, bindings send completos, notify se NOTIFY, labels de botão válidos. Use List WhatsApp Templates para obter templateId."
+          }
+        },
+        {
+          "name": "Get Campaign",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/campaigns/{{campaignId}}"
+          }
+        },
+        {
+          "name": "Replace Campaign (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Campanha Demo (replace)\",\n  \"enabled\": false,\n  \"templateId\": {{templateId}},\n  \"slotBindings\": {\n    \"send\": {\n      \"body.1\": {\n        \"type\": \"literal\",\n        \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\"\n      },\n      \"header.image\": {\n        \"type\": \"header_image\",\n        \"value\": \"\"\n      }\n    }\n  },\n  \"notifyTemplateId\": {{templateId}},\n  \"notifySlotBindings\": {\n    \"notify\": {\n      \"body.customer_name\": { \"type\": \"recipient.name\" },\n      \"body.customer_phone\": { \"type\": \"recipient.phone\" },\n      \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n    }\n  },\n  \"buttonActions\": [],\n  \"schedule\": {\n    \"2\": [18],\n    \"4\": [13]\n  },\n  \"sendsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/campaigns/{{campaignId}}",
+            "description": "Substitui campanha com corpo completo."
+          }
+        },
+        {
+          "name": "Patch Campaign",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/campaigns/{{campaignId}}",
+            "description": "Patch parcial. enabled=true valida template APPROVED + bindings + botões."
+          }
+        },
+        {
+          "name": "List Sends",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/sends?limit=100",
+              "host": [
+                "{{gymBaseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantId}}",
+                "lead-lists",
+                "{{listId}}",
+                "sends"
+              ],
+              "query": [
+                {
+                  "key": "campaignId",
+                  "value": "{{campaignId}}",
+                  "description": "Opcional: filtrar por campanha",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retorna até 100 sends com lastStatus, listLead e campaign."
+          }
+        },
+        {
+          "name": "List Failed Sends",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/sends?status=failed",
+              "host": [
+                "{{gymBaseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantId}}",
+                "lead-lists",
+                "{{listId}}",
+                "sends"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "failed"
+                },
+                {
+                  "key": "campaignId",
+                  "value": "{{campaignId}}",
+                  "description": "Opcional",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Filtra sends cujo lastStatus === failed. Inclui latestError quando failed."
+          }
+        },
+        {
+          "name": "Get Conversation Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}/messages",
+              "host": [
+                "{{gymBaseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantId}}",
+                "lead-lists",
+                "{{listId}}",
+                "leads",
+                "{{leadId}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "since",
+                  "value": "2026-08-17T12:00:00.000Z",
+                  "description": "Opcional: polling incremental (ISO8601)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Histórico ordenado por createdAt ASC."
+          }
+        },
+        {
+          "name": "Send Conversation Text",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Olá! Obrigado pelo retorno.\"\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}/messages",
+            "description": "Exige inbound do lead nas últimas 24h. Retorna 400 OUTSIDE_MESSAGING_WINDOW fora da janela Meta."
           }
         }
       ]

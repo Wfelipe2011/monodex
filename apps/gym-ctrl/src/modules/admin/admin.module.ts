@@ -23,6 +23,18 @@ import { ScrapeCoveragesController } from './scrape-coverages.controller';
 import { ScrapeCoveragesService } from './scrape-coverages.service';
 import { WhatsappTemplatesController } from './whatsapp-templates.controller';
 import { WhatsappTemplatesService } from './whatsapp-templates.service';
+import {
+  LeadListsController,
+  TenantCategorySuggestionsController,
+} from './lead-lists.controller';
+import { LeadListsService } from './lead-lists.service';
+import {
+  ListCampaignsController,
+  ListSendsController,
+} from './list-campaigns.controller';
+import { ListCampaignsService } from './list-campaigns.service';
+import { ListConversationsController } from './list-conversations.controller';
+import { ListConversationsService } from './list-conversations.service';
 
 @Module({
   imports: [PrismaModule, HttpModule],
@@ -37,6 +49,11 @@ import { WhatsappTemplatesService } from './whatsapp-templates.service';
     PlatformJobSchedulesController,
     ScrapeTargetsController,
     ScrapeCoveragesController,
+    LeadListsController,
+    TenantCategorySuggestionsController,
+    ListCampaignsController,
+    ListSendsController,
+    ListConversationsController,
     OpsController,
   ],
   providers: [
@@ -50,6 +67,9 @@ import { WhatsappTemplatesService } from './whatsapp-templates.service';
     PlatformJobSchedulesService,
     ScrapeTargetsService,
     ScrapeCoveragesService,
+    LeadListsService,
+    ListCampaignsService,
+    ListConversationsService,
     OpsService,
   ],
 })

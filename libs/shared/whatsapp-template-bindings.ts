@@ -6,6 +6,11 @@ export const BINDING_TYPES = [
   'lead.city',
   'lead.category',
   'lead.rating',
+  'recipient.name',
+  'recipient.phone',
+  'recipient.category',
+  'recipient.website',
+  'recipient.reviews',
   'tenant.phone',
   'now.date',
   'now.datetime',
@@ -26,8 +31,17 @@ export type BindingLeadContext = {
   rating?: number | null;
 };
 
+export type BindingRecipientContext = {
+  name?: string | null;
+  phone?: string | null;
+  category?: string | null;
+  website?: string | null;
+  reviews?: number | null;
+};
+
 export type BindingResolveContext = {
   lead?: BindingLeadContext | null;
+  recipient?: BindingRecipientContext | null;
   tenant?: { phone?: string | null } | null;
   now?: Date;
 };
@@ -95,6 +109,7 @@ export function resolveBindingValue(
   }
   const now = ctx.now ?? new Date();
   const lead = ctx.lead ?? {};
+  const recipient = ctx.recipient ?? {};
 
   switch (type as BindingType) {
     case 'literal':
@@ -110,6 +125,16 @@ export function resolveBindingValue(
       return emptyToDash(lead.category);
     case 'lead.rating':
       return formatRating(lead.rating);
+    case 'recipient.name':
+      return emptyToDash(recipient.name);
+    case 'recipient.phone':
+      return normalizeBrazilPhoneDigits(recipient.phone);
+    case 'recipient.category':
+      return emptyToDash(recipient.category);
+    case 'recipient.website':
+      return emptyToDash(recipient.website);
+    case 'recipient.reviews':
+      return formatRating(recipient.reviews);
     case 'tenant.phone':
       return normalizeBrazilPhoneDigits(ctx.tenant?.phone);
     case 'now.date':

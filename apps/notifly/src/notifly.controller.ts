@@ -1,12 +1,25 @@
 import { All, Body, Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
 import { LeadsService } from './leads.service';
-import { WhatsAppWebhook } from './interfaces';
+import { Message, WhatsAppWebhook } from './interfaces';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
-import { MessageDirection } from '@prisma/client';
+import { WebhookPersistenceService } from './webhook-persistence.service';
+import { ListCampaignReplyService } from './list-campaign-reply.service';
+
+function isTenhoInteresse(msg: Message): boolean {
+  return (
+    msg.button?.text === 'Tenho Interesse!' ||
+    Boolean(msg.text?.body?.includes('Tenho Interesse!'))
+  );
+}
 
 @Controller()
 export class NotiflyController {
-  constructor(private readonly leadsService: LeadsService, private prisma: PrismaService,) { }
+  constructor(
+    private readonly leadsService: LeadsService,
+    private readonly prisma: PrismaService,
+    private readonly webhookPersistence: WebhookPersistenceService,
+    private readonly listCampaignReplyService: ListCampaignReplyService,
+  ) {}
 
   @Get('health-check')
   async healthCheck() {
@@ -39,24 +52,40 @@ export class NotiflyController {
 
   @Post('response-leads')
   async responseLeads(@Body() body: WhatsAppWebhook, @Query() query, @Res() res) {
-    if (body.entry[0].changes[0].value['messages']) {
-      const message = body.entry[0].changes[0].value['messages'][0]
-      await this.prisma.message.create({
-        data: {
-          body: message?.text?.body || message?.button?.text || JSON.stringify(message),
-          direction: MessageDirection.ENTRADA,
-          contact: {
-            connectOrCreate: {
-              where: { phone: message.from },
-              create: { phone: message.from }
+    for (const entry of body.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        const value = change.value;
+        for (const msg of value.messages ?? []) {
+          const result = await this.webhookPersistence.handleInboundMessage(
+            msg,
+            value.metadata,
+          );
+          if (
+            result.correlation === 'list_send' &&
+            msg.type === 'button' &&
+            msg.context?.id
+          ) {
+            const listSend = await this.prisma.tenantListSend.findUnique({
+              where: { wamid: msg.context.id },
+            });
+            if (listSend) {
+              await this.listCampaignReplyService.handleButtonReply(
+                msg,
+                listSend,
+              );
             }
+          } else if (
+            result.correlation === 'tenant_lead' &&
+            isTenhoInteresse(msg)
+          ) {
+            await this.leadsService.responseLeads(msg);
+          } else if (!isTenhoInteresse(msg)) {
+            console.log('[responseLeads] Received text response:', msg);
           }
         }
-      }).catch((e) => console.log("Erro", JSON.stringify(message, null, 2)))
-      if (message['button'].text === 'Tenho Interesse!' || message?.text?.body?.includes('Tenho Interesse!')) {
-        await this.leadsService.responseLeads(message);
-      } else {
-        console.log('[responseLeads] Received text response:', message);
+        for (const status of value.statuses ?? []) {
+          await this.webhookPersistence.handleStatus(status);
+        }
       }
     }
     return res.status(200).json({ status: 'ok' });

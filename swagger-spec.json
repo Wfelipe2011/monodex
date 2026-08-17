@@ -1163,6 +1163,1310 @@
         ]
       }
     },
+    "/admin/tenants/{tenantId}/lead-lists": {
+      "get": {
+        "description": "Retorna todas as listas ordenadas por id ascendente.",
+        "operationId": "LeadListsController_listLists",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array de listas do tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TenantLeadListResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar listas de leads do tenant",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      },
+      "post": {
+        "description": "Cria uma lista com `costPerSend` > 0 (coins debitados por envio).",
+        "operationId": "LeadListsController_createList",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLeadListDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantLeadListResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "costPerSend inválido ou body inválido"
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Criar lista de leads",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/lead-lists/{listId}": {
+      "get": {
+        "operationId": "LeadListsController_getList",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantLeadListResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant ou lista não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Obter lista por id",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      },
+      "patch": {
+        "description": "PATCH parcial — envie apenas os campos a alterar.",
+        "operationId": "LeadListsController_patchList",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchLeadListDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantLeadListResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant ou lista não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Atualizar lista (nome e/ou costPerSend)",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/lead-lists/{listId}/import-template": {
+      "get": {
+        "description": "Colunas: name, phone, website, category, reviews. Headers case-insensitive na importação.",
+        "operationId": "LeadListsController_downloadImportTemplate",
+        "parameters": [
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Arquivo CSV de exemplo",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "example": "name,phone,website,category,reviews\nConstrutora Exemplo,(11) 98765-4321,https://exemplo.com.br,Construtoras,42"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Baixar CSV de exemplo para importação",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/lead-lists/{listId}/import": {
+      "post": {
+        "description": "Multipart field `file`. Falha atômica (400) se linha inválida ou phone duplicado no arquivo ou na lista.",
+        "operationId": "LeadListsController_importCsv",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Arquivo CSV conforme template de importação",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadImportResultDto"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": ""
+          },
+          "400": {
+            "description": "CSV inválido, file ausente ou phone duplicado"
+          },
+          "404": {
+            "description": "Tenant ou lista não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Importar leads via CSV",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/lead-lists/{listId}/leads": {
+      "get": {
+        "operationId": "LeadListsController_listLeads",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TenantListLeadResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant ou lista não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar leads da lista",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      },
+      "post": {
+        "description": "Phone normalizado; duplicata na lista retorna 400.",
+        "operationId": "LeadListsController_createLead",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateListLeadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantListLeadResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Phone duplicado ou campos inválidos"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Adicionar lead à lista",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/lead-lists/{listId}/leads/bulk": {
+      "post": {
+        "description": "Transação atômica; falha se phone duplicado no body ou na lista.",
+        "operationId": "LeadListsController_bulkCreateLeads",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkCreateListLeadsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadImportResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Phone duplicado ou validação falhou"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Criar leads em lote",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/lead-lists/{listId}/leads/{leadId}": {
+      "get": {
+        "operationId": "LeadListsController_getLead",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "leadId",
+            "required": true,
+            "in": "path",
+            "description": "ID do lead dentro da lista",
+            "schema": {
+              "example": 42,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantListLeadResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant, lista ou lead não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Obter lead por id",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      },
+      "patch": {
+        "operationId": "LeadListsController_patchLead",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "leadId",
+            "required": true,
+            "in": "path",
+            "description": "ID do lead dentro da lista",
+            "schema": {
+              "example": 42,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchListLeadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantListLeadResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Phone duplicado na lista"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Atualizar lead (parcial)",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      },
+      "delete": {
+        "description": "Retorna o registro removido (mesmo shape do GET).",
+        "operationId": "LeadListsController_deleteLead",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "leadId",
+            "required": true,
+            "in": "path",
+            "description": "ID do lead dentro da lista",
+            "schema": {
+              "example": 42,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantListLeadResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant, lista ou lead não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remover lead da lista",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/category-suggestions": {
+      "get": {
+        "description": "Distinct de Lead.category (via tenant_leads / pool global) e TenantListLead.category das listas do tenant. Dedup por normalização (acentos/minúsculas).",
+        "operationId": "TenantCategorySuggestionsController_categorySuggestions",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de strings de categoria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "example": [
+                    "Construtoras",
+                    "Clínicas médicas",
+                    "Consultorias"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sugestões de categoria para autocomplete",
+        "tags": [
+          "Admin — Lead Lists"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/lead-lists/{listId}/campaigns": {
+      "get": {
+        "description": "Inclui relação mínima dos templates (id, name, language, status) e bindings persistidos.",
+        "operationId": "ListCampaignsController_listCampaigns",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListCampaignResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant ou lista não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar campanhas da lista",
+        "tags": [
+          "Admin — List Campaigns"
+        ]
+      },
+      "post": {
+        "description": "enabled=true exige template APPROVED, bindings `send` completos, notifyTemplate + bindings `notify` se algum buttonAction for NOTIFY, e labels QUICK_REPLY válidos no template de disparo.",
+        "operationId": "ListCampaignsController_createCampaign",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertListCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCampaignResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação de enable, bindings ou buttonActions"
+          },
+          "404": {
+            "description": "Tenant ou lista não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Criar campanha",
+        "tags": [
+          "Admin — List Campaigns"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/lead-lists/{listId}/campaigns/{campaignId}": {
+      "get": {
+        "operationId": "ListCampaignsController_getCampaign",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "description": "ID da campanha na lista",
+            "schema": {
+              "example": 3,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCampaignResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant, lista ou campanha não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Obter campanha por id",
+        "tags": [
+          "Admin — List Campaigns"
+        ]
+      },
+      "put": {
+        "description": "Mesmas regras de validação do POST.",
+        "operationId": "ListCampaignsController_replaceCampaign",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "description": "ID da campanha na lista",
+            "schema": {
+              "example": 3,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertListCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCampaignResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação falhou"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Substituir campanha (corpo completo)",
+        "tags": [
+          "Admin — List Campaigns"
+        ]
+      },
+      "patch": {
+        "description": "Merge com valores existentes. enabled=true revalida templates e bindings resultantes.",
+        "operationId": "ListCampaignsController_patchCampaign",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "description": "ID da campanha na lista",
+            "schema": {
+              "example": 3,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchListCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCampaignResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação falhou"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Atualizar campanha (parcial)",
+        "tags": [
+          "Admin — List Campaigns"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/lead-lists/{listId}/sends": {
+      "get": {
+        "description": "Até 100 registros, ordenados por sentAt desc. status=failed filtra por lastStatus failed e inclui latestError quando disponível.",
+        "operationId": "ListSendsController_listSends",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar apenas sends com falha de entrega Meta",
+            "schema": {
+              "enum": [
+                "failed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "campaignId",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar sends de uma campanha específica",
+            "schema": {
+              "example": 3,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListSendResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "campaignId inválido"
+          },
+          "404": {
+            "description": "Tenant ou lista não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar envios (sends) da lista",
+        "tags": [
+          "Admin — List Campaigns"
+        ]
+      }
+    },
+    "/admin/tenants/{tenantId}/lead-lists/{listId}/leads/{leadId}/messages": {
+      "get": {
+        "description": "Mensagens de conversa (IN/OUT) ordenadas por createdAt ascendente. Use query `since` (ISO8601) para polling incremental no front.",
+        "operationId": "ListConversationsController_listMessages",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "leadId",
+            "required": true,
+            "in": "path",
+            "description": "ID do lead dentro da lista",
+            "schema": {
+              "example": 42,
+              "type": "number"
+            }
+          },
+          {
+            "name": "since",
+            "required": false,
+            "in": "query",
+            "description": "Retorna apenas mensagens com createdAt > since",
+            "schema": {
+              "example": "2026-08-17T12:00:00.000Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Histórico completo ou delta desde `since`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationMessageResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "since inválido (não ISO8601)"
+          },
+          "404": {
+            "description": "Tenant, lista ou lead não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Histórico de mensagens do lead",
+        "tags": [
+          "Admin — List Conversations"
+        ]
+      },
+      "post": {
+        "description": "Exige inbound do lead nas últimas 24h (janela Meta customer care). 400 com corpo `OUTSIDE_MESSAGING_WINDOW` se não houver inbound recente. 502 se a Graph API falhar.",
+        "operationId": "ListConversationsController_sendTextMessage",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "leadId",
+            "required": true,
+            "in": "path",
+            "description": "ID do lead dentro da lista",
+            "schema": {
+              "example": 42,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendListConversationMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Mensagem OUT persistida com wamid retornado pela Meta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationMessageResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Texto vazio, fora da janela 24h (OUTSIDE_MESSAGING_WINDOW) ou erro 4xx da Graph"
+          },
+          "404": {
+            "description": "Tenant, lista ou lead não encontrado"
+          },
+          "502": {
+            "description": "Erro 5xx da Graph API"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Enviar texto livre via Cloud API",
+        "tags": [
+          "Admin — List Conversations"
+        ]
+      }
+    },
     "/admin/ops/summary": {
       "get": {
         "description": "Contadores: total de tenants, ativos, com outreach enabled, e leads no pool global (não soft-deleted).",
@@ -1846,6 +3150,751 @@
             "description": "Nova categoria (respeita unique cityId+category)"
           }
         }
+      },
+      "TenantLeadListResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "tenantId": {
+            "type": "number",
+            "example": 8
+          },
+          "name": {
+            "type": "string",
+            "example": "Construtoras SP"
+          },
+          "costPerSend": {
+            "type": "number",
+            "description": "Coins debitados por envio de template nesta lista",
+            "example": 1.5
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T20:00:00.000Z"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T20:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "name",
+          "costPerSend",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateLeadListDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Nome da lista",
+            "example": "Construtoras SP"
+          },
+          "costPerSend": {
+            "type": "number",
+            "minimum": 0.000001,
+            "description": "Custo por envio (deve ser > 0)",
+            "example": 1.5
+          }
+        },
+        "required": [
+          "name",
+          "costPerSend"
+        ]
+      },
+      "PatchLeadListDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Nome da lista",
+            "example": "Construtoras SP — Q3"
+          },
+          "costPerSend": {
+            "type": "number",
+            "minimum": 0.000001,
+            "description": "Custo por envio (deve ser > 0)",
+            "example": 2
+          }
+        }
+      },
+      "LeadImportResultDto": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "number",
+            "description": "Quantidade de leads criados na operação",
+            "example": 12
+          }
+        },
+        "required": [
+          "created"
+        ]
+      },
+      "TenantListLeadResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 42
+          },
+          "listId": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Construtora ABC"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Telefone normalizado (dígitos, prefixo 55)",
+            "example": "5511987654321"
+          },
+          "website": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://exemplo.com.br"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "example": "Construtoras"
+          },
+          "reviews": {
+            "type": "number",
+            "nullable": true,
+            "example": 42
+          },
+          "sendLockCampaignId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Campanha que bloqueou o lead após envio aceito; null = elegível",
+            "example": 3
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T20:00:00.000Z"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T20:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "listId",
+          "name",
+          "phone",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateListLeadDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Nome do lead",
+            "example": "Construtora ABC"
+          },
+          "phone": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Telefone (normalizado para dígitos com prefixo 55)",
+            "example": "(11) 98765-4321"
+          },
+          "website": {
+            "type": "string",
+            "description": "Site",
+            "example": "https://example.com"
+          },
+          "category": {
+            "type": "string",
+            "description": "Categoria",
+            "example": "Construtoras"
+          },
+          "reviews": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Quantidade de reviews (≥ 0)",
+            "example": 42
+          }
+        },
+        "required": [
+          "name",
+          "phone"
+        ]
+      },
+      "BulkCreateListLeadsDto": {
+        "type": "object",
+        "properties": {
+          "leads": {
+            "minItems": 1,
+            "example": {
+              "leads": [
+                {
+                  "name": "Construtora ABC",
+                  "phone": "11987654321",
+                  "website": "https://abc.com.br",
+                  "category": "Construtoras",
+                  "reviews": 42
+                },
+                {
+                  "name": "Empresa Demo",
+                  "phone": "21999887766",
+                  "category": "Serviços"
+                }
+              ]
+            },
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateListLeadDto"
+            }
+          }
+        },
+        "required": [
+          "leads"
+        ]
+      },
+      "PatchListLeadDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Nome do lead",
+            "example": "Construtora ABC Ltda"
+          },
+          "phone": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Telefone (será normalizado)",
+            "example": "11987654321"
+          },
+          "website": {
+            "type": "string",
+            "description": "Site",
+            "example": "https://exemplo.com.br"
+          },
+          "category": {
+            "type": "string",
+            "description": "Categoria livre",
+            "example": "Construtoras"
+          },
+          "reviews": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Quantidade de reviews (≥ 0)",
+            "example": 50
+          }
+        }
+      },
+      "CatalogTemplateRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 5
+          },
+          "name": {
+            "type": "string",
+            "example": "outreach_construtoras"
+          },
+          "language": {
+            "type": "string",
+            "example": "pt_BR"
+          },
+          "status": {
+            "type": "string",
+            "example": "APPROVED"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "language",
+          "status"
+        ]
+      },
+      "ListCampaignResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 3
+          },
+          "listId": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Campanha A"
+          },
+          "enabled": {
+            "type": "boolean",
+            "example": false
+          },
+          "templateId": {
+            "type": "number",
+            "example": 5
+          },
+          "slotBindings": {
+            "type": "object",
+            "description": "Bindings do template de disparo (role send)",
+            "example": {
+              "send": {
+                "body.1": {
+                  "type": "literal",
+                  "value": "Olá"
+                },
+                "body.customer_name": {
+                  "type": "recipient.name"
+                }
+              }
+            }
+          },
+          "notifyTemplateId": {
+            "type": "number",
+            "nullable": true,
+            "example": 6
+          },
+          "notifySlotBindings": {
+            "type": "object",
+            "description": "Bindings do template de notify (role notify)",
+            "example": {
+              "notify": {
+                "body.customer_name": {
+                  "type": "recipient.name"
+                },
+                "body.customer_phone": {
+                  "type": "recipient.phone"
+                }
+              }
+            }
+          },
+          "buttonActions": {
+            "type": "array",
+            "example": [
+              {
+                "buttonIndex": 0,
+                "label": "Tenho Interesse!",
+                "action": "NOTIFY"
+              },
+              {
+                "buttonIndex": 1,
+                "label": "Agora não",
+                "action": "NOOP"
+              }
+            ]
+          },
+          "schedule": {
+            "type": "object",
+            "description": "Mapa dia-da-semana (0=Dom … 6=Sáb) → horas UTC",
+            "example": {
+              "2": [
+                18
+              ],
+              "4": [
+                13
+              ]
+            }
+          },
+          "sendsPerRun": {
+            "type": "number",
+            "example": 5
+          },
+          "sendIntervalSeconds": {
+            "type": "number",
+            "example": 5
+          },
+          "template": {
+            "$ref": "#/components/schemas/CatalogTemplateRefDto"
+          },
+          "notifyTemplate": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CatalogTemplateRefDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T20:00:00.000Z"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T20:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "listId",
+          "name",
+          "enabled",
+          "templateId",
+          "slotBindings",
+          "notifySlotBindings",
+          "buttonActions",
+          "schedule",
+          "sendsPerRun",
+          "sendIntervalSeconds",
+          "template",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "SendSlotBindingsDto": {
+        "type": "object",
+        "properties": {
+          "send": {
+            "type": "object",
+            "description": "Bindings do template de disparo, keyed por slot",
+            "example": {
+              "body.1": {
+                "type": "literal",
+                "value": "Olá"
+              },
+              "body.customer_name": {
+                "type": "recipient.name"
+              }
+            }
+          }
+        },
+        "required": [
+          "send"
+        ]
+      },
+      "NotifySlotBindingsDto": {
+        "type": "object",
+        "properties": {
+          "notify": {
+            "type": "object",
+            "description": "Bindings do template de notify, keyed por slot",
+            "example": {
+              "body.customer_name": {
+                "type": "recipient.name"
+              }
+            }
+          }
+        },
+        "required": [
+          "notify"
+        ]
+      },
+      "ButtonActionDto": {
+        "type": "object",
+        "properties": {
+          "buttonIndex": {
+            "type": "number",
+            "minimum": 0,
+            "example": 0
+          },
+          "label": {
+            "type": "string",
+            "example": "Tenho Interesse!"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "NOTIFY",
+              "NOOP"
+            ],
+            "example": "NOTIFY"
+          }
+        },
+        "required": [
+          "buttonIndex",
+          "label",
+          "action"
+        ]
+      },
+      "UpsertListCampaignDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Campanha A"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Habilitar execução no cron (validação estrita quando true)",
+            "default": false,
+            "example": false
+          },
+          "templateId": {
+            "type": "number",
+            "minimum": 1,
+            "description": "FK do template de disparo no catálogo"
+          },
+          "slotBindings": {
+            "$ref": "#/components/schemas/SendSlotBindingsDto"
+          },
+          "notifyTemplateId": {
+            "type": "number",
+            "minimum": 1,
+            "description": "FK do template de notify (obrigatório se NOTIFY)"
+          },
+          "notifySlotBindings": {
+            "$ref": "#/components/schemas/NotifySlotBindingsDto"
+          },
+          "buttonActions": {
+            "minItems": 0,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ButtonActionDto"
+            }
+          },
+          "schedule": {
+            "type": "object",
+            "description": "Mapa dia-da-semana → horas UTC",
+            "example": {
+              "2": [
+                18
+              ],
+              "4": [
+                13
+              ]
+            }
+          },
+          "sendsPerRun": {
+            "type": "number",
+            "minimum": 1,
+            "default": 5
+          },
+          "sendIntervalSeconds": {
+            "type": "number",
+            "minimum": 0,
+            "default": 5
+          }
+        },
+        "required": [
+          "name",
+          "templateId",
+          "slotBindings",
+          "buttonActions",
+          "schedule"
+        ]
+      },
+      "PatchListCampaignDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Campanha A"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "templateId": {
+            "type": "number",
+            "minimum": 1
+          },
+          "slotBindings": {
+            "$ref": "#/components/schemas/SendSlotBindingsDto"
+          },
+          "notifyTemplateId": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1
+          },
+          "notifySlotBindings": {
+            "$ref": "#/components/schemas/NotifySlotBindingsDto"
+          },
+          "buttonActions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ButtonActionDto"
+            }
+          },
+          "schedule": {
+            "type": "object",
+            "description": "Mapa dia-da-semana → horas UTC",
+            "example": {
+              "2": [
+                18
+              ],
+              "4": [
+                13
+              ]
+            }
+          },
+          "sendsPerRun": {
+            "type": "number",
+            "minimum": 1
+          },
+          "sendIntervalSeconds": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "ListSendLeadRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 42
+          },
+          "name": {
+            "type": "string",
+            "example": "Construtora ABC"
+          },
+          "phone": {
+            "type": "string",
+            "example": "5511987654321"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "phone"
+        ]
+      },
+      "ListSendCampaignRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 3
+          },
+          "name": {
+            "type": "string",
+            "example": "Campanha A"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "ListSendResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 100
+          },
+          "wamid": {
+            "type": "string",
+            "description": "ID da mensagem outbound na Meta (wamid)",
+            "example": "wamid.HBgMNTUxMTk4NzY1NDMyMRUCABIYFDN..."
+          },
+          "sentAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T20:05:00.000Z"
+          },
+          "lastStatus": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "sent",
+              "delivered",
+              "read",
+              "failed"
+            ],
+            "example": "delivered"
+          },
+          "listLead": {
+            "$ref": "#/components/schemas/ListSendLeadRefDto"
+          },
+          "campaign": {
+            "$ref": "#/components/schemas/ListSendCampaignRefDto"
+          },
+          "latestError": {
+            "type": "object",
+            "description": "Presente quando lastStatus=failed",
+            "example": {
+              "code": 131026,
+              "title": "Message undeliverable"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "wamid",
+          "sentAt",
+          "listLead",
+          "campaign"
+        ]
+      },
+      "ConversationMessageResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 501
+          },
+          "wamid": {
+            "type": "string",
+            "example": "wamid.HBgMNTUxMTk4NzY1NDMyMRUCABIYFDN..."
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "IN",
+              "OUT"
+            ],
+            "example": "IN"
+          },
+          "type": {
+            "type": "string",
+            "example": "text",
+            "description": "text | button | image | …"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true,
+            "example": "Tenho Interesse!",
+            "description": "Texto ou label do botão quando aplicável"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T20:10:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "wamid",
+          "direction",
+          "type",
+          "createdAt"
+        ]
+      },
+      "SendListConversationMessageDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Texto livre (janela Meta 24h após último inbound)",
+            "example": "Olá! Como posso ajudar?"
+          }
+        },
+        "required": [
+          "text"
+        ]
       },
       "OpsSummaryDto": {
         "type": "object",

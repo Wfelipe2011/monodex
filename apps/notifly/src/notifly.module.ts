@@ -8,11 +8,21 @@ import { HttpModule } from '@nestjs/axios';
 import { NotiflyController } from './notifly.controller';
 import { WhatsappController } from './WhatsappController';
 import { PrismaConnectionMiddleware } from '@core/infra/prisma/prisma-connection.middleware';
+import { WebhookPersistenceService } from './webhook-persistence.service';
+import { ListCampaignsService } from './list-campaigns.service';
+import { ListCampaignReplyService } from './list-campaign-reply.service';
 
 @Module({
   imports: [PrismaModule, ScheduleModule.forRoot(), HttpModule],
   controllers: [NotiflyController, WhatsappController],
-  providers: [LeadsService, PlatformWhatsappService, WhatsappTemplateSyncService],
+  providers: [
+    LeadsService,
+    PlatformWhatsappService,
+    WhatsappTemplateSyncService,
+    WebhookPersistenceService,
+    ListCampaignsService,
+    ListCampaignReplyService,
+  ],
 })
 export class NotiflyModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

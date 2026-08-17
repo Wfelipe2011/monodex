@@ -23,8 +23,10 @@ model Tenant {
   Webhooks         Webhooks[]
   CoinTransaction  CoinTransaction[]
   phone            String?               @unique
-  outreachConfig   TenantOutreachConfig?
-  whatsappAccounts WhatsappAccount[]
+  outreachConfig               TenantOutreachConfig?
+  whatsappAccounts             WhatsappAccount[]
+  leadLists                    TenantLeadList[]
+  whatsappConversationMessages WhatsappConversationMessage[]
 
   @@map("tenants")
 }
@@ -302,8 +304,10 @@ model WhatsappMessageTemplate {
   lastSyncedAt      DateTime               @map("last_synced_at")
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @updatedAt @map("updated_at")
-  outreachConfigs   TenantOutreachConfig[] @relation("OutreachTemplate")
-  notifyConfigs     TenantOutreachConfig[] @relation("NotifyTemplate")
+  outreachConfigs     TenantOutreachConfig[] @relation("OutreachTemplate")
+  notifyConfigs       TenantOutreachConfig[] @relation("NotifyTemplate")
+  listCampaigns       TenantListCampaign[]   @relation("ListCampaignTemplate")
+  notifyListCampaigns TenantListCampaign[]   @relation("ListCampaignNotifyTemplate")
 
   @@unique([whatsappAccountId, name, language])
   @@map("whatsapp_message_templates")
@@ -373,4 +377,129 @@ model ScrapeCoverage {
 
   @@unique([cityId, category])
   @@map("scrape_coverages")
+}
+
+enum WhatsappConversationDirection {
+  IN
+  OUT
+}
+
+enum WhatsappDeliveryStatus {
+  sent
+  delivered
+  read
+  failed
+}
+
+enum ListCampaignButtonAction {
+  NOTIFY
+  NOOP
+}
+
+model TenantLeadList {
+  id          Int                  @id @default(autoincrement())
+  tenantId    Int                  @map("tenant_id")
+  tenant      Tenant               @relation(fields: [tenantId], references: [id])
+  name        String
+  costPerSend Float                @map("cost_per_send")
+  leads       TenantListLead[]
+  campaigns   TenantListCampaign[]
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  @@map("tenant_lead_lists")
+}
+
+model TenantListLead {
+  id                   Int                           @id @default(autoincrement())
+  listId               Int                           @map("list_id")
+  list                 TenantLeadList                @relation(fields: [listId], references: [id])
+  name                 String
+  phone                String
+  website              String?
+  category             String?
+  reviews              Int?
+  sendLockCampaignId   Int?                          @map("send_lock_campaign_id")
+  sendLockCampaign     TenantListCampaign?           @relation("SendLock", fields: [sendLockCampaignId], references: [id])
+  sends                TenantListSend[]
+  conversationMessages WhatsappConversationMessage[]
+  createdAt            DateTime                      @default(now()) @map("created_at")
+  updatedAt            DateTime                      @updatedAt @map("updated_at")
+
+  @@unique([listId, phone])
+  @@map("tenant_list_leads")
+}
+
+model TenantListCampaign {
+  id                  Int                      @id @default(autoincrement())
+  listId              Int                      @map("list_id")
+  list                TenantLeadList           @relation(fields: [listId], references: [id])
+  name                String
+  enabled             Boolean                  @default(false)
+  templateId          Int                      @map("template_id")
+  template            WhatsappMessageTemplate  @relation("ListCampaignTemplate", fields: [templateId], references: [id])
+  slotBindings        Json                     @default("{}") @map("slot_bindings")
+  notifyTemplateId    Int?                     @map("notify_template_id")
+  notifyTemplate      WhatsappMessageTemplate? @relation("ListCampaignNotifyTemplate", fields: [notifyTemplateId], references: [id])
+  notifySlotBindings  Json                     @default("{}") @map("notify_slot_bindings")
+  buttonActions       Json                     @default("[]") @map("button_actions")
+  schedule            Json
+  sendsPerRun         Int                      @default(5) @map("sends_per_run")
+  sendIntervalSeconds Int                      @default(5) @map("send_interval_seconds")
+  sends               TenantListSend[]
+  lockedLeads         TenantListLead[]         @relation("SendLock")
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
+
+  @@map("tenant_list_campaigns")
+}
+
+model TenantListSend {
+  id                   Int                           @id @default(autoincrement())
+  campaignId           Int                           @map("campaign_id")
+  campaign             TenantListCampaign            @relation(fields: [campaignId], references: [id])
+  listLeadId           Int                           @map("list_lead_id")
+  listLead             TenantListLead                @relation(fields: [listLeadId], references: [id])
+  wamid                String                        @unique
+  sentAt               DateTime                      @default(now()) @map("sent_at")
+  lastStatus           WhatsappDeliveryStatus?       @map("last_status")
+  statuses             WhatsappSendStatus[]
+  conversationMessages WhatsappConversationMessage[]
+
+  @@map("tenant_list_sends")
+}
+
+model WhatsappConversationMessage {
+  id         Int                           @id @default(autoincrement())
+  wamid      String                        @unique
+  direction  WhatsappConversationDirection
+  type       String
+  body       String?
+  raw        Json
+  phone      String
+  tenantId   Int                           @map("tenant_id")
+  tenant     Tenant                        @relation(fields: [tenantId], references: [id])
+  listLeadId Int?                          @map("list_lead_id")
+  listLead   TenantListLead?               @relation(fields: [listLeadId], references: [id])
+  listSendId Int?                          @map("list_send_id")
+  listSend   TenantListSend?               @relation(fields: [listSendId], references: [id])
+  createdAt  DateTime                      @default(now()) @map("created_at")
+
+  @@index([listLeadId, createdAt])
+  @@map("whatsapp_conversation_messages")
+}
+
+model WhatsappSendStatus {
+  id            Int                    @id @default(autoincrement())
+  wamid         String
+  status        WhatsappDeliveryStatus
+  metaTimestamp DateTime               @map("meta_timestamp")
+  recipientId   String?                @map("recipient_id")
+  errors        Json?
+  listSendId    Int?                   @map("list_send_id")
+  listSend      TenantListSend?        @relation(fields: [listSendId], references: [id])
+  createdAt     DateTime               @default(now()) @map("created_at")
+
+  @@index([wamid, metaTimestamp])
+  @@map("whatsapp_send_statuses")
 }
