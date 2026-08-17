@@ -62,7 +62,7 @@ The system MUST NOT include or exclude leads from outreach based on `website` be
 - **THEN** the lead MUST remain eligible on the website dimension
 
 ### Requirement: Batch size and header image come from tenant config
-Each scheduled run for a tenant SHALL contact at most `leadsPerRun` unique phones, further capped by `floor(coin balance / costPerLead)`. The outreach template header image URL SHALL be `headerImageUrl` from the tenant config when set, otherwise `WHATSAPP_OUTREACH_HEADER_IMAGE_URL` if present. The system MUST NOT hardcode `slice(0, 5)` as the only batch size.
+Each scheduled run for a tenant SHALL contact at most `leadsPerRun` unique phones, further capped by `floor(coin balance / costPerLead)`. Header image parameters SHALL come from slot bindings (`header_image` or equivalent variable), not from a dedicated `headerImageUrl` column or `WHATSAPP_OUTREACH_HEADER_IMAGE_URL`. The system MUST NOT hardcode `slice(0, 5)` as the only batch size.
 
 #### Scenario: Configured batch of ten
 - **WHEN** a tenant has `leadsPerRun` 10, sufficient unique unused phones, and balance for at least 10 `costPerLead`
@@ -72,8 +72,8 @@ Each scheduled run for a tenant SHALL contact at most `leadsPerRun` unique phone
 - **WHEN** `leadsPerRun` is 10 and balance covers only 3 leads
 - **THEN** the run MUST attempt at most 3 sends
 
-#### Scenario: Header image from tenant
-- **WHEN** `headerImageUrl` is set on the tenant config
+#### Scenario: Header image from binding
+- **WHEN** the outreach template has a header image slot bound to `header_image` with an https URL
 - **THEN** the template send MUST use that URL in the header image parameter
 
 ### Requirement: Sends are spaced by tenant interval
@@ -94,13 +94,13 @@ The system MUST NOT send more than one outreach template to the same `phone` for
 - **WHEN** tenant T already has a `TenantLead` for a lead with phone `P` in city A and another unused lead with phone `P` exists in city B
 - **THEN** the city B lead MUST NOT be selected for tenant T
 
-### Requirement: Outreach template body uses configured contact text
-When sending the tenant outreach Cloud API template, the system SHALL include a positional body text parameter whose value is that tenant's `outreachContactText`. The system MUST NOT use a platform-wide environment fallback for this parameter. If `outreachContactText` is missing or empty after trim, the system MUST NOT send the template for that lead.
+### Requirement: Cloud sends are built from catalog and bindings
+When sending an outreach or notify-tenant template, the system SHALL load the catalog row referenced by the config, use that row's `name` and `language`, and build Graph `components` from parsed slots plus resolved bindings. The system MUST NOT hardcode `pt_BR`, positional body-only, or named notify parameter names in the send path. If a required literal/`header_image` binding value is empty, the system MUST NOT POST that template. Notify MUST NOT read `WHATSAPP_NOTIFY_CUSTOMER_LEAD`.
 
-#### Scenario: Body parameter filled from config
-- **WHEN** a tenant has `outreachContactText` `Gladson Teixeira (contador em Pindamonhagaba)` and outreach sends a template
-- **THEN** the Cloud API request MUST include a body component with a positional text parameter equal to that string
+#### Scenario: Language from catalog
+- **WHEN** the outreach catalog row language is `pt_BR`
+- **THEN** the Cloud API template `language.code` MUST be `pt_BR`
 
-#### Scenario: Empty contact text skips send
-- **WHEN** a tenant is otherwise eligible but `outreachContactText` is empty
-- **THEN** the system MUST NOT POST an outreach template to Cloud API for that run's leads
+#### Scenario: Notify uses bindings not env
+- **WHEN** notify-tenant sends after an affirmative reply
+- **THEN** body and button parameters MUST come from `slotBindings.notify` resolved against the lead and tenant

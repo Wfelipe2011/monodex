@@ -7,7 +7,7 @@ Platform-level WhatsApp Cloud API account used for all official outbound outreac
 ## Requirements
 
 ### Requirement: Platform Cloud API account is explicit
-The system SHALL persist a platform-level WhatsApp Cloud API account reference that includes at least `phoneNumberId` and a pointer to the environment key used for the access token. The access token itself MUST NOT be stored in the database.
+The system SHALL persist a platform-level WhatsApp Cloud API account reference that includes at least `phoneNumberId`, `wabaId`, and a pointer to the environment key used for the access token. The access token itself MUST NOT be stored in the database. `wabaId` MUST be used when listing message templates from Graph.
 
 #### Scenario: Resolve send credentials
 - **WHEN** the system sends a WhatsApp Cloud API message
@@ -16,6 +16,10 @@ The system SHALL persist a platform-level WhatsApp Cloud API account reference t
 #### Scenario: Token not in database
 - **WHEN** a platform WhatsApp account record is created or updated
 - **THEN** the system MUST NOT persist the raw access token as a column value
+
+#### Scenario: Resolve WABA for template list
+- **WHEN** the system syncs message templates
+- **THEN** it MUST call Graph using the enabled platform account's `wabaId`
 
 ### Requirement: Single platform sender for official outreach
 The system SHALL use the platform Cloud API account for official outbound lead templates and for notifying the tenant after an affirmative lead reply.
