@@ -74,7 +74,7 @@ export class NotiflyController {
           ) {
             const listLead = await this.prisma.tenantListLead.findUnique({
               where: { id: result.listLeadId },
-              select: { listId: true },
+              select: { listId: true, name: true },
             });
             if (listLead) {
               void this.inboxRealtimeNotify.notifyInbound({
@@ -82,6 +82,7 @@ export class NotiflyController {
                 tenantId: result.tenantId,
                 listId: listLead.listId,
                 leadId: result.listLeadId,
+                leadName: listLead.name,
                 message: {
                   id: result.messageId,
                   wamid: result.wamid,

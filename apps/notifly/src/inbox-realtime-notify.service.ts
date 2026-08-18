@@ -16,6 +16,7 @@ export interface InboxInboundEventPayload {
   tenantId: number;
   listId: number;
   leadId: number;
+  leadName: string;
   message: InboundMessagePayload;
 }
 

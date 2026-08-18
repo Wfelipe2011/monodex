@@ -47,11 +47,27 @@ model User {
   tenant       Tenant            @relation(fields: [tenantId], references: [id])
   tenantId     Int               @map("tenant_id")
   Session      Session[]
-  Contacts     Contacts[]
-  Webhooks     Webhooks[]
+  Contacts          Contacts[]
+  Webhooks          Webhooks[]
+  pushSubscriptions PushSubscription[]
 
   @@unique([email, tenantId])
   @@map("users")
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model Session {

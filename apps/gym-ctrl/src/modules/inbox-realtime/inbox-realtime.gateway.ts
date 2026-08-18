@@ -42,8 +42,9 @@ export class InboxRealtimeGateway implements OnGatewayConnection, OnGatewayDisco
     }
 
     const clientId = uuidv4();
+    const userId = payload.userId ?? payload.id;
     this.socketClientIds.set(client, clientId);
-    this.inboxRealtimeService.registerClient(clientId, client, rooms);
+    this.inboxRealtimeService.registerClient(clientId, client, rooms, userId);
 
     client.send(JSON.stringify({ type: 'connected', rooms }));
     this.logger.log(`WS client ${clientId} connected (tenant ${payload.tenantId}, rooms: ${rooms.join(', ')})`);

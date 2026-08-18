@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { WebSocket } from 'ws';
 import { InboxInboundEventDto } from './inbox-inbound-event.interface';
+import { InboxWebPushService } from './inbox-web-push.service';
 
 type RoomClient = { id: string; socket: WebSocket };
 
@@ -8,11 +9,24 @@ type RoomClient = { id: string; socket: WebSocket };
 export class InboxRealtimeService {
   private readonly logger = new Logger(InboxRealtimeService.name);
   private readonly roomClients = new Map<string, Set<RoomClient>>();
-  private readonly clientRooms = new Map<string, { socket: WebSocket; rooms: string[] }>();
+  private readonly clientRooms = new Map<
+    string,
+    { socket: WebSocket; rooms: string[]; userId: number }
+  >();
+  private readonly onlineUserIds = new Set<number>();
+  private readonly userClientIds = new Map<number, Set<string>>();
 
-  registerClient(clientId: string, socket: WebSocket, rooms: string[]): void {
+  constructor(private readonly inboxWebPushService: InboxWebPushService) {}
+
+  registerClient(
+    clientId: string,
+    socket: WebSocket,
+    rooms: string[],
+    userId: number,
+  ): void {
     const uniqueRooms = [...new Set(rooms)];
-    this.clientRooms.set(clientId, { socket, rooms: uniqueRooms });
+    this.clientRooms.set(clientId, { socket, rooms: uniqueRooms, userId });
+    this.trackUserSocket(userId, clientId);
 
     for (const room of uniqueRooms) {
       let clients = this.roomClients.get(room);
@@ -47,6 +61,7 @@ export class InboxRealtimeService {
       }
     }
 
+    this.untrackUserSocket(entry.userId, clientId);
     this.clientRooms.delete(clientId);
     this.logger.debug(`Client ${clientId} unregistered`);
   }
@@ -58,6 +73,14 @@ export class InboxRealtimeService {
         return;
       }
     }
+  }
+
+  hasOpenConnection(userId: number): boolean {
+    return this.onlineUserIds.has(userId);
+  }
+
+  getOnlineUserIds(): Set<number> {
+    return new Set(this.onlineUserIds);
   }
 
   broadcastToRooms(rooms: string[], payload: object): void {
@@ -94,8 +117,32 @@ export class InboxRealtimeService {
       tenantId: dto.tenantId,
       listId: dto.listId,
       leadId: dto.leadId,
+      leadName: dto.leadName,
       message: dto.message,
     };
     this.broadcastToRooms([`tenant:${dto.tenantId}`, 'super-admin'], payload);
+    void this.inboxWebPushService.sendForInbound(dto, this.getOnlineUserIds());
+  }
+
+  private trackUserSocket(userId: number, clientId: string): void {
+    let clients = this.userClientIds.get(userId);
+    if (!clients) {
+      clients = new Set();
+      this.userClientIds.set(userId, clients);
+    }
+    clients.add(clientId);
+    this.onlineUserIds.add(userId);
+  }
+
+  private untrackUserSocket(userId: number, clientId: string): void {
+    const clients = this.userClientIds.get(userId);
+    if (!clients) {
+      return;
+    }
+    clients.delete(clientId);
+    if (clients.size === 0) {
+      this.userClientIds.delete(userId);
+      this.onlineUserIds.delete(userId);
+    }
   }
 }

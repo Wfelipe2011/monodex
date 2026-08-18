@@ -1255,10 +1255,64 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"message.inbound\",\n  \"tenantId\": {{tenantId}},\n  \"listId\": {{listId}},\n  \"leadId\": {{leadId}},\n  \"message\": {\n    \"id\": 1,\n    \"wamid\": \"wamid.test\",\n    \"direction\": \"IN\",\n    \"type\": \"text\",\n    \"body\": \"oi\",\n    \"phone\": \"5511999999999\",\n    \"createdAt\": \"2026-08-17T21:00:00.000Z\"\n  }\n}"
+              "raw": "{\n  \"type\": \"message.inbound\",\n  \"tenantId\": {{tenantId}},\n  \"listId\": {{listId}},\n  \"leadId\": {{leadId}},\n  \"leadName\": \"João Silva\",\n  \"message\": {\n    \"id\": 1,\n    \"wamid\": \"wamid.test\",\n    \"direction\": \"IN\",\n    \"type\": \"text\",\n    \"body\": \"oi\",\n    \"phone\": \"5511999999999\",\n    \"createdAt\": \"2026-08-17T21:00:00.000Z\"\n  }\n}"
             },
             "url": "{{gymBaseUrl}}/internal/inbox/realtime/notify",
-            "description": "Fan-out WS para rooms tenant:{tenantId} e super-admin. Resposta 204. Requer WS conectado para observar o evento. Secret: variável internalWsNotifySecret."
+            "description": "Fan-out WS para rooms tenant:{tenantId} e super-admin; dispara Web Push para users offline (sem WS OPEN). Resposta 204. `leadName` alimenta título da push. Secret: variável internalWsNotifySecret. Ver openspec/changes/inbox-web-push/PUSH-INTEGRATION.md."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inbox Web Push",
+      "description": "Web Push VAPID — subscriptions e teste de push. Ver openspec/changes/inbox-web-push/PUSH-INTEGRATION.md.\n\n1. Auth → Login (JWT)\n2. PUT Push Subscription (registrar endpoint do browser)\n3. **Sem WS conectado** → Inbox Realtime → Internal Notify (com leadName) → push no device\n4. Com WS conectado → notify só entrega WS, push suprimida",
+      "item": [
+        {
+          "name": "PUT Push Subscription",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/EXAMPLE_ENDPOINT_FROM_PUSHMANAGER\",\n  \"keys\": {\n    \"p256dh\": \"BNcRdreALRFXTkOOUw1WCGRZsxSd3c5u1N7E0D9B3g7tK3n8vQ2mP1xL4yZ6aB8cD0eF2gH4iJ6kL8mN0oP2qR4sT6uV8wX0yZ2aB4cD6eF8gH0\",\n    \"auth\": \"tBHItJI5svbpez7KI4CCXg\"\n  }\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/push-subscriptions",
+            "description": "Registra ou atualiza PushSubscription do usuário autenticado (upsert por endpoint). Body = output de `PushSubscription.toJSON()` no browser após `pushManager.subscribe()`. Resposta 204."
+          }
+        },
+        {
+          "name": "DELETE Push Subscription",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/EXAMPLE_ENDPOINT_FROM_PUSHMANAGER\"\n}"
+            },
+            "url": "{{gymBaseUrl}}/admin/push-subscriptions",
+            "description": "Remove subscription do usuário autenticado. Body `{ endpoint }`. Resposta 204 ou 404 se não encontrada."
+          }
+        },
+        {
+          "name": "→ Internal Notify (dispara push se offline)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/health-check",
+            "description": "Placeholder. Use **Inbox Realtime → Internal Notify (message.inbound)** com `leadName` preenchido. Com WS desconectado e subscription registrada via PUT acima, o notify dispara push VAPID (título \"Nova mensagem de {leadName}\")."
           }
         }
       ]
