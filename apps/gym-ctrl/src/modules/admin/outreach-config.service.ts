@@ -1,18 +1,37 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Roles } from '@prisma/client';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
+import { assertSuperAdminTenantWrite } from '@core/guard/bootstrap-write';
 import { UpsertOutreachConfigDto } from './dto/upsert-outreach-config.dto';
+import { UpsertTenantOutreachConfigDto } from './dto/upsert-tenant-outreach-config.dto';
 import { PatchOutreachConfigDto } from './dto/patch-outreach-config.dto';
+import { PatchPlatformOutreachConfigDto } from './dto/patch-platform-outreach-config.dto';
+import { assertTemplateGranted } from './assert-template-grant';
+import { rejectForbiddenBodyKeys } from './reject-forbidden-body-keys';
 import {
   assertSlotBindingsValid,
   persistedSlotKeys,
   SlotBindingInput,
   SlotBindingsInput,
 } from './slot-bindings.validate';
+
+const TENANT_OWNED_OUTREACH_KEYS = [
+  'enabled',
+  'schedule',
+  'categories',
+  'leadsPerRun',
+  'sendIntervalSeconds',
+  'slotBindings',
+  'outreachTemplateId',
+  'notifyTemplateId',
+] as const;
+
+const PLATFORM_OUTREACH_KEYS = ['costPerLead', 'cashbackOnReply'] as const;
 
 const TEMPLATE_MIN_SELECT = {
   id: true,
@@ -26,7 +45,7 @@ const CONFIG_INCLUDE = {
   notifyTemplate: { select: TEMPLATE_MIN_SELECT },
 } as const;
 
-type TenantReadiness = { phone: string | null; active: boolean };
+type TenantReadiness = { id: number; phone: string | null; active: boolean };
 
 @Injectable()
 export class OutreachConfigService {
@@ -46,12 +65,33 @@ export class OutreachConfigService {
     return config;
   }
 
-  async upsert(tenantId: number, dto: UpsertOutreachConfigDto) {
+  async createBootstrap(
+    tenantId: number,
+    dto: UpsertOutreachConfigDto,
+    roles: Roles[],
+  ) {
     const tenant = await this.loadTenant(tenantId);
+    const existing = await this.prisma.tenantOutreachConfig.findUnique({
+      where: { tenantId },
+      select: { createdAt: true },
+    });
+    if (existing) {
+      throw new ForbiddenException('Acesso não permitido');
+    }
+    assertSuperAdminTenantWrite({
+      roles,
+      resourceCreatedAt: null,
+      isPlatformField: false,
+    });
+
     const enabled = dto.enabled ?? false;
     const cashbackOnReply = dto.cashbackOnReply ?? 0;
     const slotBindings = assertSlotBindingsValid(dto.slotBindings);
 
+    await this.assertTemplateIdsGranted(tenantId, {
+      outreachTemplateId: dto.outreachTemplateId,
+      notifyTemplateId: dto.notifyTemplateId,
+    });
     await this.assertEnableAllowed(tenant, {
       enabled,
       costPerLead: dto.costPerLead,
@@ -60,22 +100,9 @@ export class OutreachConfigService {
       slotBindings,
     });
 
-    return this.prisma.tenantOutreachConfig.upsert({
-      where: { tenantId },
-      create: {
+    return this.prisma.tenantOutreachConfig.create({
+      data: {
         tenantId,
-        enabled,
-        costPerLead: dto.costPerLead,
-        cashbackOnReply,
-        outreachTemplateId: dto.outreachTemplateId,
-        notifyTemplateId: dto.notifyTemplateId,
-        slotBindings: slotBindings as unknown as Prisma.InputJsonValue,
-        schedule: dto.schedule as Prisma.InputJsonValue,
-        categories: dto.categories as Prisma.InputJsonValue,
-        leadsPerRun: dto.leadsPerRun ?? 5,
-        sendIntervalSeconds: dto.sendIntervalSeconds ?? 5,
-      },
-      update: {
         enabled,
         costPerLead: dto.costPerLead,
         cashbackOnReply,
@@ -91,7 +118,116 @@ export class OutreachConfigService {
     });
   }
 
-  async patch(tenantId: number, dto: PatchOutreachConfigDto) {
+  async patchPlatform(
+    tenantId: number,
+    dto: PatchPlatformOutreachConfigDto,
+    roles: Roles[],
+    rawBody: unknown,
+  ) {
+    await this.loadTenant(tenantId);
+    const existing = await this.prisma.tenantOutreachConfig.findUnique({
+      where: { tenantId },
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        `Outreach config do tenant ${tenantId} não encontrada`,
+      );
+    }
+
+    if (this.tenantOwnedKeysInBody(rawBody).length > 0) {
+      assertSuperAdminTenantWrite({
+        roles,
+        resourceCreatedAt: existing.createdAt,
+        isPlatformField: false,
+      });
+      throw new ForbiddenException('Acesso não permitido');
+    }
+
+    assertSuperAdminTenantWrite({
+      roles,
+      resourceCreatedAt: existing.createdAt,
+      isPlatformField: true,
+    });
+
+    return this.prisma.tenantOutreachConfig.update({
+      where: { tenantId },
+      data: {
+        ...(dto.costPerLead !== undefined
+          ? { costPerLead: dto.costPerLead }
+          : {}),
+        ...(dto.cashbackOnReply !== undefined
+          ? { cashbackOnReply: dto.cashbackOnReply }
+          : {}),
+      },
+      include: CONFIG_INCLUDE,
+    });
+  }
+
+  async createTenant(
+    tenantId: number,
+    dto: UpsertTenantOutreachConfigDto,
+    roles: Roles[],
+    rawBody: unknown,
+  ) {
+    rejectForbiddenBodyKeys(rawBody, PLATFORM_OUTREACH_KEYS);
+    const tenant = await this.loadTenant(tenantId);
+    const existing = await this.prisma.tenantOutreachConfig.findUnique({
+      where: { tenantId },
+      select: { createdAt: true },
+    });
+    if (existing) {
+      throw new ForbiddenException('Acesso não permitido');
+    }
+    assertSuperAdminTenantWrite({
+      roles,
+      resourceCreatedAt: null,
+      isPlatformField: false,
+    });
+
+    const enabled = dto.enabled ?? false;
+    const slotBindings = assertSlotBindingsValid(
+      dto.slotBindings ?? { outreach: {}, notify: {} },
+    );
+    const outreachTemplateId = dto.outreachTemplateId ?? null;
+    const notifyTemplateId = dto.notifyTemplateId ?? null;
+
+    await this.assertTemplateIdsGranted(tenantId, {
+      outreachTemplateId,
+      notifyTemplateId,
+    });
+    await this.assertEnableAllowed(tenant, {
+      enabled,
+      costPerLead: 0,
+      outreachTemplateId,
+      notifyTemplateId,
+      slotBindings,
+    });
+
+    return this.prisma.tenantOutreachConfig.create({
+      data: {
+        tenantId,
+        enabled,
+        costPerLead: 0,
+        cashbackOnReply: 0,
+        outreachTemplateId,
+        notifyTemplateId,
+        slotBindings: slotBindings as unknown as Prisma.InputJsonValue,
+        schedule: (dto.schedule ?? {}) as Prisma.InputJsonValue,
+        categories: (dto.categories ?? []) as Prisma.InputJsonValue,
+        leadsPerRun: dto.leadsPerRun ?? 5,
+        sendIntervalSeconds: dto.sendIntervalSeconds ?? 5,
+      },
+      include: CONFIG_INCLUDE,
+    });
+  }
+
+  async patchTenant(
+    tenantId: number,
+    dto: PatchOutreachConfigDto,
+    roles: Roles[],
+    rawBody: unknown,
+  ) {
+    rejectForbiddenBodyKeys(rawBody, PLATFORM_OUTREACH_KEYS);
     const tenant = await this.loadTenant(tenantId);
     const existing = await this.prisma.tenantOutreachConfig.findUnique({
       where: { tenantId },
@@ -108,17 +244,36 @@ export class OutreachConfigService {
       );
     }
 
+    assertSuperAdminTenantWrite({
+      roles,
+      resourceCreatedAt: existing.createdAt,
+      isPlatformField: false,
+    });
+
     const slotBindings =
       dto.slotBindings !== undefined
         ? assertSlotBindingsValid(dto.slotBindings)
         : this.asSlotBindings(existing.slotBindings);
 
+    const outreachTemplateId =
+      dto.outreachTemplateId !== undefined
+        ? dto.outreachTemplateId
+        : existing.outreachTemplateId;
+    const notifyTemplateId =
+      dto.notifyTemplateId !== undefined
+        ? dto.notifyTemplateId
+        : existing.notifyTemplateId;
+
+    await this.assertTemplateIdsGranted(tenantId, {
+      outreachTemplateId: dto.outreachTemplateId,
+      notifyTemplateId: dto.notifyTemplateId,
+    });
+
     const merged = {
       enabled: dto.enabled ?? existing.enabled,
-      costPerLead: dto.costPerLead ?? existing.costPerLead,
-      outreachTemplateId:
-        dto.outreachTemplateId ?? existing.outreachTemplateId,
-      notifyTemplateId: dto.notifyTemplateId ?? existing.notifyTemplateId,
+      costPerLead: existing.costPerLead,
+      outreachTemplateId,
+      notifyTemplateId,
       slotBindings,
     };
 
@@ -128,12 +283,6 @@ export class OutreachConfigService {
       where: { tenantId },
       data: {
         ...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
-        ...(dto.costPerLead !== undefined
-          ? { costPerLead: dto.costPerLead }
-          : {}),
-        ...(dto.cashbackOnReply !== undefined
-          ? { cashbackOnReply: dto.cashbackOnReply }
-          : {}),
         ...(dto.outreachTemplateId !== undefined
           ? { outreachTemplateId: dto.outreachTemplateId }
           : {}),
@@ -162,6 +311,14 @@ export class OutreachConfigService {
     });
   }
 
+  private tenantOwnedKeysInBody(raw: unknown): string[] {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return [];
+    }
+    const keys = Object.keys(raw as Record<string, unknown>);
+    return TENANT_OWNED_OUTREACH_KEYS.filter((k) => keys.includes(k));
+  }
+
   private asSlotBindings(raw: Prisma.JsonValue): SlotBindingsInput {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       return { outreach: {}, notify: {} };
@@ -174,6 +331,17 @@ export class OutreachConfigService {
       ? (rec.notify as Record<string, SlotBindingInput>)
       : {};
     return { outreach, notify };
+  }
+
+  private async assertTemplateIdsGranted(
+    tenantId: number,
+    ids: {
+      outreachTemplateId?: number | null;
+      notifyTemplateId?: number | null;
+    },
+  ) {
+    await assertTemplateGranted(this.prisma, tenantId, ids.outreachTemplateId);
+    await assertTemplateGranted(this.prisma, tenantId, ids.notifyTemplateId);
   }
 
   private async ensureTenant(tenantId: number) {
@@ -229,6 +397,11 @@ export class OutreachConfigService {
         'Não é possível habilitar outreach: outreachTemplateId e notifyTemplateId são obrigatórios',
       );
     }
+
+    await this.assertTemplateIdsGranted(tenant.id, {
+      outreachTemplateId: fields.outreachTemplateId,
+      notifyTemplateId: fields.notifyTemplateId,
+    });
 
     const [outreachTemplate, notifyTemplate] = await Promise.all([
       this.prisma.whatsappMessageTemplate.findUnique({

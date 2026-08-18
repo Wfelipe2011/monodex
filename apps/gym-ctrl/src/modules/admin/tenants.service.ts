@@ -71,6 +71,19 @@ export class TenantsService {
     }
   }
 
+  async updatePhone(id: number, phone: string) {
+    await this.getById(id);
+    try {
+      return await this.prisma.tenant.update({
+        where: { id },
+        data: { phone },
+        select: tenantSelect,
+      });
+    } catch (error) {
+      this.rethrowUnique(error);
+    }
+  }
+
   private rethrowUnique(error: unknown): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

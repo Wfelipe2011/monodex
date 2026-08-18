@@ -23,11 +23,11 @@ import { rejectSecretTokenFields } from './reject-secret-token-fields';
 import { TestWhatsappTemplateDto } from './dto/test-whatsapp-template.dto';
 import { WhatsappTemplatesService } from './whatsapp-templates.service';
 
-@ApiTags('Admin — WhatsApp Templates')
+@ApiTags('Platform — WhatsApp Templates')
 @ApiBearerAuth()
 @RolesAuth(Roles.SUPER_ADMIN)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-@Controller('admin/whatsapp-templates')
+@Controller('platform/whatsapp-templates')
 export class WhatsappTemplatesController {
   constructor(
     private readonly whatsappTemplatesService: WhatsappTemplatesService,

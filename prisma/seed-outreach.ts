@@ -1,5 +1,6 @@
 /**
- * Idempotent seed: platform WhatsappAccount + stub templates + TenantOutreachConfig.
+ * Idempotent seed: platform WhatsappAccount + stub templates + TenantOutreachConfig
+ * + empty TenantSendPolicy + TenantTemplateGrant for stub templates on the operational tenant.
  *
  * Tenant resolution:
  * - Uses TENANT_ID env when set
@@ -7,6 +8,7 @@
  * - If that tenant does not exist, exits with instructions to set TENANT_ID
  *
  * WABA: WHATSAPP_WABA_ID env, or placeholder SET_WABA_ID (warn). Does not call Graph.
+ * Does not delete WhatsappAccount.
  *
  * Usage: npx ts-node prisma/seed-outreach.ts
  */
@@ -266,6 +268,41 @@ async function resolveOperationalTenantId(): Promise<number> {
   return tenant.id;
 }
 
+async function ensureEmptySendPolicies() {
+  const tenants = await prisma.tenant.findMany({ select: { id: true } });
+  for (const tenant of tenants) {
+    await prisma.tenantSendPolicy.upsert({
+      where: { tenantId: tenant.id },
+      create: {
+        tenantId: tenant.id,
+        allowedCityIds: [],
+        deniedCityIds: [],
+        respectAllTenants: false,
+        exclusive: false,
+      },
+      update: {},
+    });
+  }
+  console.log(
+    `[seed-outreach] TenantSendPolicy empty defaults ensured for ${tenants.length} tenant(s)`,
+  );
+}
+
+async function ensureTemplateGrants(tenantId: number, templateIds: number[]) {
+  for (const templateId of templateIds) {
+    const grant = await prisma.tenantTemplateGrant.upsert({
+      where: {
+        tenantId_templateId: { tenantId, templateId },
+      },
+      create: { tenantId, templateId },
+      update: {},
+    });
+    console.log(
+      `[seed-outreach] TenantTemplateGrant upserted id=${grant.id} tenantId=${tenantId} templateId=${templateId}`,
+    );
+  }
+}
+
 async function upsertOutreachConfig(
   tenantId: number,
   outreachTemplateId: number,
@@ -324,6 +361,7 @@ async function upsertOutreachConfig(
 }
 
 async function main() {
+  await ensureEmptySendPolicies();
   const account = await upsertPlatformAccount();
   await ensureDefaultSchedules();
   const outreachTemplate = await ensureStubTemplate(
@@ -337,6 +375,10 @@ async function main() {
     NOTIFY_COMPONENTS,
   );
   const tenantId = await resolveOperationalTenantId();
+  await ensureTemplateGrants(tenantId, [
+    outreachTemplate.id,
+    notifyTemplate.id,
+  ]);
   const config = await upsertOutreachConfig(
     tenantId,
     outreachTemplate.id,

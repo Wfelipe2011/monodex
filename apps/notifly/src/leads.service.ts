@@ -8,6 +8,7 @@ import {
   Prisma,
   Tenant,
   TenantOutreachConfig,
+  TenantSendPolicy,
   WhatsappMessageTemplate,
 } from '@prisma/client';
 import {
@@ -16,6 +17,11 @@ import {
 } from '@core/shared/whatsapp-template-bindings';
 import { TemplateSlot } from '@core/shared/whatsapp-template-slots';
 import { buildTemplateSendBody } from '@core/shared/whatsapp-template-payload';
+import {
+  asIntArray,
+  cityIdFilter,
+  mergeExcludedPhones,
+} from '@core/shared/send-policy';
 import { Message } from './interfaces';
 import { PlatformWhatsappService } from './platform-whatsapp.service';
 import { WhatsAppSendMessageResponse } from './WhatsAppSendMessageResponse';
@@ -33,7 +39,10 @@ type OutreachConfigWithTemplates = TenantOutreachConfig & {
   notifyTemplate: WhatsappMessageTemplate | null;
 };
 
-type TenantWithOutreach = Tenant & { outreachConfig: OutreachConfigWithTemplates };
+type TenantWithOutreach = Tenant & {
+  outreachConfig: OutreachConfigWithTemplates;
+  sendPolicy?: TenantSendPolicy | null;
+};
 
 type LeadWithCity = Lead & { city?: { name: string } | null };
 
@@ -95,6 +104,7 @@ export class LeadsService implements OnModuleInit {
 
     const tenants = await this.prisma.tenant.findMany({
       where: {
+        active: true,
         outreachConfig: {
           enabled: true,
         },
@@ -106,11 +116,12 @@ export class LeadsService implements OnModuleInit {
         outreachConfig: {
           include: OUTREACH_INCLUDE,
         },
+        sendPolicy: true,
       },
     });
 
     console.log(
-      `[handleCron] Encontrados ${tenants.length} tenants com outreach enabled + phone`,
+      `[handleCron] Encontrados ${tenants.length} tenants active com outreach enabled + phone`,
     );
 
     for (const tenant of tenants) {
@@ -156,6 +167,67 @@ export class LeadsService implements OnModuleInit {
         );
       }
     }
+  }
+
+  private async loadPolicyExclusionPhones(
+    tenantId: number,
+    respectAllTenants: boolean,
+  ): Promise<{
+    pairwise: string[];
+    allOthersIfRespectAll: string[];
+    exclusiveTenants: string[];
+  }> {
+    const respects = await this.prisma.tenantRespect.findMany({
+      where: { tenantId },
+      select: { respectedTenantId: true },
+    });
+    const respectTenantIds = respects.map((row) => row.respectedTenantId);
+
+    const exclusivePolicies = await this.prisma.tenantSendPolicy.findMany({
+      where: { exclusive: true, tenantId: { not: tenantId } },
+      select: { tenantId: true },
+    });
+    const exclusiveTenantIds = exclusivePolicies.map((row) => row.tenantId);
+
+    const [pairwise, exclusiveTenants, allOthersIfRespectAll] =
+      await Promise.all([
+        this.contactedPhonesForTenants(respectTenantIds),
+        this.contactedPhonesForTenants(exclusiveTenantIds),
+        respectAllTenants
+          ? this.contactedPhonesForOtherTenants(tenantId)
+          : Promise.resolve([] as string[]),
+      ]);
+
+    return { pairwise, allOthersIfRespectAll, exclusiveTenants };
+  }
+
+  private async contactedPhonesForTenants(
+    tenantIds: number[],
+  ): Promise<string[]> {
+    if (tenantIds.length === 0) {
+      return [];
+    }
+    const rows = await this.prisma.tenantLead.findMany({
+      where: {
+        contacted: true,
+        tenantId: { in: tenantIds },
+      },
+      select: { lead: { select: { phone: true } } },
+    });
+    return rows.map((row) => row.lead.phone);
+  }
+
+  private async contactedPhonesForOtherTenants(
+    tenantId: number,
+  ): Promise<string[]> {
+    const rows = await this.prisma.tenantLead.findMany({
+      where: {
+        contacted: true,
+        tenantId: { not: tenantId },
+      },
+      select: { lead: { select: { phone: true } } },
+    });
+    return rows.map((row) => row.lead.phone);
   }
 
   private categoryWhere(tenantCategories: string[]): Prisma.LeadWhereInput {
@@ -219,12 +291,26 @@ export class LeadsService implements OnModuleInit {
       },
     });
     const usedPhones = [...new Set(used.map((row) => row.lead.phone))];
-    const usedPhoneSet = new Set(usedPhones);
     const categoryFilter = this.categoryWhere(categories);
+    const allowedCityIds = asIntArray(tenant.sendPolicy?.allowedCityIds);
+    const deniedCityIds = asIntArray(tenant.sendPolicy?.deniedCityIds);
+    const cityFilter = cityIdFilter(allowedCityIds, deniedCityIds);
+    const extraExcluded = await this.loadPolicyExclusionPhones(
+      tenant.id,
+      tenant.sendPolicy?.respectAllTenants ?? false,
+    );
+    const excludedPhones = mergeExcludedPhones({
+      own: usedPhones,
+      pairwise: extraExcluded.pairwise,
+      allOthersIfRespectAll: extraExcluded.allOthersIfRespectAll,
+      exclusiveTenants: extraExcluded.exclusiveTenants,
+    });
+    const excludedList = [...excludedPhones];
 
     const leads = await this.prisma.lead.findMany({
       where: {
         deletedAt: null,
+        ...(cityFilter ? { cityId: cityFilter } : {}),
         AND: [
           categoryFilter,
           {
@@ -232,7 +318,7 @@ export class LeadsService implements OnModuleInit {
               not: {
                 contains: '153',
               },
-              ...(usedPhones.length > 0 ? { notIn: usedPhones } : {}),
+              ...(excludedList.length > 0 ? { notIn: excludedList } : {}),
             },
           },
         ],
@@ -240,7 +326,7 @@ export class LeadsService implements OnModuleInit {
       include: { city: true },
     });
 
-    const uniquePool = uniqueByPhone(excludeUsedPhones(leads, usedPhoneSet));
+    const uniquePool = uniqueByPhone(excludeUsedPhones(leads, excludedPhones));
 
     const allForAvg = await this.prisma.lead.findMany({
       where: {

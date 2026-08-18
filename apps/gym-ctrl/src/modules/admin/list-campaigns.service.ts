@@ -1,13 +1,16 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, WhatsappDeliveryStatus } from '@prisma/client';
+import { Prisma, Roles, WhatsappDeliveryStatus } from '@prisma/client';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
+import { assertSuperAdminTenantWrite } from '@core/guard/bootstrap-write';
 import { extractQuickReplyButtons } from '@core/shared/list-campaign-helpers';
 import { UpsertListCampaignDto } from './dto/upsert-list-campaign.dto';
 import { PatchListCampaignDto } from './dto/patch-list-campaign.dto';
+import { assertTemplateGranted } from './assert-template-grant';
 import {
   assertButtonActionsValid,
   assertNotifySlotBindingsValid,
@@ -74,10 +77,23 @@ export class ListCampaignsService {
     tenantId: number,
     listId: number,
     dto: UpsertListCampaignDto,
+    roles: Roles[],
   ) {
     await this.getListOrThrow(tenantId, listId);
+    const existingCount = await this.prisma.tenantListCampaign.count({
+      where: { listId },
+    });
+    if (roles?.includes(Roles.SUPER_ADMIN) && existingCount > 0) {
+      throw new ForbiddenException('Acesso não permitido');
+    }
+    assertSuperAdminTenantWrite({
+      roles,
+      resourceCreatedAt: null,
+      isPlatformField: false,
+    });
     const fields = this.normalizeCampaignInput(dto);
-    await this.assertEnableAllowed(fields);
+    await this.assertTemplateIdsGranted(tenantId, fields);
+    await this.assertEnableAllowed(tenantId, fields);
 
     return this.prisma.tenantListCampaign.create({
       data: {
@@ -107,10 +123,17 @@ export class ListCampaignsService {
     listId: number,
     campaignId: number,
     dto: UpsertListCampaignDto,
+    roles: Roles[],
   ) {
-    await this.getCampaignOrThrow(tenantId, listId, campaignId);
+    const existing = await this.getCampaignOrThrow(tenantId, listId, campaignId);
+    assertSuperAdminTenantWrite({
+      roles,
+      resourceCreatedAt: existing.createdAt,
+      isPlatformField: false,
+    });
     const fields = this.normalizeCampaignInput(dto);
-    await this.assertEnableAllowed(fields);
+    await this.assertTemplateIdsGranted(tenantId, fields);
+    await this.assertEnableAllowed(tenantId, fields);
 
     return this.prisma.tenantListCampaign.update({
       where: { id: campaignId },
@@ -136,8 +159,14 @@ export class ListCampaignsService {
     listId: number,
     campaignId: number,
     dto: PatchListCampaignDto,
+    roles: Roles[],
   ) {
     const existing = await this.getCampaignOrThrow(tenantId, listId, campaignId);
+    assertSuperAdminTenantWrite({
+      roles,
+      resourceCreatedAt: existing.createdAt,
+      isPlatformField: false,
+    });
 
     const slotBindings =
       dto.slotBindings !== undefined
@@ -166,7 +195,13 @@ export class ListCampaignsService {
       buttonActions,
     };
 
-    await this.assertEnableAllowed(merged);
+    await this.assertTemplateIdsGranted(tenantId, {
+      templateId:
+        dto.templateId !== undefined ? dto.templateId : undefined,
+      notifyTemplateId:
+        dto.notifyTemplateId !== undefined ? dto.notifyTemplateId : undefined,
+    });
+    await this.assertEnableAllowed(tenantId, merged);
 
     return this.prisma.tenantListCampaign.update({
       where: { id: campaignId },
@@ -282,8 +317,24 @@ export class ListCampaignsService {
     };
   }
 
-  private async assertEnableAllowed(fields: CampaignFields) {
+  private async assertTemplateIdsGranted(
+    tenantId: number,
+    ids: {
+      templateId?: number | null;
+      notifyTemplateId?: number | null;
+    },
+  ) {
+    await assertTemplateGranted(this.prisma, tenantId, ids.templateId);
+    await assertTemplateGranted(this.prisma, tenantId, ids.notifyTemplateId);
+  }
+
+  private async assertEnableAllowed(tenantId: number, fields: CampaignFields) {
     if (!fields.enabled) return;
+
+    await this.assertTemplateIdsGranted(tenantId, {
+      templateId: fields.templateId,
+      notifyTemplateId: fields.notifyTemplateId,
+    });
 
     const sendTemplate = await this.prisma.whatsappMessageTemplate.findUnique({
       where: { id: fields.templateId },

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -40,6 +41,10 @@ export class UsersService {
 
   async create(tenantId: number, dto: CreateTenantUserDto) {
     await this.ensureTenant(tenantId);
+    const existingCount = await this.prisma.user.count({ where: { tenantId } });
+    if (existingCount > 0) {
+      throw new ForbiddenException('Acesso não permitido');
+    }
     const roles = dto.roles ?? [Roles.ADMIN];
     this.rejectSuperAdmin(roles);
 
@@ -61,7 +66,45 @@ export class UsersService {
     }
   }
 
-  async update(tenantId: number, userId: number, dto: UpdateTenantUserDto) {
+  async createByTenantAdmin(
+    tenantId: number,
+    dto: CreateTenantUserDto,
+    roles: Roles[],
+  ) {
+    if (roles?.includes(Roles.SUPER_ADMIN)) {
+      throw new ForbiddenException('Acesso não permitido');
+    }
+    await this.ensureTenant(tenantId);
+    const userRoles = dto.roles ?? [Roles.ADMIN];
+    this.rejectSuperAdmin(userRoles);
+
+    const hashed = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    try {
+      return await this.prisma.user.create({
+        data: {
+          name: dto.name,
+          username: dto.username,
+          email: dto.email.toLowerCase(),
+          password: hashed,
+          roles: userRoles,
+          tenantId,
+        },
+        select: userSelect,
+      });
+    } catch (error) {
+      this.rethrowUnique(error);
+    }
+  }
+
+  async update(
+    tenantId: number,
+    userId: number,
+    dto: UpdateTenantUserDto,
+    roles: Roles[],
+  ) {
+    if (roles?.includes(Roles.SUPER_ADMIN)) {
+      throw new ForbiddenException('Acesso não permitido');
+    }
     await this.getTenantUser(tenantId, userId);
     if (dto.roles !== undefined) {
       this.rejectSuperAdmin(dto.roles);
@@ -77,7 +120,15 @@ export class UsersService {
     });
   }
 
-  async resetPassword(tenantId: number, userId: number, dto: ResetPasswordDto) {
+  async resetPassword(
+    tenantId: number,
+    userId: number,
+    dto: ResetPasswordDto,
+    roles: Roles[],
+  ) {
+    if (roles?.includes(Roles.SUPER_ADMIN)) {
+      throw new ForbiddenException('Acesso não permitido');
+    }
     await this.getTenantUser(tenantId, userId);
     const hashed = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     return this.prisma.user.update({

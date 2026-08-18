@@ -14,11 +14,11 @@ import { PlatformJobKey, Roles } from '@prisma/client';
 import { PlatformJobSchedulesService } from './platform-job-schedules.service';
 import { UpsertPlatformJobScheduleDto } from './dto/upsert-platform-job-schedule.dto';
 
-@ApiTags('Admin — Platform Job Schedules')
+@ApiTags('Platform — Job Schedules')
 @ApiBearerAuth()
 @RolesAuth(Roles.SUPER_ADMIN)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-@Controller('admin/platform-job-schedules')
+@Controller('platform/platform-job-schedules')
 export class PlatformJobSchedulesController {
   constructor(
     private readonly platformJobSchedulesService: PlatformJobSchedulesService,

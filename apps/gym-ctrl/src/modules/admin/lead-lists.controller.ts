@@ -11,6 +11,7 @@ import {
   Req,
   Res,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
@@ -23,6 +24,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -31,11 +33,15 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { RolesAuth } from '@core/decorators/roles.decorator';
+import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
-import type { Request, Response } from 'express';
+import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
+import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
+import type { Response } from 'express';
 import { LeadListsService } from './lead-lists.service';
 import { CreateLeadListDto } from './dto/create-lead-list.dto';
 import { PatchLeadListDto } from './dto/patch-lead-list.dto';
+import { PatchListCostDto } from './dto/patch-list-cost.dto';
 import { CreateListLeadDto } from './dto/create-list-lead.dto';
 import { PatchListLeadDto } from './dto/patch-list-lead.dto';
 import { BulkCreateListLeadsDto } from './dto/bulk-create-list-leads.dto';
@@ -49,11 +55,12 @@ import {
   TenantListLeadResponseDto,
 } from './dto/swagger/tenant-list.swagger.dto';
 
-@ApiTags('Admin — Lead Lists')
+@ApiTags('Tenant — Lead Lists')
 @ApiBearerAuth()
-@RolesAuth(Roles.SUPER_ADMIN)
+@RolesAuth(Roles.ADMIN, Roles.SUPER_ADMIN)
+@UseGuards(TenantScopeGuard, TenantActiveGuard)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-@Controller('admin/tenants/:tenantId/lead-lists')
+@Controller('tenant/:tenantId/lead-lists')
 export class LeadListsController {
   constructor(private readonly leadListsService: LeadListsService) {}
 
@@ -76,19 +83,21 @@ export class LeadListsController {
   @Post()
   @ApiOperation({
     summary: 'Criar lista de leads',
-    description: 'Cria uma lista com `costPerSend` > 0 (coins debitados por envio).',
+    description:
+      'Cria uma lista com `{ name }`. `costPerSend` inicia em 0 até o Super Admin precificar em /platform.',
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiCreatedResponse({ type: TenantLeadListResponseDto })
-  @ApiBadRequestResponse({ description: 'costPerSend inválido ou body inválido' })
+  @ApiBadRequestResponse({ description: 'name inválido ou body inválido' })
+  @ApiForbiddenResponse({ description: 'costPerSend no body, tenant inativo ou Super Admin fora do pontapé' })
   @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
   createList(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: CreateLeadListDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
     rejectSecretTokenFields(req.body);
-    return this.leadListsService.createList(tenantId, dto);
+    return this.leadListsService.createList(tenantId, dto, req.user.roles, req.body);
   }
 
   @Get(':listId')
@@ -106,21 +115,29 @@ export class LeadListsController {
 
   @Patch(':listId')
   @ApiOperation({
-    summary: 'Atualizar lista (nome e/ou costPerSend)',
-    description: 'PATCH parcial — envie apenas os campos a alterar.',
+    summary: 'Atualizar lista (nome)',
+    description:
+      'PATCH parcial. `costPerSend` neste path retorna 403 — preço é /platform.',
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiOkResponse({ type: TenantLeadListResponseDto })
+  @ApiForbiddenResponse({ description: 'costPerSend no body ou Super Admin fora da janela' })
   @ApiNotFoundResponse({ description: 'Tenant ou lista não encontrado' })
   patchList(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
     @Body() dto: PatchLeadListDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
     rejectSecretTokenFields(req.body);
-    return this.leadListsService.patchList(tenantId, listId, dto);
+    return this.leadListsService.patchList(
+      tenantId,
+      listId,
+      dto,
+      req.user.roles,
+      req.body,
+    );
   }
 
   @Get(':listId/import-template')
@@ -178,11 +195,17 @@ export class LeadListsController {
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
     @UploadedFile() file?: { buffer: Buffer },
+    @Req() req?: RequestUser,
   ) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('file é obrigatório');
     }
-    return this.leadListsService.importCsv(tenantId, listId, file.buffer);
+    return this.leadListsService.importCsv(
+      tenantId,
+      listId,
+      file.buffer,
+      req?.user.roles ?? [],
+    );
   }
 
   @Get(':listId/leads')
@@ -214,10 +237,15 @@ export class LeadListsController {
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
     @Body() dto: BulkCreateListLeadsDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
     rejectSecretTokenFields(req.body);
-    return this.leadListsService.bulkCreateLeads(tenantId, listId, dto.leads);
+    return this.leadListsService.bulkCreateLeads(
+      tenantId,
+      listId,
+      dto.leads,
+      req.user.roles,
+    );
   }
 
   @Post(':listId/leads')
@@ -233,10 +261,10 @@ export class LeadListsController {
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
     @Body() dto: CreateListLeadDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
     rejectSecretTokenFields(req.body);
-    return this.leadListsService.createLead(tenantId, listId, dto);
+    return this.leadListsService.createLead(tenantId, listId, dto, req.user.roles);
   }
 
   @Get(':listId/leads/:leadId')
@@ -266,10 +294,16 @@ export class LeadListsController {
     @Param('listId', ParseIntPipe) listId: number,
     @Param('leadId', ParseIntPipe) leadId: number,
     @Body() dto: PatchListLeadDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
     rejectSecretTokenFields(req.body);
-    return this.leadListsService.patchLead(tenantId, listId, leadId, dto);
+    return this.leadListsService.patchLead(
+      tenantId,
+      listId,
+      leadId,
+      dto,
+      req.user.roles,
+    );
   }
 
   @Delete(':listId/leads/:leadId')
@@ -286,15 +320,22 @@ export class LeadListsController {
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
     @Param('leadId', ParseIntPipe) leadId: number,
+    @Req() req: RequestUser,
   ) {
-    return this.leadListsService.deleteLead(tenantId, listId, leadId);
+    return this.leadListsService.deleteLead(
+      tenantId,
+      listId,
+      leadId,
+      req.user.roles,
+    );
   }
 }
 
-@ApiTags('Admin — Lead Lists')
+@ApiTags('Tenant — Lead Lists')
 @ApiBearerAuth()
-@RolesAuth(Roles.SUPER_ADMIN)
-@Controller('admin/tenants/:tenantId')
+@RolesAuth(Roles.ADMIN, Roles.SUPER_ADMIN)
+@UseGuards(TenantScopeGuard, TenantActiveGuard)
+@Controller('tenant/:tenantId')
 export class TenantCategorySuggestionsController {
   constructor(private readonly leadListsService: LeadListsService) {}
 
@@ -316,5 +357,33 @@ export class TenantCategorySuggestionsController {
   @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
   categorySuggestions(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.leadListsService.categorySuggestions(tenantId);
+  }
+}
+
+@ApiTags('Platform — Lead Lists')
+@ApiBearerAuth()
+@RolesAuth(Roles.SUPER_ADMIN)
+@UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+@Controller('platform/tenants/:tenantId/lead-lists')
+export class PlatformLeadListsController {
+  constructor(private readonly leadListsService: LeadListsService) {}
+
+  @Patch(':listId')
+  @ApiOperation({
+    summary: 'Atualizar costPerSend da lista',
+    description:
+      'Somente Super Admin. `costPerSend` ≥ 0; 0 = campanha não envia. Não cria lista.',
+  })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiParam(LEAD_LIST_ID_PARAM)
+  @ApiOkResponse({ type: TenantLeadListResponseDto })
+  @ApiBadRequestResponse({ description: 'costPerSend negativo ou body inválido' })
+  @ApiNotFoundResponse({ description: 'Tenant ou lista não encontrado' })
+  patchCost(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Param('listId', ParseIntPipe) listId: number,
+    @Body() dto: PatchListCostDto,
+  ) {
+    return this.leadListsService.patchListCost(tenantId, listId, dto.costPerSend);
   }
 }

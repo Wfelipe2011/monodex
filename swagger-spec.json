@@ -50,7 +50,7 @@
         ]
       }
     },
-    "/admin/health": {
+    "/platform/health": {
       "get": {
         "operationId": "AdminHealthController_health",
         "parameters": [],
@@ -64,13 +64,13 @@
             "bearer": []
           }
         ],
-        "summary": "Health check do módulo admin (requer SUPER_ADMIN)",
+        "summary": "Health check da plataforma (requer SUPER_ADMIN)",
         "tags": [
-          "Admin"
+          "Platform"
         ]
       }
     },
-    "/admin/tenants": {
+    "/platform/tenants": {
       "get": {
         "operationId": "TenantsController_list",
         "parameters": [
@@ -96,7 +96,7 @@
         ],
         "summary": "Listar tenants",
         "tags": [
-          "Admin — Tenants"
+          "Platform — Tenants"
         ]
       },
       "post": {
@@ -124,11 +124,11 @@
         ],
         "summary": "Criar tenant",
         "tags": [
-          "Admin — Tenants"
+          "Platform — Tenants"
         ]
       }
     },
-    "/admin/tenants/{id}": {
+    "/platform/tenants/{id}": {
       "get": {
         "operationId": "TenantsController_getById",
         "parameters": [
@@ -153,7 +153,7 @@
         ],
         "summary": "Obter tenant por id",
         "tags": [
-          "Admin — Tenants"
+          "Platform — Tenants"
         ]
       },
       "patch": {
@@ -190,11 +190,51 @@
         ],
         "summary": "Atualizar tenant (incl. active)",
         "tags": [
-          "Admin — Tenants"
+          "Platform — Tenants"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/users": {
+    "/tenant/{tenantId}": {
+      "patch": {
+        "description": "Somente `{ phone }`. `active` neste path retorna 403.",
+        "operationId": "TenantSelfController_patchPhone",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchTenantPhoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Atualizar phone do tenant",
+        "tags": [
+          "Tenant — Tenant"
+        ]
+      }
+    },
+    "/platform/tenants/{tenantId}/users": {
       "get": {
         "operationId": "UsersController_list",
         "parameters": [
@@ -219,10 +259,11 @@
         ],
         "summary": "Listar users do tenant (sem password)",
         "tags": [
-          "Admin — Tenant Users"
+          "Platform — Tenant Users"
         ]
       },
       "post": {
+        "description": "Permitido somente se o tenant ainda não tiver users. PATCH e reset de senha ficam na superfície /tenant.",
         "operationId": "UsersController_create",
         "parameters": [
           {
@@ -254,15 +295,82 @@
             "bearer": []
           }
         ],
-        "summary": "Criar user do tenant (default roles: ADMIN)",
+        "summary": "Criar o primeiro user do tenant (default roles: ADMIN)",
         "tags": [
-          "Admin — Tenant Users"
+          "Platform — Tenant Users"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/users/{userId}": {
+    "/tenant/{tenantId}/users": {
+      "get": {
+        "operationId": "TenantUsersController_list",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar users do tenant (sem password)",
+        "tags": [
+          "Tenant — Users"
+        ]
+      },
+      "post": {
+        "description": "Admin do tenant. Super Admin sempre 403 (primeiro user é /platform).",
+        "operationId": "TenantUsersController_create",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Criar user adicional do tenant (default roles: ADMIN)",
+        "tags": [
+          "Tenant — Users"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/users/{userId}": {
       "patch": {
-        "operationId": "UsersController_update",
+        "operationId": "TenantUsersController_update",
         "parameters": [
           {
             "name": "tenantId",
@@ -301,15 +409,15 @@
             "bearer": []
           }
         ],
-        "summary": "Atualizar name/roles do user do tenant",
+        "summary": "Atualizar nome/roles de um user do tenant",
         "tags": [
-          "Admin — Tenant Users"
+          "Tenant — Users"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/users/{userId}/reset-password": {
+    "/tenant/{tenantId}/users/{userId}/reset-password": {
       "post": {
-        "operationId": "UsersController_resetPassword",
+        "operationId": "TenantUsersController_resetPassword",
         "parameters": [
           {
             "name": "tenantId",
@@ -348,13 +456,13 @@
             "bearer": []
           }
         ],
-        "summary": "Resetar senha do user (bcrypt)",
+        "summary": "Resetar senha de um user do tenant",
         "tags": [
-          "Admin — Tenant Users"
+          "Tenant — Users"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/coins": {
+    "/platform/tenants/{tenantId}/coins": {
       "get": {
         "operationId": "CoinsController_listCoins",
         "parameters": [
@@ -379,11 +487,11 @@
         ],
         "summary": "Listar saldos de coins do tenant",
         "tags": [
-          "Admin — Coins"
+          "Platform — Coins"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/coin-transactions": {
+    "/platform/tenants/{tenantId}/coin-transactions": {
       "get": {
         "operationId": "CoinsController_listTransactions",
         "parameters": [
@@ -417,11 +525,11 @@
         ],
         "summary": "Listar transactions recentes do tenant",
         "tags": [
-          "Admin — Coins"
+          "Platform — Coins"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/coins/credit": {
+    "/platform/tenants/{tenantId}/coins/credit": {
       "post": {
         "operationId": "CoinsController_credit",
         "parameters": [
@@ -456,11 +564,11 @@
         ],
         "summary": "Creditar coins (upsert da carteira)",
         "tags": [
-          "Admin — Coins"
+          "Platform — Coins"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/coins/debit": {
+    "/platform/tenants/{tenantId}/coins/debit": {
       "post": {
         "operationId": "CoinsController_debit",
         "parameters": [
@@ -495,11 +603,78 @@
         ],
         "summary": "Debitar coins (amount > 0; row com amount negativo)",
         "tags": [
-          "Admin — Coins"
+          "Platform — Coins"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/outreach-config": {
+    "/tenant/{tenantId}/coins": {
+      "get": {
+        "operationId": "TenantCoinsController_listCoins",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar saldos de coins do tenant (somente leitura)",
+        "tags": [
+          "Tenant — Coins"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/coin-transactions": {
+      "get": {
+        "operationId": "TenantCoinsController_listTransactions",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar transactions recentes do tenant (somente leitura)",
+        "tags": [
+          "Tenant — Coins"
+        ]
+      }
+    },
+    "/platform/tenants/{tenantId}/outreach-config": {
       "get": {
         "description": "Devolve ids de catálogo, slotBindings, knobs de envio e relações mínimas dos templates (id, name, language, status).",
         "operationId": "OutreachConfigController_get",
@@ -532,11 +707,11 @@
         ],
         "summary": "Obter outreach config do tenant (404 se não houver)",
         "tags": [
-          "Admin — Outreach Config"
+          "Platform — Outreach Config"
         ]
       },
       "put": {
-        "description": "Cria ou substitui a config. Obrigatórios: costPerLead, outreachTemplateId, notifyTemplateId, slotBindings, schedule, categories. Campos legado (outreachTemplateName, notifyTenantTemplateName, outreachContactText, headerImageUrl) retornam 400. enabled=true exige tenant ativo com phone, templates APPROVED e cobertura de slots. leadsPerRun e sendIntervalSeconds default 5.",
+        "description": "Cria a config se não houver row. Se já existir, 403 — use PATCH para preço. Body completo permitido no pontapé (inclui campos tenant-owned). Campos legado (outreachTemplateName, notifyTenantTemplateName, outreachContactText, headerImageUrl) retornam 400. enabled=true exige tenant ativo com phone, templates APPROVED e cobertura de slots.",
         "operationId": "OutreachConfigController_upsert",
         "parameters": [
           {
@@ -575,14 +750,141 @@
             "bearer": []
           }
         ],
-        "summary": "Upsert completo de outreach config",
+        "summary": "Bootstrap de outreach config (somente se ainda não existir)",
         "tags": [
-          "Admin — Outreach Config"
+          "Platform — Outreach Config"
         ]
       },
       "patch": {
-        "description": "Altera só campos enviados. Merge com a config existente. Campos legado retornam 400. enabled=true exige templates APPROVED e bindings completos já persistidos ou no body.",
+        "description": "Somente campos de plataforma. Campos tenant-owned (enabled, schedule, categories, leadsPerRun, etc.) no body → 403. Campos legado retornam 400.",
         "operationId": "OutreachConfigController_patch",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchPlatformOutreachConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Patch de preço (costPerLead / cashbackOnReply)",
+        "tags": [
+          "Platform — Outreach Config"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/outreach-config": {
+      "get": {
+        "description": "Devolve a row completa, inclusive costPerLead/cashbackOnReply. Admin não altera preço neste path.",
+        "operationId": "TenantOutreachConfigController_get",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Obter outreach config do tenant (inclui preço read-only)",
+        "tags": [
+          "Tenant — Outreach Config"
+        ]
+      },
+      "put": {
+        "description": "Cria com costPerLead=0 e cashbackOnReply=0. Se já existir, 403 — use PATCH. costPerLead/cashbackOnReply no body → 403. Super Admin só no pontapé (recurso ausente).",
+        "operationId": "TenantOutreachConfigController_create",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTenantOutreachConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Criar outreach config se ainda não existir",
+        "tags": [
+          "Tenant — Outreach Config"
+        ]
+      },
+      "patch": {
+        "description": "Não aceita costPerLead/cashbackOnReply (403). Super Admin só dentro da janela de 30 min. enabled=true exige phone, tenant ativo, templates APPROVED, grants e bindings.",
+        "operationId": "TenantOutreachConfigController_patch",
         "parameters": [
           {
             "name": "tenantId",
@@ -620,13 +922,13 @@
             "bearer": []
           }
         ],
-        "summary": "Patch parcial de outreach config",
+        "summary": "Patch operacional (knobs, schedule, templates, enabled)",
         "tags": [
-          "Admin — Outreach Config"
+          "Tenant — Outreach Config"
         ]
       }
     },
-    "/admin/whatsapp-accounts": {
+    "/platform/whatsapp-accounts": {
       "get": {
         "operationId": "WhatsappAccountsController_list",
         "parameters": [],
@@ -642,7 +944,7 @@
         ],
         "summary": "Listar contas WhatsApp da plataforma (tenantId null)",
         "tags": [
-          "Admin — WhatsApp Accounts"
+          "Platform — WhatsApp Accounts"
         ]
       },
       "post": {
@@ -671,11 +973,11 @@
         ],
         "summary": "Criar conta WhatsApp da plataforma",
         "tags": [
-          "Admin — WhatsApp Accounts"
+          "Platform — WhatsApp Accounts"
         ]
       }
     },
-    "/admin/whatsapp-accounts/{id}": {
+    "/platform/whatsapp-accounts/{id}": {
       "get": {
         "operationId": "WhatsappAccountsController_getById",
         "parameters": [
@@ -700,7 +1002,7 @@
         ],
         "summary": "Obter conta WhatsApp da plataforma por id",
         "tags": [
-          "Admin — WhatsApp Accounts"
+          "Platform — WhatsApp Accounts"
         ]
       },
       "patch": {
@@ -738,11 +1040,11 @@
         ],
         "summary": "Atualizar conta WhatsApp da plataforma",
         "tags": [
-          "Admin — WhatsApp Accounts"
+          "Platform — WhatsApp Accounts"
         ]
       }
     },
-    "/admin/whatsapp-templates/sync": {
+    "/platform/whatsapp-templates/sync": {
       "post": {
         "operationId": "WhatsappTemplatesController_sync",
         "parameters": [],
@@ -758,11 +1060,11 @@
         ],
         "summary": "Sincronizar catálogo de templates a partir da WABA da plataforma",
         "tags": [
-          "Admin — WhatsApp Templates"
+          "Platform — WhatsApp Templates"
         ]
       }
     },
-    "/admin/whatsapp-templates": {
+    "/platform/whatsapp-templates": {
       "get": {
         "operationId": "WhatsappTemplatesController_list",
         "parameters": [
@@ -795,11 +1097,11 @@
         ],
         "summary": "Listar templates do catálogo (inclui slots parseados)",
         "tags": [
-          "Admin — WhatsApp Templates"
+          "Platform — WhatsApp Templates"
         ]
       }
     },
-    "/admin/whatsapp-templates/{id}/test": {
+    "/platform/whatsapp-templates/{id}/test": {
       "post": {
         "operationId": "WhatsappTemplatesController_test",
         "parameters": [
@@ -834,11 +1136,11 @@
         ],
         "summary": "Enviar template do catálogo para um número (sem TenantLead/coin)",
         "tags": [
-          "Admin — WhatsApp Templates"
+          "Platform — WhatsApp Templates"
         ]
       }
     },
-    "/admin/platform-job-schedules": {
+    "/platform/platform-job-schedules": {
       "get": {
         "operationId": "PlatformJobSchedulesController_list",
         "parameters": [],
@@ -854,11 +1156,11 @@
         ],
         "summary": "Listar schedules de jobs da plataforma (sync templates e scrape)",
         "tags": [
-          "Admin — Platform Job Schedules"
+          "Platform — Job Schedules"
         ]
       }
     },
-    "/admin/platform-job-schedules/{jobKey}": {
+    "/platform/platform-job-schedules/{jobKey}": {
       "get": {
         "operationId": "PlatformJobSchedulesController_getByJobKey",
         "parameters": [
@@ -887,7 +1189,7 @@
         ],
         "summary": "Obter schedule por jobKey",
         "tags": [
-          "Admin — Platform Job Schedules"
+          "Platform — Job Schedules"
         ]
       },
       "put": {
@@ -929,11 +1231,11 @@
         ],
         "summary": "Atualizar (upsert) cron, timezone e enabled de um job da plataforma",
         "tags": [
-          "Admin — Platform Job Schedules"
+          "Platform — Job Schedules"
         ]
       }
     },
-    "/admin/scrape-targets": {
+    "/platform/scrape-targets": {
       "get": {
         "operationId": "ScrapeTargetsController_list",
         "parameters": [],
@@ -959,7 +1261,7 @@
         ],
         "summary": "Listar scrape targets (cidade × categoria)",
         "tags": [
-          "Admin — Scrape"
+          "Platform — Scrape"
         ]
       },
       "post": {
@@ -995,11 +1297,11 @@
         ],
         "summary": "Criar ou upsert scrape target",
         "tags": [
-          "Admin — Scrape"
+          "Platform — Scrape"
         ]
       }
     },
-    "/admin/scrape-targets/{id}": {
+    "/platform/scrape-targets/{id}": {
       "get": {
         "operationId": "ScrapeTargetsController_getById",
         "parameters": [
@@ -1031,7 +1333,7 @@
         ],
         "summary": "Obter scrape target por id",
         "tags": [
-          "Admin — Scrape"
+          "Platform — Scrape"
         ]
       },
       "patch": {
@@ -1076,7 +1378,7 @@
         ],
         "summary": "Atualizar scrape target",
         "tags": [
-          "Admin — Scrape"
+          "Platform — Scrape"
         ]
       },
       "delete": {
@@ -1111,11 +1413,11 @@
         ],
         "summary": "Remover scrape target",
         "tags": [
-          "Admin — Scrape"
+          "Platform — Scrape"
         ]
       }
     },
-    "/admin/scrape-coverages": {
+    "/platform/scrape-coverages": {
       "get": {
         "description": "Retorna [] se nunca scrapou. Após um scrape, inclui lastStatus, lastRunAt, lastLeadCount e firstRunAt.",
         "operationId": "ScrapeCoveragesController_list",
@@ -1159,11 +1461,11 @@
         ],
         "summary": "Listar cobertura de scrape (somente leitura)",
         "tags": [
-          "Admin — Scrape"
+          "Platform — Scrape"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists": {
+    "/tenant/{tenantId}/lead-lists": {
       "get": {
         "description": "Retorna todas as listas ordenadas por id ascendente.",
         "operationId": "LeadListsController_listLists",
@@ -1204,11 +1506,11 @@
         ],
         "summary": "Listar listas de leads do tenant",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       },
       "post": {
-        "description": "Cria uma lista com `costPerSend` > 0 (coins debitados por envio).",
+        "description": "Cria uma lista com `{ name }`. `costPerSend` inicia em 0 até o Super Admin precificar em /platform.",
         "operationId": "LeadListsController_createList",
         "parameters": [
           {
@@ -1244,7 +1546,10 @@
             }
           },
           "400": {
-            "description": "costPerSend inválido ou body inválido"
+            "description": "name inválido ou body inválido"
+          },
+          "403": {
+            "description": "costPerSend no body, tenant inativo ou Super Admin fora do pontapé"
           },
           "404": {
             "description": "Tenant não encontrado"
@@ -1257,11 +1562,11 @@
         ],
         "summary": "Criar lista de leads",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists/{listId}": {
+    "/tenant/{tenantId}/lead-lists/{listId}": {
       "get": {
         "operationId": "LeadListsController_getList",
         "parameters": [
@@ -1308,11 +1613,11 @@
         ],
         "summary": "Obter lista por id",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       },
       "patch": {
-        "description": "PATCH parcial — envie apenas os campos a alterar.",
+        "description": "PATCH parcial. `costPerSend` neste path retorna 403 — preço é /platform.",
         "operationId": "LeadListsController_patchList",
         "parameters": [
           {
@@ -1357,6 +1662,9 @@
               }
             }
           },
+          "403": {
+            "description": "costPerSend no body ou Super Admin fora da janela"
+          },
           "404": {
             "description": "Tenant ou lista não encontrado"
           }
@@ -1366,13 +1674,13 @@
             "bearer": []
           }
         ],
-        "summary": "Atualizar lista (nome e/ou costPerSend)",
+        "summary": "Atualizar lista (nome)",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists/{listId}/import-template": {
+    "/tenant/{tenantId}/lead-lists/{listId}/import-template": {
       "get": {
         "description": "Colunas: name, phone, website, category, reviews. Headers case-insensitive na importação.",
         "operationId": "LeadListsController_downloadImportTemplate",
@@ -1416,11 +1724,11 @@
         ],
         "summary": "Baixar CSV de exemplo para importação",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists/{listId}/import": {
+    "/tenant/{tenantId}/lead-lists/{listId}/import": {
       "post": {
         "description": "Multipart field `file`. Falha atômica (400) se linha inválida ou phone duplicado no arquivo ou na lista.",
         "operationId": "LeadListsController_importCsv",
@@ -1494,11 +1802,11 @@
         ],
         "summary": "Importar leads via CSV",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists/{listId}/leads": {
+    "/tenant/{tenantId}/lead-lists/{listId}/leads": {
       "get": {
         "operationId": "LeadListsController_listLeads",
         "parameters": [
@@ -1548,7 +1856,7 @@
         ],
         "summary": "Listar leads da lista",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       },
       "post": {
@@ -1608,11 +1916,11 @@
         ],
         "summary": "Adicionar lead à lista",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists/{listId}/leads/bulk": {
+    "/tenant/{tenantId}/lead-lists/{listId}/leads/bulk": {
       "post": {
         "description": "Transação atômica; falha se phone duplicado no body ou na lista.",
         "operationId": "LeadListsController_bulkCreateLeads",
@@ -1670,11 +1978,11 @@
         ],
         "summary": "Criar leads em lote",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists/{listId}/leads/{leadId}": {
+    "/tenant/{tenantId}/lead-lists/{listId}/leads/{leadId}": {
       "get": {
         "operationId": "LeadListsController_getLead",
         "parameters": [
@@ -1731,7 +2039,7 @@
         ],
         "summary": "Obter lead por id",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       },
       "patch": {
@@ -1800,7 +2108,7 @@
         ],
         "summary": "Atualizar lead (parcial)",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       },
       "delete": {
@@ -1860,11 +2168,76 @@
         ],
         "summary": "Remover lead da lista",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/category-suggestions": {
+    "/platform/tenants/{tenantId}/lead-lists/{listId}": {
+      "patch": {
+        "description": "Somente Super Admin. `costPerSend` ≥ 0; 0 = campanha não envia. Não cria lista.",
+        "operationId": "PlatformLeadListsController_patchCost",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "listId",
+            "required": true,
+            "in": "path",
+            "description": "ID da lista de leads do tenant",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchListCostDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantLeadListResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "costPerSend negativo ou body inválido"
+          },
+          "404": {
+            "description": "Tenant ou lista não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Atualizar costPerSend da lista",
+        "tags": [
+          "Platform — Lead Lists"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/category-suggestions": {
       "get": {
         "description": "Distinct de Lead.category (via tenant_leads / pool global) e TenantListLead.category das listas do tenant. Dedup por normalização (acentos/minúsculas).",
         "operationId": "TenantCategorySuggestionsController_categorySuggestions",
@@ -1910,11 +2283,11 @@
         ],
         "summary": "Sugestões de categoria para autocomplete",
         "tags": [
-          "Admin — Lead Lists"
+          "Tenant — Lead Lists"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists/{listId}/campaigns": {
+    "/tenant/{tenantId}/lead-lists/{listId}/campaigns": {
       "get": {
         "description": "Inclui relação mínima dos templates (id, name, language, status) e bindings persistidos.",
         "operationId": "ListCampaignsController_listCampaigns",
@@ -1965,7 +2338,7 @@
         ],
         "summary": "Listar campanhas da lista",
         "tags": [
-          "Admin — List Campaigns"
+          "Tenant — List Campaigns"
         ]
       },
       "post": {
@@ -2028,11 +2401,11 @@
         ],
         "summary": "Criar campanha",
         "tags": [
-          "Admin — List Campaigns"
+          "Tenant — List Campaigns"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists/{listId}/campaigns/{campaignId}": {
+    "/tenant/{tenantId}/lead-lists/{listId}/campaigns/{campaignId}": {
       "get": {
         "operationId": "ListCampaignsController_getCampaign",
         "parameters": [
@@ -2089,7 +2462,7 @@
         ],
         "summary": "Obter campanha por id",
         "tags": [
-          "Admin — List Campaigns"
+          "Tenant — List Campaigns"
         ]
       },
       "put": {
@@ -2159,7 +2532,7 @@
         ],
         "summary": "Substituir campanha (corpo completo)",
         "tags": [
-          "Admin — List Campaigns"
+          "Tenant — List Campaigns"
         ]
       },
       "patch": {
@@ -2229,11 +2602,11 @@
         ],
         "summary": "Atualizar campanha (parcial)",
         "tags": [
-          "Admin — List Campaigns"
+          "Tenant — List Campaigns"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists/{listId}/sends": {
+    "/tenant/{tenantId}/lead-lists/{listId}/sends": {
       "get": {
         "description": "Até 100 registros, ordenados por sentAt desc. status=failed filtra por lastStatus failed e inclui latestError quando disponível.",
         "operationId": "ListSendsController_listSends",
@@ -2309,11 +2682,11 @@
         ],
         "summary": "Listar envios (sends) da lista",
         "tags": [
-          "Admin — List Campaigns"
+          "Tenant — List Campaigns"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/lead-lists/{listId}/leads/{leadId}/messages": {
+    "/tenant/{tenantId}/lead-lists/{listId}/leads/{leadId}/messages": {
       "get": {
         "description": "Mensagens de conversa (IN/OUT) ordenadas por createdAt ascendente. Use query `since` (ISO8601) para polling incremental no front.",
         "operationId": "ListConversationsController_listMessages",
@@ -2387,11 +2760,11 @@
         ],
         "summary": "Histórico de mensagens do lead",
         "tags": [
-          "Admin — List Conversations"
+          "Tenant — List Conversations"
         ]
       },
       "post": {
-        "description": "Exige inbound do lead nas últimas 24h (janela Meta customer care). 400 com corpo `OUTSIDE_MESSAGING_WINDOW` se não houver inbound recente. 502 se a Graph API falhar.",
+        "description": "Exige inbound do lead nas últimas 24h (janela Meta customer care). 400 com corpo `OUTSIDE_MESSAGING_WINDOW` se não houver inbound recente. 502 se a Graph API falhar. Super Admin sempre 403 (sem pontapé).",
         "operationId": "ListConversationsController_sendTextMessage",
         "parameters": [
           {
@@ -2449,6 +2822,9 @@
           "400": {
             "description": "Texto vazio, fora da janela 24h (OUTSIDE_MESSAGING_WINDOW) ou erro 4xx da Graph"
           },
+          "403": {
+            "description": "Super Admin ou tenant inativo"
+          },
           "404": {
             "description": "Tenant, lista ou lead não encontrado"
           },
@@ -2463,11 +2839,11 @@
         ],
         "summary": "Enviar texto livre via Cloud API",
         "tags": [
-          "Admin — List Conversations"
+          "Tenant — List Conversations"
         ]
       }
     },
-    "/admin/ops/summary": {
+    "/platform/ops/summary": {
       "get": {
         "description": "Contadores: total de tenants, ativos, com outreach enabled, e leads no pool global (não soft-deleted).",
         "operationId": "OpsController_summary",
@@ -2491,11 +2867,11 @@
         ],
         "summary": "Resumo operacional da plataforma",
         "tags": [
-          "Admin — Ops"
+          "Platform — Ops"
         ]
       }
     },
-    "/admin/tenants/{tenantId}/leads/stats": {
+    "/platform/tenants/{tenantId}/leads/stats": {
       "get": {
         "description": "Counts onde cada booleano de TenantLead é true. 404 se o tenant não existir.",
         "operationId": "OpsController_leadsStats",
@@ -2528,11 +2904,11 @@
         ],
         "summary": "Funil de TenantLead por tenant",
         "tags": [
-          "Admin — Ops"
+          "Platform — Ops"
         ]
       }
     },
-    "/admin/leads/count": {
+    "/platform/leads/count": {
       "get": {
         "description": "Lead com deletedAt = null.",
         "operationId": "OpsController_leadsCount",
@@ -2556,7 +2932,437 @@
         ],
         "summary": "Contagem do pool global de leads",
         "tags": [
-          "Admin — Ops"
+          "Platform — Ops"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/leads/stats": {
+      "get": {
+        "description": "Counts onde cada booleano de TenantLead é true. 404 se o tenant não existir.",
+        "operationId": "TenantLeadsStatsController_leadsStats",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantLeadStatsDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Funil de TenantLead do próprio tenant",
+        "tags": [
+          "Tenant — Ops"
+        ]
+      }
+    },
+    "/platform/tenants/{tenantId}/send-policy": {
+      "get": {
+        "description": "Devolve allowedCityIds, deniedCityIds, respectAllTenants, exclusive e respectTenantIds. Sem row, arrays vazios e flags false.",
+        "operationId": "SendPolicyController_get",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Obter send-policy do tenant",
+        "tags": [
+          "Platform — Send Policy"
+        ]
+      },
+      "put": {
+        "description": "allowedCityIds e deniedCityIds são XOR (ambos não-vazios → 400). respectTenantIds não pode incluir o próprio tenantId. Substitui as edges de respect.",
+        "operationId": "SendPolicyController_upsert",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertSendPolicyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upsert send-policy e edges TenantRespect",
+        "tags": [
+          "Platform — Send Policy"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/send-policy": {
+      "get": {
+        "description": "Admin lê a policy do próprio tenant, incluindo flags e respectTenantIds. Sem PUT neste prefixo.",
+        "operationId": "TenantSendPolicyController_get",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ler send-policy do tenant (somente leitura)",
+        "tags": [
+          "Tenant — Send Policy"
+        ]
+      },
+      "put": {
+        "operationId": "TenantSendPolicyController_rejectWrite",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Escrita de send-policy no prefixo tenant é proibida",
+        "tags": [
+          "Tenant — Send Policy"
+        ]
+      }
+    },
+    "/platform/tenants/{tenantId}/template-grants": {
+      "get": {
+        "operationId": "TemplateGrantsController_list",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar grants de templates do tenant",
+        "tags": [
+          "Platform — Template Grants"
+        ]
+      },
+      "post": {
+        "description": "Body `{ templateId }`. Template inexistente → 404. Duplicata no mesmo tenant é idempotente (200). O mesmo templateId pode ser granted a vários tenants.",
+        "operationId": "TemplateGrantsController_create",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplateGrantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Conceder template do catálogo ao tenant (upsert)",
+        "tags": [
+          "Platform — Template Grants"
+        ]
+      },
+      "put": {
+        "operationId": "TemplateGrantsController_upsert",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplateGrantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Conceder template do catálogo ao tenant (upsert)",
+        "tags": [
+          "Platform — Template Grants"
+        ]
+      }
+    },
+    "/platform/tenants/{tenantId}/template-grants/{templateId}": {
+      "delete": {
+        "operationId": "TemplateGrantsController_remove",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revogar grant de um template",
+        "tags": [
+          "Platform — Template Grants"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/whatsapp-templates": {
+      "get": {
+        "description": "Join grant + catálogo: id, name, language, status, slots. Sem sync Graph. Templates do catálogo sem grant são omitidos.",
+        "operationId": "TenantTemplatesController_list",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar templates granted ao tenant",
+        "tags": [
+          "Tenant — WhatsApp Templates"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/scrape-targets": {
+      "get": {
+        "description": "Só vínculos TenantScrapeTarget deste tenant, com city e enabled. Targets sem vínculo não aparecem. Lista global permanece em /platform/scrape-targets.",
+        "operationId": "TenantScrapeTargetsController_list",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar scrape targets vinculados ao tenant",
+        "tags": [
+          "Tenant — Scrape"
+        ]
+      },
+      "post": {
+        "description": "Body `{ cityName, state?, category }` (sem enabled). Resolve/cria City, checa send-policy, upsert ScrapeTarget (create enabled=true; update não altera enabled) e upsert o vínculo do tenant. Não dispara scrape.",
+        "operationId": "TenantScrapeTargetsController_request",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestTenantScrapeTargetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pedir par cidade/categoria compartilhado",
+        "tags": [
+          "Tenant — Scrape"
         ]
       }
     },
@@ -2581,6 +3387,79 @@
         },
         "tags": [
           "InternalInboxRealtime"
+        ]
+      }
+    },
+    "/tenant/push-subscriptions": {
+      "put": {
+        "operationId": "PushSubscriptionsController_upsert",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertPushSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Subscription registrada ou atualizada"
+          },
+          "401": {
+            "description": "JWT ausente ou inválido"
+          },
+          "403": {
+            "description": "Tenant inativo"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registrar ou atualizar PushSubscription do usuário autenticado",
+        "tags": [
+          "Tenant — Push"
+        ]
+      },
+      "delete": {
+        "operationId": "PushSubscriptionsController_remove",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletePushSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Subscription removida"
+          },
+          "401": {
+            "description": "JWT ausente ou inválido"
+          },
+          "403": {
+            "description": "Tenant inativo"
+          },
+          "404": {
+            "description": "Subscription não encontrada para este usuário"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remover PushSubscription do usuário autenticado",
+        "tags": [
+          "Tenant — Push"
         ]
       }
     }
@@ -2681,6 +3560,20 @@
             "description": "Tenant ativo"
           }
         }
+      },
+      "PatchTenantPhoneDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Telefone do tenant (não altera active)",
+            "example": "12911112222"
+          }
+        },
+        "required": [
+          "phone"
+        ]
       },
       "CreateTenantUserDto": {
         "type": "object",
@@ -2938,13 +3831,9 @@
           "categories"
         ]
       },
-      "PatchOutreachConfigDto": {
+      "PatchPlatformOutreachConfigDto": {
         "type": "object",
         "properties": {
-          "enabled": {
-            "type": "boolean",
-            "description": "Habilitar outreach"
-          },
           "costPerLead": {
             "type": "number",
             "description": "Custo em coins por lead contatado"
@@ -2952,6 +3841,75 @@
           "cashbackOnReply": {
             "type": "number",
             "description": "Cashback ao receber reply"
+          }
+        }
+      },
+      "UpsertTenantOutreachConfigDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Habilitar outreach",
+            "default": false
+          },
+          "outreachTemplateId": {
+            "type": "number",
+            "minimum": 1,
+            "description": "FK do template de outreach no catálogo"
+          },
+          "notifyTemplateId": {
+            "type": "number",
+            "minimum": 1,
+            "description": "FK do template de notify no catálogo"
+          },
+          "slotBindings": {
+            "$ref": "#/components/schemas/SlotBindingsDto"
+          },
+          "schedule": {
+            "type": "object",
+            "description": "Mapa dia-da-semana → horas UTC",
+            "example": {
+              "2": [
+                18
+              ],
+              "3": [
+                18
+              ],
+              "4": [
+                13,
+                18
+              ]
+            }
+          },
+          "categories": {
+            "minItems": 0,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "leadsPerRun": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Leads contactados por execução (default 5)",
+            "example": 5,
+            "default": 5
+          },
+          "sendIntervalSeconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Intervalo em segundos entre envios (default 5)",
+            "example": 5,
+            "default": 5
+          }
+        }
+      },
+      "PatchOutreachConfigDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Habilitar outreach"
           },
           "outreachTemplateId": {
             "type": "number",
@@ -3223,17 +4181,10 @@
             "minLength": 1,
             "description": "Nome da lista",
             "example": "Construtoras SP"
-          },
-          "costPerSend": {
-            "type": "number",
-            "minimum": 0.000001,
-            "description": "Custo por envio (deve ser > 0)",
-            "example": 1.5
           }
         },
         "required": [
-          "name",
-          "costPerSend"
+          "name"
         ]
       },
       "PatchLeadListDto": {
@@ -3244,12 +4195,6 @@
             "minLength": 1,
             "description": "Nome da lista",
             "example": "Construtoras SP — Q3"
-          },
-          "costPerSend": {
-            "type": "number",
-            "minimum": 0.000001,
-            "description": "Custo por envio (deve ser > 0)",
-            "example": 2
           }
         }
       },
@@ -3427,6 +4372,20 @@
             "example": 50
           }
         }
+      },
+      "PatchListCostDto": {
+        "type": "object",
+        "properties": {
+          "costPerSend": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Custo por envio (0 = campanha não envia)",
+            "example": 0.4
+          }
+        },
+        "required": [
+          "costPerSend"
+        ]
       },
       "CatalogTemplateRefDto": {
         "type": "object",
@@ -3993,6 +4952,104 @@
           "count"
         ]
       },
+      "UpsertSendPolicyDto": {
+        "type": "object",
+        "properties": {
+          "allowedCityIds": {
+            "uniqueItems": true,
+            "description": "Allowlist de city ids (XOR com deniedCityIds)",
+            "example": [
+              1
+            ],
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 1
+            }
+          },
+          "deniedCityIds": {
+            "uniqueItems": true,
+            "description": "Denylist de city ids (XOR com allowedCityIds)",
+            "example": [],
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 1
+            }
+          },
+          "respectAllTenants": {
+            "type": "boolean",
+            "description": "Excluir telefones contacted=true de qualquer outro tenant",
+            "example": false
+          },
+          "exclusive": {
+            "type": "boolean",
+            "description": "Outros tenants excluem telefones que este tenant contactou",
+            "example": false
+          },
+          "respectTenantIds": {
+            "uniqueItems": true,
+            "description": "Tenant ids respeitados (não pode incluir o próprio tenantId)",
+            "example": [
+              2,
+              3
+            ],
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "allowedCityIds",
+          "deniedCityIds",
+          "respectAllTenants",
+          "exclusive",
+          "respectTenantIds"
+        ]
+      },
+      "CreateTemplateGrantDto": {
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "type": "number",
+            "minimum": 1,
+            "description": "FK do WhatsappMessageTemplate no catálogo",
+            "example": 10
+          }
+        },
+        "required": [
+          "templateId"
+        ]
+      },
+      "RequestTenantScrapeTargetDto": {
+        "type": "object",
+        "properties": {
+          "cityName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Nome da cidade",
+            "example": "Taubaté"
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "description": "UF da cidade",
+            "example": "SP"
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Categoria a scrapar",
+            "example": "Construtoras"
+          }
+        },
+        "required": [
+          "cityName",
+          "category"
+        ]
+      },
       "InboundMessageDto": {
         "type": "object",
         "properties": {
@@ -4042,6 +5099,9 @@
           "leadId": {
             "type": "number"
           },
+          "leadName": {
+            "type": "string"
+          },
           "message": {
             "$ref": "#/components/schemas/InboundMessageDto"
           }
@@ -4051,7 +5111,53 @@
           "tenantId",
           "listId",
           "leadId",
+          "leadName",
           "message"
+        ]
+      },
+      "PushSubscriptionKeysDto": {
+        "type": "object",
+        "properties": {
+          "p256dh": {
+            "type": "string",
+            "description": "Chave p256dh da PushSubscription do browser"
+          },
+          "auth": {
+            "type": "string",
+            "description": "Chave auth da PushSubscription do browser"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ]
+      },
+      "UpsertPushSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "Endpoint único retornado pelo PushManager.subscribe()"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushSubscriptionKeysDto"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ]
+      },
+      "DeletePushSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "Endpoint da subscription a remover"
+          }
+        },
+        "required": [
+          "endpoint"
         ]
       }
     }

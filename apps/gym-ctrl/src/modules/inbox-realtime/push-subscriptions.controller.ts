@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   HttpCode,
   NotFoundException,
   Put,
@@ -11,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOperation,
@@ -22,10 +24,10 @@ import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { DeletePushSubscriptionDto } from './dto/delete-push-subscription.dto';
 import { UpsertPushSubscriptionDto } from './dto/upsert-push-subscription.dto';
 
-@ApiTags('Admin — Push')
+@ApiTags('Tenant — Push')
 @ApiBearerAuth()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-@Controller('admin/push-subscriptions')
+@Controller('tenant/push-subscriptions')
 export class PushSubscriptionsController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -33,11 +35,13 @@ export class PushSubscriptionsController {
   @HttpCode(204)
   @ApiOperation({ summary: 'Registrar ou atualizar PushSubscription do usuário autenticado' })
   @ApiNoContentResponse({ description: 'Subscription registrada ou atualizada' })
+  @ApiForbiddenResponse({ description: 'Tenant inativo' })
   @ApiUnauthorizedResponse({ description: 'JWT ausente ou inválido' })
   async upsert(
     @Body() dto: UpsertPushSubscriptionDto,
     @Req() req: RequestUser,
   ): Promise<void> {
+    await this.assertTenantActive(req.user.tenantId);
     const userAgent = this.resolveUserAgent(req);
 
     await this.prisma.pushSubscription.upsert({
@@ -63,11 +67,13 @@ export class PushSubscriptionsController {
   @ApiOperation({ summary: 'Remover PushSubscription do usuário autenticado' })
   @ApiNoContentResponse({ description: 'Subscription removida' })
   @ApiNotFoundResponse({ description: 'Subscription não encontrada para este usuário' })
+  @ApiForbiddenResponse({ description: 'Tenant inativo' })
   @ApiUnauthorizedResponse({ description: 'JWT ausente ou inválido' })
   async remove(
     @Body() dto: DeletePushSubscriptionDto,
     @Req() req: RequestUser,
   ): Promise<void> {
+    await this.assertTenantActive(req.user.tenantId);
     const result = await this.prisma.pushSubscription.deleteMany({
       where: {
         endpoint: dto.endpoint,
@@ -77,6 +83,19 @@ export class PushSubscriptionsController {
 
     if (result.count === 0) {
       throw new NotFoundException('Push subscription não encontrada');
+    }
+  }
+
+  private async assertTenantActive(tenantId: number): Promise<void> {
+    if (!Number.isFinite(tenantId)) {
+      return;
+    }
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { active: true },
+    });
+    if (tenant && tenant.active === false) {
+      throw new ForbiddenException('Acesso não permitido');
     }
   }
 

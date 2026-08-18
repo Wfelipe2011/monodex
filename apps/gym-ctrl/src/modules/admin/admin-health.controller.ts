@@ -3,17 +3,17 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { Roles } from '@prisma/client';
 
-@ApiTags('Admin')
+@ApiTags('Platform')
 @ApiBearerAuth()
 @RolesAuth(Roles.SUPER_ADMIN)
-@Controller('admin')
+@Controller('platform')
 export class AdminHealthController {
   @Get('health')
-  @ApiOperation({ summary: 'Health check do módulo admin (requer SUPER_ADMIN)' })
+  @ApiOperation({ summary: 'Health check da plataforma (requer SUPER_ADMIN)' })
   health() {
     return {
       status: 'ok',
-      module: 'admin',
+      module: 'platform',
       timestamp: new Date().toISOString(),
     };
   }

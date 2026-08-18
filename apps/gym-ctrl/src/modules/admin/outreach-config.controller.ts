@@ -7,24 +7,29 @@ import {
   Patch,
   Put,
   Req,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RolesAuth } from '@core/decorators/roles.decorator';
+import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
-import type { Request } from 'express';
+import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
+import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { OutreachConfigService } from './outreach-config.service';
 import { UpsertOutreachConfigDto } from './dto/upsert-outreach-config.dto';
+import { UpsertTenantOutreachConfigDto } from './dto/upsert-tenant-outreach-config.dto';
 import { PatchOutreachConfigDto } from './dto/patch-outreach-config.dto';
+import { PatchPlatformOutreachConfigDto } from './dto/patch-platform-outreach-config.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
 import { rejectLegacyOutreachFields } from './reject-legacy-outreach-fields';
 
-@ApiTags('Admin — Outreach Config')
+@ApiTags('Platform — Outreach Config')
 @ApiBearerAuth()
 @RolesAuth(Roles.SUPER_ADMIN)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-@Controller('admin/tenants/:tenantId/outreach-config')
+@Controller('platform/tenants/:tenantId/outreach-config')
 export class OutreachConfigController {
   constructor(private readonly outreachConfigService: OutreachConfigService) {}
 
@@ -40,37 +45,110 @@ export class OutreachConfigController {
 
   @Put()
   @ApiOperation({
-    summary: 'Upsert completo de outreach config',
+    summary: 'Bootstrap de outreach config (somente se ainda não existir)',
     description:
-      'Cria ou substitui a config. Obrigatórios: costPerLead, outreachTemplateId, notifyTemplateId, slotBindings, schedule, categories. ' +
+      'Cria a config se não houver row. Se já existir, 403 — use PATCH para preço. ' +
+      'Body completo permitido no pontapé (inclui campos tenant-owned). ' +
       'Campos legado (outreachTemplateName, notifyTenantTemplateName, outreachContactText, headerImageUrl) retornam 400. ' +
-      'enabled=true exige tenant ativo com phone, templates APPROVED e cobertura de slots. ' +
-      'leadsPerRun e sendIntervalSeconds default 5.',
+      'enabled=true exige tenant ativo com phone, templates APPROVED e cobertura de slots.',
   })
   upsert(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: UpsertOutreachConfigDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
     rejectSecretTokenFields(req.body);
     rejectLegacyOutreachFields(req.body);
-    return this.outreachConfigService.upsert(tenantId, dto);
+    return this.outreachConfigService.createBootstrap(
+      tenantId,
+      dto,
+      req.user.roles,
+    );
   }
 
   @Patch()
   @ApiOperation({
-    summary: 'Patch parcial de outreach config',
+    summary: 'Patch de preço (costPerLead / cashbackOnReply)',
     description:
-      'Altera só campos enviados. Merge com a config existente. ' +
-      'Campos legado retornam 400. enabled=true exige templates APPROVED e bindings completos já persistidos ou no body.',
+      'Somente campos de plataforma. Campos tenant-owned (enabled, schedule, categories, leadsPerRun, etc.) no body → 403. ' +
+      'Campos legado retornam 400.',
+  })
+  patch(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Body() dto: PatchPlatformOutreachConfigDto,
+    @Req() req: RequestUser,
+  ) {
+    rejectSecretTokenFields(req.body);
+    rejectLegacyOutreachFields(req.body);
+    return this.outreachConfigService.patchPlatform(
+      tenantId,
+      dto,
+      req.user.roles,
+      req.body,
+    );
+  }
+}
+
+@ApiTags('Tenant — Outreach Config')
+@ApiBearerAuth()
+@RolesAuth(Roles.ADMIN, Roles.SUPER_ADMIN)
+@UseGuards(TenantScopeGuard, TenantActiveGuard)
+@UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+@Controller('tenant/:tenantId/outreach-config')
+export class TenantOutreachConfigController {
+  constructor(private readonly outreachConfigService: OutreachConfigService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Obter outreach config do tenant (inclui preço read-only)',
+    description:
+      'Devolve a row completa, inclusive costPerLead/cashbackOnReply. Admin não altera preço neste path.',
+  })
+  get(@Param('tenantId', ParseIntPipe) tenantId: number) {
+    return this.outreachConfigService.get(tenantId);
+  }
+
+  @Put()
+  @ApiOperation({
+    summary: 'Criar outreach config se ainda não existir',
+    description:
+      'Cria com costPerLead=0 e cashbackOnReply=0. Se já existir, 403 — use PATCH. ' +
+      'costPerLead/cashbackOnReply no body → 403. Super Admin só no pontapé (recurso ausente).',
+  })
+  create(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Body() dto: UpsertTenantOutreachConfigDto,
+    @Req() req: RequestUser,
+  ) {
+    rejectSecretTokenFields(req.body);
+    rejectLegacyOutreachFields(req.body);
+    return this.outreachConfigService.createTenant(
+      tenantId,
+      dto,
+      req.user.roles,
+      req.body,
+    );
+  }
+
+  @Patch()
+  @ApiOperation({
+    summary: 'Patch operacional (knobs, schedule, templates, enabled)',
+    description:
+      'Não aceita costPerLead/cashbackOnReply (403). Super Admin só dentro da janela de 30 min. ' +
+      'enabled=true exige phone, tenant ativo, templates APPROVED, grants e bindings.',
   })
   patch(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: PatchOutreachConfigDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
     rejectSecretTokenFields(req.body);
     rejectLegacyOutreachFields(req.body);
-    return this.outreachConfigService.patch(tenantId, dto);
+    return this.outreachConfigService.patchTenant(
+      tenantId,
+      dto,
+      req.user.roles,
+      req.body,
+    );
   }
 }

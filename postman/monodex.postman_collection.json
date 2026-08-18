@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Monodex",
-    "description": "Collection da API Monodex (gym-ctrl admin + notifly).\n\n## Como usar\n1. Importe este arquivo no Postman.\n2. Ajuste as variáveis da collection: `gymBaseUrl`, `notiflyBaseUrl`, `adminEmail`, `adminPassword`.\n3. Rode **Auth → Login** — o script salva `token` automaticamente.\n4. Rotas `/admin/*` usam Bearer Token (`{{token}}`) e exigem role `SUPER_ADMIN`.\n\n## Seed local\n```bash\nNODE_ENV=development npx ts-node prisma/seed-platform-admin.ts\n```\nDefaults: `platform-admin@local.dev` / `platform-admin-dev`",
+    "description": "Collection da API Monodex (gym-ctrl + notifly).\n\n## Contrato (breaking)\n`/admin/*` **foi removido**. Use:\n- `/platform/*` — SUPER_ADMIN (`{{platformToken}}`)\n- `/tenant/:tenantId/*` — ADMIN do tenant (`{{tenantToken}}`)\n- `POST /auth/login` — inalterado\n\n## Como usar\n1. Importe este arquivo no Postman.\n2. Ajuste `gymBaseUrl` (GYM_PORT, default 3001), `notiflyBaseUrl`, emails e senhas.\n3. Rode **Auth → Login Super Admin** (grava `platformToken`) e **Login Tenant Admin** (grava `tenantToken` e `tenantId` do JWT).\n4. Pastas `Platform — *` usam Bearer `{{platformToken}}`. Pastas `Tenant — *` usam `{{tenantToken}}`.\n\n## Seeds locais\n```bash\nNODE_ENV=development npx ts-node prisma/seed-platform-admin.ts\nnpx ts-node prisma/seed-outreach.ts\n```\nPlatform admin (dev): `platform-admin@local.dev` / `platform-admin-dev`.\n`seed-outreach` upserta policy vazia + grants dos stubs `test_gladson` e notify no tenant operacional (id 8 / `TENANT_ID`).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -15,19 +15,35 @@
       "value": "http://localhost:3000"
     },
     {
-      "key": "adminEmail",
+      "key": "platformEmail",
       "value": "platform-admin@local.dev"
     },
     {
-      "key": "adminPassword",
+      "key": "platformPassword",
       "value": "platform-admin-dev"
     },
     {
-      "key": "token",
+      "key": "tenantEmail",
+      "value": "SET_TENANT_ADMIN_EMAIL"
+    },
+    {
+      "key": "tenantPassword",
+      "value": "SET_TENANT_ADMIN_PASSWORD"
+    },
+    {
+      "key": "platformToken",
+      "value": ""
+    },
+    {
+      "key": "tenantToken",
       "value": ""
     },
     {
       "key": "tenantId",
+      "value": "8"
+    },
+    {
+      "key": "otherTenantId",
       "value": "1"
     },
     {
@@ -73,21 +89,32 @@
     }
   ],
   "auth": {
-    "type": "bearer",
-    "bearer": [
-      {
-        "key": "token",
-        "value": "{{token}}",
-        "type": "string"
-      }
-    ]
+    "type": "noauth"
   },
   "item": [
     {
       "name": "Auth",
       "item": [
         {
-          "name": "Login",
+          "name": "Login Super Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/auth/login",
+            "description": "Retorna `{ token }`. Grava em `{{platformToken}}`. Role SUPER_ADMIN.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{platformEmail}}\",\n  \"password\": \"{{platformPassword}}\"\n}"
+            }
+          },
           "event": [
             {
               "listen": "test",
@@ -96,19 +123,19 @@
                   "if (pm.response.code === 200 || pm.response.code === 201) {",
                   "  const json = pm.response.json();",
                   "  if (json.token) {",
-                  "    pm.collectionVariables.set('token', json.token);",
-                  "    pm.test('Token salvo na collection', () => pm.expect(json.token).to.be.a('string'));",
+                  "    pm.collectionVariables.set('platformToken', json.token);",
+                  "    pm.test('platformToken salvo', () => pm.expect(json.token).to.be.a('string'));",
                   "  }",
                   "}"
                 ],
                 "type": "text/javascript"
               }
             }
-          ],
+          ]
+        },
+        {
+          "name": "Login Tenant Admin",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -116,36 +143,62 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/auth/login",
+            "description": "Retorna `{ token }`. Grava `{{tenantToken}}` e `{{tenantId}}` a partir do JWT. Role ADMIN.",
+            "auth": {
+              "type": "noauth"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
-            },
-            "url": "{{gymBaseUrl}}/auth/login",
-            "description": "Retorna `{ token }`. O test script grava em `{{token}}`."
-          }
+              "raw": "{\n  \"email\": \"{{tenantEmail}}\",\n  \"password\": \"{{tenantPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) {",
+                  "    pm.collectionVariables.set('tenantToken', json.token);",
+                  "    pm.test('tenantToken salvo', () => pm.expect(json.token).to.be.a('string'));",
+                  "    try {",
+                  "      const payload = JSON.parse(atob(json.token.split('.')[1]));",
+                  "      if (payload.tenantId) pm.collectionVariables.set('tenantId', String(payload.tenantId));",
+                  "      if (payload.userId) pm.collectionVariables.set('userId', String(payload.userId));",
+                  "    } catch (e) {}",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Health Check (gym)",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/health-check"
+            "url": "{{gymBaseUrl}}/health-check",
+            "auth": {
+              "type": "noauth"
+            }
           }
         }
-      ]
+      ],
+      "description": "Dois logins. `/admin/*` não existe mais."
     },
     {
-      "name": "Admin — Health & Ops",
+      "name": "Platform — Health & Ops",
       "item": [
         {
-          "name": "Admin Health",
+          "name": "Platform Health",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/health",
+            "url": "{{gymBaseUrl}}/platform/health",
             "description": "Requer SUPER_ADMIN."
           }
         },
@@ -154,7 +207,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/ops/summary"
+            "url": "{{gymBaseUrl}}/platform/ops/summary"
           }
         },
         {
@@ -162,21 +215,31 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/leads/count"
+            "url": "{{gymBaseUrl}}/platform/leads/count"
           }
         },
         {
-          "name": "Tenant Leads Stats",
+          "name": "Tenant Leads Stats (platform)",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/leads/stats"
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/leads/stats"
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
-      "name": "Admin — Tenants",
+      "name": "Platform — Tenants",
       "item": [
         {
           "name": "List Tenants",
@@ -184,12 +247,12 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{gymBaseUrl}}/admin/tenants",
+              "raw": "{{gymBaseUrl}}/platform/tenants",
               "host": [
                 "{{gymBaseUrl}}"
               ],
               "path": [
-                "admin",
+                "platform",
                 "tenants"
               ],
               "query": [
@@ -200,26 +263,12 @@
                   "disabled": true
                 }
               ]
-            }
+            },
+            "description": "ADMIN neste path → 403."
           }
         },
         {
           "name": "Create Tenant",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200 || pm.response.code === 201) {",
-                  "  const json = pm.response.json();",
-                  "  if (json.id) pm.collectionVariables.set('tenantId', String(json.id));",
-                  "  if (json.uuid) pm.collectionVariables.set('tenantUuid', json.uuid);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
             "method": "POST",
             "header": [
@@ -228,20 +277,46 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/tenants",
+            "description": "`phone` é o número que recebe o notify do tenant.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Academia Centro\",\n  \"phone\": \"15999998888\",\n  \"active\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('tenantId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
             },
-            "url": "{{gymBaseUrl}}/admin/tenants",
-            "description": "`phone` é o número que recebe o notify do tenant (sem +55 obrigatório no código — o notifly prefixa 55)."
-          }
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.uuid) pm.collectionVariables.set('tenantUuid', json.uuid);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Get Tenant",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}"
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}"
           }
         },
         {
@@ -254,28 +329,54 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Academia Centro\",\n  \"phone\": \"15999998888\",\n  \"active\": true\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}"
+            }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
-      "name": "Admin — Users",
+      "name": "Platform — First User",
       "item": [
         {
           "name": "List Users",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/users"
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/users",
+            "description": "Leitura permitida. PATCH/reset/segundo user ficam em Tenant — Users (Super Admin 403 na escrita)."
           }
         },
         {
-          "name": "Create User",
+          "name": "Create First User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/users",
+            "description": "Só quando o tenant ainda não tem user. Segundo user → 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maria Silva\",\n  \"username\": \"maria.admin\",\n  \"email\": \"maria@academia.com\",\n  \"password\": \"senha-segura\",\n  \"roles\": [\"ADMIN\"]\n}"
+            }
+          },
           "event": [
             {
               "listen": "test",
@@ -289,68 +390,29 @@
                 "type": "text/javascript"
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Maria Silva\",\n  \"username\": \"maria.admin\",\n  \"email\": \"maria@academia.com\",\n  \"password\": \"senha-segura\",\n  \"roles\": [\"ADMIN\"]\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/users",
-            "description": "Roles permitidas no tenant: não incluir SUPER_ADMIN."
-          }
-        },
-        {
-          "name": "Update User",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Maria Silva\",\n  \"roles\": [\"ADMIN\"]\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/users/{{userId}}"
-          }
-        },
-        {
-          "name": "Reset Password",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"password\": \"nova-senha\"\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/users/{{userId}}/reset-password"
-          }
+          ]
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
-      "name": "Admin — Coins",
+      "name": "Platform — Coins",
       "item": [
         {
           "name": "List Coins",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/coins"
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/coins"
           }
         },
         {
@@ -359,12 +421,12 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/coin-transactions?limit=50",
+              "raw": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/coin-transactions?limit=50",
               "host": [
                 "{{gymBaseUrl}}"
               ],
               "path": [
-                "admin",
+                "platform",
                 "tenants",
                 "{{tenantId}}",
                 "coin-transactions"
@@ -388,12 +450,12 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/coins/credit",
+            "description": "`type` opcional: CREDITO | BONUS.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"userId\": {{userId}},\n  \"amount\": 10,\n  \"description\": \"Credito inicial onboarding\",\n  \"type\": \"CREDITO\"\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/coins/credit",
-            "description": "`type` opcional: CREDITO | BONUS."
+            }
           }
         },
         {
@@ -406,28 +468,38 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/coins/debit",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"userId\": {{userId}},\n  \"amount\": 3,\n  \"description\": \"Ajuste operacional\"\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/coins/debit"
+            }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
-      "name": "Admin — Outreach Config",
+      "name": "Platform — Outreach",
       "item": [
         {
           "name": "Get Outreach Config",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config"
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config"
           }
         },
         {
-          "name": "Upsert Outreach Config (PUT)",
+          "name": "Bootstrap Outreach Config (PUT)",
           "request": {
             "method": "PUT",
             "header": [
@@ -436,16 +508,16 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
+            "description": "Cria se não existir. Se já existir → 403. Depois da janela de 30 min, knobs de Admin neste prefixo → 403.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"enabled\": true,\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"slotBindings\": {\n    \"outreach\": {\n      \"body.1\": {\n        \"type\": \"literal\",\n        \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\"\n      },\n      \"header.image\": {\n        \"type\": \"header_image\",\n        \"value\": \"\"\n      }\n    },\n    \"notify\": {\n      \"body.customer_name\": {\n        \"type\": \"lead.name\"\n      },\n      \"body.customer_phone\": {\n        \"type\": \"lead.phone\"\n      },\n      \"body.customer_lead\": {\n        \"type\": \"literal\",\n        \"value\": \"customer_lead\"\n      }\n    }\n  },\n  \"schedule\": {\n    \"2\": [\n      18\n    ],\n    \"3\": [\n      18\n    ],\n    \"4\": [\n      13,\n      18\n    ]\n  },\n  \"categories\": [\n    \"Construtoras\",\n    \"Escritórios de advocacia\",\n    \"Clínicas médicas\",\n    \"Clínicas odontológicas\",\n    \"Consultórios\",\n    \"Estéticas\",\n    \"Consutorias\"\n  ],\n  \"leadsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config",
-            "description": "Templates = FKs do catalogo. `slotBindings.outreach` / `.notify` keyed por slot. `schedule`: dia da semana (0=Dom) → horas."
+              "raw": "{\n  \"enabled\": true,\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"slotBindings\": {\n  \"outreach\": {\n    \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" },\n    \"header.image\": { \"type\": \"header_image\", \"value\": \"\" }\n  },\n  \"notify\": {\n    \"body.customer_name\": { \"type\": \"lead.name\" },\n    \"body.customer_phone\": { \"type\": \"lead.phone\" },\n    \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n  }\n},\n  \"schedule\": { \"2\": [18], \"3\": [18], \"4\": [13, 18] },\n  \"categories\": [\"Construtoras\", \"Consultórios\"],\n  \"leadsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
+            }
           }
         },
         {
-          "name": "Patch Outreach Config",
+          "name": "Patch Outreach Price",
           "request": {
             "method": "PATCH",
             "header": [
@@ -454,29 +526,55 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
+            "description": "Somente `costPerLead` / `cashbackOnReply`. `leadsPerRun` no body após a janela → 403.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"leadsPerRun\": 5,\n  \"slotBindings\": {\n    \"outreach\": {\n      \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" }\n    },\n    \"notify\": {\n      \"body.customer_name\": { \"type\": \"lead.name\" },\n      \"body.customer_phone\": { \"type\": \"lead.phone\" },\n      \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n    }\n  }\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/outreach-config"
+              "raw": "{\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0\n}"
+            }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
-      "name": "Admin — WhatsApp Accounts",
+      "name": "Platform — WhatsApp Accounts",
       "item": [
         {
           "name": "List WhatsApp Accounts",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/whatsapp-accounts",
+            "url": "{{gymBaseUrl}}/platform/whatsapp-accounts",
             "description": "Contas da plataforma (tenantId null). Token Meta nunca retorna."
           }
         },
         {
           "name": "Create WhatsApp Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-accounts",
+            "description": "Nunca envie o access token. Só `tokenEnvKey`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"wabaId\": \"{{wabaId}}\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
+            }
+          },
           "event": [
             {
               "listen": "test",
@@ -490,29 +588,14 @@
                 "type": "text/javascript"
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"wabaId\": \"{{wabaId}}\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/whatsapp-accounts",
-            "description": "Nunca envie o access token. Só `tokenEnvKey` apontando para a env (ex.: WHATSAPP_TOKEN no .env do notifly). `wabaId` é obrigatório para sync do catálogo."
-          }
+          ]
         },
         {
           "name": "Get WhatsApp Account",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/whatsapp-accounts/{{whatsappAccountId}}"
+            "url": "{{gymBaseUrl}}/platform/whatsapp-accounts/{{whatsappAccountId}}"
           }
         },
         {
@@ -525,24 +608,34 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-accounts/{{whatsappAccountId}}",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"wabaId\": \"{{wabaId}}\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/whatsapp-accounts/{{whatsappAccountId}}"
+            }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
-      "name": "Admin — Platform Job Schedules",
+      "name": "Platform — Job Schedules",
       "item": [
         {
           "name": "Get Job Schedule SCRAPE",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/platform-job-schedules/SCRAPE",
+            "url": "{{gymBaseUrl}}/platform/platform-job-schedules/SCRAPE",
             "description": "SUPER_ADMIN. Default seed: 0 6 * * * America/Sao_Paulo."
           }
         },
@@ -556,12 +649,11 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/platform-job-schedules/SCRAPE",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"cronExpression\": \"0 8 * * *\",\n  \"timeZone\": \"America/Sao_Paulo\",\n  \"enabled\": true\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/platform-job-schedules/SCRAPE",
-            "description": "Workers fazem poll; PUT não notifica processos."
+            }
           }
         },
         {
@@ -569,8 +661,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/platform-job-schedules/WHATSAPP_TEMPLATE_SYNC",
-            "description": "SUPER_ADMIN. Default seed: 0 5 * * * America/Sao_Paulo."
+            "url": "{{gymBaseUrl}}/platform/platform-job-schedules/WHATSAPP_TEMPLATE_SYNC"
           }
         },
         {
@@ -583,29 +674,45 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/platform-job-schedules/WHATSAPP_TEMPLATE_SYNC",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"cronExpression\": \"0 5 * * *\",\n  \"timeZone\": \"America/Sao_Paulo\",\n  \"enabled\": true\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/platform-job-schedules/WHATSAPP_TEMPLATE_SYNC"
+            }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
-      "name": "Admin — WhatsApp Templates",
+      "name": "Platform — WhatsApp Templates",
       "item": [
         {
           "name": "Sync WhatsApp Templates",
           "request": {
             "method": "POST",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/whatsapp-templates/sync",
+            "url": "{{gymBaseUrl}}/platform/whatsapp-templates/sync",
             "description": "SUPER_ADMIN. Sincroniza catálogo a partir da WABA da plataforma."
           }
         },
         {
           "name": "List WhatsApp Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-templates",
+            "description": "Catálogo completo. Query opcional: status, name."
+          },
           "event": [
             {
               "listen": "test",
@@ -620,13 +727,7 @@
                 "type": "text/javascript"
               }
             }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{gymBaseUrl}}/admin/whatsapp-templates",
-            "description": "SUPER_ADMIN. Query opcional: status, name."
-          }
+          ]
         },
         {
           "name": "Test WhatsApp Template",
@@ -638,21 +739,46 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-templates/{{templateId}}/test",
+            "description": "Envia o template do catálogo sem TenantLead/coin.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"to\": \"11999999999\",\n  \"variables\": {}\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/whatsapp-templates/{{templateId}}/test",
-            "description": "SUPER_ADMIN. Envia o template do catálogo sem TenantLead/coin."
+            }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
-      "name": "Admin — Scrape",
+      "name": "Platform — Scrape",
       "item": [
         {
           "name": "Create Scrape Target",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/scrape-targets",
+            "description": "Lista global. Pedidos do Admin ficam em Tenant — Scrape.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cityName\": \"Taubaté\",\n  \"state\": \"SP\",\n  \"category\": \"Construtoras\",\n  \"enabled\": true\n}"
+            }
+          },
           "event": [
             {
               "listen": "test",
@@ -666,29 +792,14 @@
                 "type": "text/javascript"
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"cityName\": \"Taubaté\",\n  \"state\": \"SP\",\n  \"category\": \"Construtoras\",\n  \"enabled\": true\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/scrape-targets",
-            "description": "Resolve/cria City e faz upsert no par cityId+category. Não dispara scrape. O test script grava `id` em `{{scrapeTargetId}}`."
-          }
+          ]
         },
         {
           "name": "List Scrape Targets",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/scrape-targets"
+            "url": "{{gymBaseUrl}}/platform/scrape-targets"
           }
         },
         {
@@ -696,7 +807,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/scrape-targets/{{scrapeTargetId}}"
+            "url": "{{gymBaseUrl}}/platform/scrape-targets/{{scrapeTargetId}}"
           }
         },
         {
@@ -709,12 +820,12 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/platform/scrape-targets/{{scrapeTargetId}}",
+            "description": "`enabled: false` faz o cron pular o par cidade×categoria para todos os tenants.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"enabled\": false\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/scrape-targets/{{scrapeTargetId}}",
-            "description": "`enabled: false` faz o cron pular o par cidade×categoria."
+            }
           }
         },
         {
@@ -722,35 +833,47 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/scrape-targets/{{scrapeTargetId}}",
-            "description": "Apaga só o target. City, Neighborhood e ScrapeCoverage permanecem."
+            "url": "{{gymBaseUrl}}/platform/scrape-targets/{{scrapeTargetId}}"
           }
-        },
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Platform — Coverage",
+      "item": [
         {
           "name": "List Scrape Coverages",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{gymBaseUrl}}/admin/scrape-coverages",
+              "raw": "{{gymBaseUrl}}/platform/scrape-coverages",
               "host": [
                 "{{gymBaseUrl}}"
               ],
               "path": [
-                "admin",
+                "platform",
                 "scrape-coverages"
               ],
               "query": [
                 {
                   "key": "cityId",
                   "value": "1",
-                  "description": "Opcional: filtrar por cidade",
                   "disabled": true
                 },
                 {
                   "key": "category",
                   "value": "Construtoras",
-                  "description": "Opcional: filtrar por categoria",
                   "disabled": true
                 }
               ]
@@ -758,19 +881,210 @@
             "description": "Somente leitura. Retorna [] se nunca scrapou."
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
-      "name": "Lead Lists & Campaigns",
-      "description": "APIs SUPER_ADMIN para listas, leads, campanhas, sends e inbox.\n\nVariáveis: `tenantId`, `listId`, `leadId`, `campaignId`, `templateId`.\nScripts de create salvam ids automaticamente.\n\n## Checklist manual (dev + WHATSAPP_TOKEN)\n1. Criar lista + import CSV 3 leads\n2. Criar campanha com template APPROVED + bindings recipient.*\n3. Enable campanha; trigger cron ou wait window\n4. Verificar coin debit + TenantListSend + outbound message\n5. Simular webhook inbound button NOTIFY → tenant recebe notify (sem coin credit)\n6. Simular webhook status failed → lead elegível para outra campanha\n7. GET messages + POST text dentro 24h\n8. GET sends?status=failed\n\nSeed opcional: `npx ts-node prisma/seed-list-campaigns.ts`",
+      "name": "Platform — Send Policy",
+      "item": [
+        {
+          "name": "Get Send Policy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/send-policy"
+          }
+        },
+        {
+          "name": "Put Send Policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/send-policy",
+            "description": "allowedCityIds XOR deniedCityIds. `respectTenantIds` não inclui o próprio tenant.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allowedCityIds\": [],\n  \"deniedCityIds\": [],\n  \"respectAllTenants\": false,\n  \"exclusive\": false,\n  \"respectTenantIds\": []\n}"
+            }
+          }
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Platform — Template Grants",
+      "item": [
+        {
+          "name": "List Template Grants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/template-grants"
+          }
+        },
+        {
+          "name": "Grant Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/template-grants",
+            "description": "Upsert idempotente `{ templateId }`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateId\": {{templateId}}\n}"
+            }
+          }
+        },
+        {
+          "name": "Revoke Template Grant",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/template-grants/{{templateId}}"
+          }
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Platform — Lead Lists (costPerSend)",
+      "item": [
+        {
+          "name": "Patch List Cost",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/lead-lists/{{listId}}",
+            "description": "Somente Super Admin. `costPerSend` ≥ 0; 0 = campanha não envia. ADMIN → 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"costPerSend\": 1.5\n}"
+            }
+          }
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Outreach",
+      "item": [
+        {
+          "name": "Get Outreach Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
+            "description": "Inclui preço read-only. ADMIN em outro tenantId → 403."
+          }
+        },
+        {
+          "name": "Create Outreach Config (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
+            "description": "Cria se ausente (preço=0). Já existir → 403. `costPerLead` no body → 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"slotBindings\": {\n  \"outreach\": {\n    \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" },\n    \"header.image\": { \"type\": \"header_image\", \"value\": \"\" }\n  },\n  \"notify\": {\n    \"body.customer_name\": { \"type\": \"lead.name\" },\n    \"body.customer_phone\": { \"type\": \"lead.phone\" },\n    \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n  }\n},\n  \"schedule\": { \"2\": [18], \"3\": [18], \"4\": [13, 18] },\n  \"categories\": [\"Construtoras\"],\n  \"leadsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch Outreach Knobs",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
+            "description": "Grant ausente em template id → 400. `costPerLead` no body → 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"leadsPerRun\": 5,\n  \"slotBindings\": {\n  \"outreach\": {\n    \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" },\n    \"header.image\": { \"type\": \"header_image\", \"value\": \"\" }\n  },\n  \"notify\": {\n    \"body.customer_name\": { \"type\": \"lead.name\" },\n    \"body.customer_phone\": { \"type\": \"lead.phone\" },\n    \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n  }\n}\n}"
+            }
+          }
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Lists",
       "item": [
         {
           "name": "Category Suggestions",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/category-suggestions",
-            "description": "Distinct categories de Lead e TenantListLead do tenant."
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/category-suggestions"
           }
         },
         {
@@ -778,11 +1092,26 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists"
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists"
           }
         },
         {
           "name": "Create Lead List",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists",
+            "description": "Só `{ name }`. `costPerSend` inicia em 0. Enviar `costPerSend` → 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Construtoras SP\"\n}"
+            }
+          },
           "event": [
             {
               "listen": "test",
@@ -796,29 +1125,14 @@
                 "type": "text/javascript"
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Construtoras SP\",\n  \"costPerSend\": 1.5\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists",
-            "description": "costPerSend deve ser > 0."
-          }
+          ]
         },
         {
           "name": "Get Lead List",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}"
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}"
           }
         },
         {
@@ -831,11 +1145,12 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}",
+            "description": "Nome apenas. `costPerSend` neste path → 403.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Construtoras SP (atualizada)\",\n  \"costPerSend\": 2\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}"
+              "raw": "{\n  \"name\": \"Construtoras SP (atualizada)\"\n}"
+            }
           }
         },
         {
@@ -843,8 +1158,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/import-template",
-            "description": "Retorna CSV exemplo: name,phone,website,category,reviews"
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/import-template"
           }
         },
         {
@@ -852,6 +1166,7 @@
           "request": {
             "method": "POST",
             "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/import",
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -862,9 +1177,7 @@
                   "description": "CSV com header name,phone,website,category,reviews"
                 }
               ]
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/import",
-            "description": "Multipart field `file`. Falha atômica se linha inválida ou phone duplicado."
+            }
           }
         },
         {
@@ -872,11 +1185,25 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads"
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/leads"
           }
         },
         {
           "name": "Create Lead",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/leads",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Construtora ABC\",\n  \"phone\": \"11987654321\",\n  \"website\": \"https://example.com\",\n  \"category\": \"Construtoras\",\n  \"reviews\": 42\n}"
+            }
+          },
           "event": [
             {
               "listen": "test",
@@ -890,22 +1217,7 @@
                 "type": "text/javascript"
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Construtora ABC\",\n  \"phone\": \"11987654321\",\n  \"website\": \"https://example.com\",\n  \"category\": \"Construtoras\",\n  \"reviews\": 42\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads",
-            "description": "phone normalizado; duplicata na lista retorna 400."
-          }
+          ]
         },
         {
           "name": "Bulk Create Leads",
@@ -917,12 +1229,11 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/leads/bulk",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"leads\": [\n    {\n      \"name\": \"Lead Demo 1\",\n      \"phone\": \"11911111111\",\n      \"category\": \"Construtoras\"\n    },\n    {\n      \"name\": \"Lead Demo 2\",\n      \"phone\": \"11922222222\",\n      \"category\": \"Construtoras\"\n    }\n  ]\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/bulk",
-            "description": "Falha atômica se phone duplicado no body ou na lista."
+              "raw": "{\n  \"leads\": [\n    { \"name\": \"Lead Demo 1\", \"phone\": \"11911111111\", \"category\": \"Construtoras\" },\n    { \"name\": \"Lead Demo 2\", \"phone\": \"11922222222\", \"category\": \"Construtoras\" }\n  ]\n}"
+            }
           }
         },
         {
@@ -930,7 +1241,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}"
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}"
           }
         },
         {
@@ -943,11 +1254,11 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Construtora ABC (atualizada)\",\n  \"reviews\": 50\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}"
+            }
           }
         },
         {
@@ -955,19 +1266,49 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}"
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}"
           }
-        },
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Campaigns",
+      "item": [
         {
           "name": "List Campaigns",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/campaigns"
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/campaigns"
           }
         },
         {
           "name": "Create Campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/campaigns",
+            "description": "Template precisa estar granted. Use Tenant — Templates Granted.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Campanha Demo\",\n  \"enabled\": false,\n  \"templateId\": {{templateId}},\n  \"slotBindings\": {\n  \"send\": {\n    \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" },\n    \"header.image\": { \"type\": \"header_image\", \"value\": \"\" }\n  }\n},\n  \"notifyTemplateId\": {{templateId}},\n  \"notifySlotBindings\": {\n  \"notify\": {\n    \"body.customer_name\": { \"type\": \"recipient.name\" },\n    \"body.customer_phone\": { \"type\": \"recipient.phone\" },\n    \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n  }\n},\n  \"buttonActions\": [],\n  \"schedule\": { \"2\": [18], \"4\": [13] },\n  \"sendsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
+            }
+          },
           "event": [
             {
               "listen": "test",
@@ -981,29 +1322,14 @@
                 "type": "text/javascript"
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Campanha Demo\",\n  \"enabled\": false,\n  \"templateId\": {{templateId}},\n  \"slotBindings\": {\n    \"send\": {\n      \"body.1\": {\n        \"type\": \"literal\",\n        \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\"\n      },\n      \"header.image\": {\n        \"type\": \"header_image\",\n        \"value\": \"\"\n      }\n    }\n  },\n  \"notifyTemplateId\": {{templateId}},\n  \"notifySlotBindings\": {\n    \"notify\": {\n      \"body.customer_name\": { \"type\": \"recipient.name\" },\n      \"body.customer_phone\": { \"type\": \"recipient.phone\" },\n      \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n    }\n  },\n  \"buttonActions\": [],\n  \"schedule\": {\n    \"2\": [18],\n    \"4\": [13]\n  },\n  \"sendsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/campaigns",
-            "description": "enabled=true exige template APPROVED, bindings send completos, notify se NOTIFY, labels de botão válidos. Use List WhatsApp Templates para obter templateId."
-          }
+          ]
         },
         {
           "name": "Get Campaign",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/campaigns/{{campaignId}}"
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/campaigns/{{campaignId}}"
           }
         },
         {
@@ -1016,12 +1342,11 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/campaigns/{{campaignId}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Campanha Demo (replace)\",\n  \"enabled\": false,\n  \"templateId\": {{templateId}},\n  \"slotBindings\": {\n    \"send\": {\n      \"body.1\": {\n        \"type\": \"literal\",\n        \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\"\n      },\n      \"header.image\": {\n        \"type\": \"header_image\",\n        \"value\": \"\"\n      }\n    }\n  },\n  \"notifyTemplateId\": {{templateId}},\n  \"notifySlotBindings\": {\n    \"notify\": {\n      \"body.customer_name\": { \"type\": \"recipient.name\" },\n      \"body.customer_phone\": { \"type\": \"recipient.phone\" },\n      \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n    }\n  },\n  \"buttonActions\": [],\n  \"schedule\": {\n    \"2\": [18],\n    \"4\": [13]\n  },\n  \"sendsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/campaigns/{{campaignId}}",
-            "description": "Substitui campanha com corpo completo."
+              "raw": "{\n  \"name\": \"Campanha Demo (replace)\",\n  \"enabled\": false,\n  \"templateId\": {{templateId}},\n  \"slotBindings\": {\n  \"send\": {\n    \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" },\n    \"header.image\": { \"type\": \"header_image\", \"value\": \"\" }\n  }\n},\n  \"notifyTemplateId\": {{templateId}},\n  \"notifySlotBindings\": {\n  \"notify\": {\n    \"body.customer_name\": { \"type\": \"recipient.name\" },\n    \"body.customer_phone\": { \"type\": \"recipient.phone\" },\n    \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n  }\n},\n  \"buttonActions\": [],\n  \"schedule\": { \"2\": [18], \"4\": [13] },\n  \"sendsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
+            }
           }
         },
         {
@@ -1034,12 +1359,11 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/campaigns/{{campaignId}}",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"enabled\": true\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/campaigns/{{campaignId}}",
-            "description": "Patch parcial. enabled=true valida template APPROVED + bindings + botões."
+            }
           }
         },
         {
@@ -1048,13 +1372,12 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/sends?limit=100",
+              "raw": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/sends?limit=100",
               "host": [
                 "{{gymBaseUrl}}"
               ],
               "path": [
-                "admin",
-                "tenants",
+                "tenant",
                 "{{tenantId}}",
                 "lead-lists",
                 "{{listId}}",
@@ -1064,12 +1387,10 @@
                 {
                   "key": "campaignId",
                   "value": "{{campaignId}}",
-                  "description": "Opcional: filtrar por campanha",
                   "disabled": true
                 }
               ]
-            },
-            "description": "Retorna até 100 sends com lastStatus, listLead e campaign."
+            }
           }
         },
         {
@@ -1078,13 +1399,12 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/sends?status=failed",
+              "raw": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/sends?status=failed",
               "host": [
                 "{{gymBaseUrl}}"
               ],
               "path": [
-                "admin",
-                "tenants",
+                "tenant",
                 "{{tenantId}}",
                 "lead-lists",
                 "{{listId}}",
@@ -1098,27 +1418,40 @@
                 {
                   "key": "campaignId",
                   "value": "{{campaignId}}",
-                  "description": "Opcional",
                   "disabled": true
                 }
               ]
-            },
-            "description": "Filtra sends cujo lastStatus === failed. Inclui latestError quando failed."
+            }
           }
-        },
+        }
+      ],
+      "description": "Campanhas e sends do tenant. Preço da lista é Platform — Lead Lists.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Inbox",
+      "item": [
         {
           "name": "Get Conversation Messages",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}/messages",
+              "raw": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}/messages",
               "host": [
                 "{{gymBaseUrl}}"
               ],
               "path": [
-                "admin",
-                "tenants",
+                "tenant",
                 "{{tenantId}}",
                 "lead-lists",
                 "{{listId}}",
@@ -1130,12 +1463,11 @@
                 {
                   "key": "since",
                   "value": "2026-08-17T12:00:00.000Z",
-                  "description": "Opcional: polling incremental (ISO8601)",
                   "disabled": true
                 }
               ]
             },
-            "description": "Histórico ordenado por createdAt ASC."
+            "description": "GET permitido a Admin e Super Admin. POST reply é só Admin."
           }
         },
         {
@@ -1148,28 +1480,372 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}/messages",
+            "description": "Exige inbound nas últimas 24h. Super Admin → 403.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"text\": \"Olá! Obrigado pelo retorno.\"\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/tenants/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}/messages",
-            "description": "Exige inbound do lead nas últimas 24h. Retorna 400 OUTSIDE_MESSAGING_WINDOW fora da janela Meta."
+            }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/users"
+          }
+        },
+        {
+          "name": "Create Additional User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/users",
+            "description": "Users depois do primeiro. Super Admin → 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"João Operador\",\n  \"username\": \"joao.admin\",\n  \"email\": \"joao@academia.com\",\n  \"password\": \"senha-segura\",\n  \"roles\": [\"ADMIN\"]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('userId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/users/{{userId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maria Silva\",\n  \"roles\": [\"ADMIN\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/users/{{userId}}/reset-password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"nova-senha\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch Tenant Phone",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}",
+            "description": "Somente `{ phone }`. `active` neste path → 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"15999998888\"\n}"
+            }
+          }
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Scrape",
+      "item": [
+        {
+          "name": "List Tenant Scrape Targets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/scrape-targets",
+            "description": "Só vínculos do próprio tenant."
+          }
+        },
+        {
+          "name": "Request Scrape Target",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/scrape-targets",
+            "description": "Sem `enabled`. Cidade fora da allowlist → 400. Share do par não altera enabled.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cityName\": \"Taubaté\",\n  \"state\": \"SP\",\n  \"category\": \"Construtoras\"\n}"
+            }
+          }
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Coins",
+      "item": [
+        {
+          "name": "Get Coins",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/coins",
+            "description": "Somente leitura. Credit/debit são Platform."
+          }
+        },
+        {
+          "name": "Get Coin Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gymBaseUrl}}/tenant/{{tenantId}}/coin-transactions?limit=50",
+              "host": [
+                "{{gymBaseUrl}}"
+              ],
+              "path": [
+                "tenant",
+                "{{tenantId}}",
+                "coin-transactions"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Send Policy",
+      "item": [
+        {
+          "name": "Get Send Policy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/send-policy",
+            "description": "Read-only. PUT neste prefixo → 403."
+          }
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Templates Granted",
+      "item": [
+        {
+          "name": "List Granted Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/whatsapp-templates",
+            "description": "Só templates granted. Sem sync Graph."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const rows = Array.isArray(json) ? json : (json.items || json.data || []);",
+                  "  if (rows[0] && rows[0].id) pm.collectionVariables.set('templateId', String(rows[0].id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Ops",
+      "item": [
+        {
+          "name": "Tenant Leads Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/leads/stats"
+          }
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Push",
+      "item": [
+        {
+          "name": "PUT Push Subscription",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/push-subscriptions",
+            "description": "Path `/tenant/push-subscriptions` (não `/admin`). Tenant inativo → 403 em PUT/DELETE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/EXAMPLE_ENDPOINT_FROM_PUSHMANAGER\",\n  \"keys\": {\n    \"p256dh\": \"BNcRdreALRFXTkOOUw1WCGRZsxSd3c5u1N7E0D9B3g7tK3n8vQ2mP1xL4yZ6aB8cD0eF2gH4iJ6kL8mN0oP2qR4sT6uV8wX0yZ2aB4cD6eF8gH0\",\n    \"auth\": \"tBHItJI5svbpez7KI4CCXg\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "DELETE Push Subscription",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/push-subscriptions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/EXAMPLE_ENDPOINT_FROM_PUSHMANAGER\"\n}"
+            }
+          }
+        }
+      ],
+      "description": "Web Push VAPID. Deep link do clique: `/tenant/{tenantId}/lead-lists/{listId}/leads/{leadId}`.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Notifly",
-      "auth": {
-        "type": "noauth"
-      },
       "item": [
         {
           "name": "Health Check",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{notiflyBaseUrl}}/health-check"
+            "url": "{{notiflyBaseUrl}}/health-check",
+            "auth": {
+              "type": "noauth"
+            }
           }
         },
         {
@@ -1178,7 +1854,9 @@
             "method": "GET",
             "header": [],
             "url": "{{notiflyBaseUrl}}/sites/welcome/{{tenantUuid}}",
-            "description": "Redirect para wa.me com o phone do tenant, ou fallback HTML se uuid/phone inválido."
+            "auth": {
+              "type": "noauth"
+            }
           }
         },
         {
@@ -1209,7 +1887,9 @@
                 }
               ]
             },
-            "description": "Verificação Meta webhook — responde o hub.challenge."
+            "auth": {
+              "type": "noauth"
+            }
           }
         },
         {
@@ -1222,118 +1902,72 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{notiflyBaseUrl}}/response-leads",
+            "auth": {
+              "type": "noauth"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_ID\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15550001111\",\n              \"phone_number_id\": \"688645744332614\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": { \"name\": \"Lead Teste\" },\n                \"wa_id\": \"5511999990000\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"5511999990000\",\n                \"id\": \"wamid.INCOMING\",\n                \"timestamp\": \"1710000000\",\n                \"type\": \"button\",\n                \"button\": {\n                  \"payload\": \"Sim\",\n                  \"text\": \"Sim\"\n                },\n                \"context\": {\n                  \"from\": \"15550001111\",\n                  \"id\": \"wamid.SUBSTITUA_PELO_MESSAGE_ID_DO_TENANT_LEAD\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}"
-            },
-            "url": "{{notiflyBaseUrl}}/response-leads",
-            "description": "Simula reply \"Sim\". Substitua `context.id` pelo `TenantLead.messageId` (wamid) gravado no envio."
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_ID\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15550001111\",\n              \"phone_number_id\": \"688645744332614\"\n            },\n            \"contacts\": [{ \"profile\": { \"name\": \"Lead Teste\" }, \"wa_id\": \"5511999990000\" }],\n            \"messages\": [\n              {\n                \"from\": \"5511999990000\",\n                \"id\": \"wamid.INCOMING\",\n                \"timestamp\": \"1710000000\",\n                \"type\": \"button\",\n                \"button\": { \"payload\": \"Sim\", \"text\": \"Sim\" },\n                \"context\": { \"from\": \"15550001111\", \"id\": \"wamid.SUBSTITUA_PELO_MESSAGE_ID_DO_TENANT_LEAD\" }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}"
+            }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "noauth"
+      }
     },
     {
       "name": "Inbox Realtime",
-      "description": "WebSocket inbox — notify interno (gym-ctrl). Ver openspec/changes/realtime-inbox-websocket/FRONT-INTEGRATION.md.\n\n1. Auth → Login (JWT)\n2. Conectar WS: ws://localhost:3000/ws/inbox?token={{token}}\n3. Internal Notify → cliente WS recebe message.inbound",
       "item": [
         {
           "name": "Internal Notify (message.inbound)",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
                 "key": "X-Internal-Secret",
                 "value": "{{internalWsNotifySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"type\": \"message.inbound\",\n  \"tenantId\": {{tenantId}},\n  \"listId\": {{listId}},\n  \"leadId\": {{leadId}},\n  \"leadName\": \"João Silva\",\n  \"message\": {\n    \"id\": 1,\n    \"wamid\": \"wamid.test\",\n    \"direction\": \"IN\",\n    \"type\": \"text\",\n    \"body\": \"oi\",\n    \"phone\": \"5511999999999\",\n    \"createdAt\": \"2026-08-17T21:00:00.000Z\"\n  }\n}"
-            },
             "url": "{{gymBaseUrl}}/internal/inbox/realtime/notify",
-            "description": "Fan-out WS para rooms tenant:{tenantId} e super-admin; dispara Web Push para users offline (sem WS OPEN). Resposta 204. `leadName` alimenta título da push. Secret: variável internalWsNotifySecret. Ver openspec/changes/inbox-web-push/PUSH-INTEGRATION.md."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Inbox Web Push",
-      "description": "Web Push VAPID — subscriptions e teste de push. Ver openspec/changes/inbox-web-push/PUSH-INTEGRATION.md.\n\n1. Auth → Login (JWT)\n2. PUT Push Subscription (registrar endpoint do browser)\n3. **Sem WS conectado** → Inbox Realtime → Internal Notify (com leadName) → push no device\n4. Com WS conectado → notify só entrega WS, push suprimida",
-      "item": [
-        {
-          "name": "PUT Push Subscription",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/EXAMPLE_ENDPOINT_FROM_PUSHMANAGER\",\n  \"keys\": {\n    \"p256dh\": \"BNcRdreALRFXTkOOUw1WCGRZsxSd3c5u1N7E0D9B3g7tK3n8vQ2mP1xL4yZ6aB8cD0eF2gH4iJ6kL8mN0oP2qR4sT6uV8wX0yZ2aB4cD6eF8gH0\",\n    \"auth\": \"tBHItJI5svbpez7KI4CCXg\"\n  }\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/push-subscriptions",
-            "description": "Registra ou atualiza PushSubscription do usuário autenticado (upsert por endpoint). Body = output de `PushSubscription.toJSON()` no browser após `pushManager.subscribe()`. Resposta 204."
-          }
-        },
-        {
-          "name": "DELETE Push Subscription",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/EXAMPLE_ENDPOINT_FROM_PUSHMANAGER\"\n}"
-            },
-            "url": "{{gymBaseUrl}}/admin/push-subscriptions",
-            "description": "Remove subscription do usuário autenticado. Body `{ endpoint }`. Resposta 204 ou 404 se não encontrada."
-          }
-        },
-        {
-          "name": "→ Internal Notify (dispara push se offline)",
-          "request": {
+            "description": "Fan-out WS. Secret: internalWsNotifySecret. Conectar WS com `{{tenantToken}}`.",
             "auth": {
               "type": "noauth"
             },
-            "method": "GET",
-            "header": [],
-            "url": "{{gymBaseUrl}}/health-check",
-            "description": "Placeholder. Use **Inbox Realtime → Internal Notify (message.inbound)** com `leadName` preenchido. Com WS desconectado e subscription registrada via PUT acima, o notify dispara push VAPID (título \"Nova mensagem de {leadName}\")."
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"message.inbound\",\n  \"tenantId\": {{tenantId}},\n  \"listId\": {{listId}},\n  \"leadId\": {{leadId}},\n  \"leadName\": \"João Silva\",\n  \"message\": {\n    \"id\": 1,\n    \"wamid\": \"wamid.test\",\n    \"direction\": \"IN\",\n    \"type\": \"text\",\n    \"body\": \"oi\",\n    \"phone\": \"5511999999999\",\n    \"createdAt\": \"2026-08-17T21:00:00.000Z\"\n  }\n}"
+            }
           }
         }
-      ]
+      ],
+      "description": "WebSocket inbox. Auth → Login Tenant Admin; WS: ws://localhost:3001/ws/inbox?token={{tenantToken}}",
+      "auth": {
+        "type": "noauth"
+      }
     },
     {
       "name": "Fluxo onboarding (ordem sugerida)",
-      "description": "Ordem típica após Login:\n1. Create Tenant (salva tenantId)\n2. Create User (salva userId)\n3. Credit Coins\n4. Upsert Outreach Config\n5. Create/List WhatsApp Account\n6. (opcional) seed-outreach ou ajustar phoneNumberId\n7. Subir notifly com WHATSAPP_TOKEN",
       "item": [
         {
           "name": "README — veja descrição da pasta",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "GET",
             "header": [],
             "url": "{{gymBaseUrl}}/health-check",
-            "description": "Placeholder. Siga a descrição da pasta \"Fluxo onboarding\"."
+            "description": "Placeholder. Siga a descrição da pasta.",
+            "auth": {
+              "type": "noauth"
+            }
           }
         }
-      ]
+      ],
+      "description": "Ordem típica:\n1. Auth → Login Super Admin\n2. Platform — Tenants → Create Tenant\n3. Platform — First User → Create First User\n4. Platform — Coins → Credit\n5. Platform — Template Grants → Grant stubs\n6. Auth → Login Tenant Admin\n7. Tenant — Outreach → PUT/PATCH knobs\n8. Platform — Outreach → PATCH preço\n9. Tenant — Lists → Create `{ name }` + Platform PATCH costPerSend"
     }
   ]
 }

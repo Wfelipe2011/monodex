@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
   Post,
   Query,
   Req,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -15,6 +17,7 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -23,8 +26,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { RolesAuth } from '@core/decorators/roles.decorator';
+import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
-import type { Request } from 'express';
+import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
+import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { ListConversationsService } from './list-conversations.service';
 import { SendListConversationMessageDto } from './dto/send-list-conversation-message.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
@@ -35,11 +40,12 @@ import {
   LIST_LEAD_ID_PARAM,
 } from './dto/swagger/tenant-list.swagger.dto';
 
-@ApiTags('Admin — List Conversations')
+@ApiTags('Tenant — List Conversations')
 @ApiBearerAuth()
-@RolesAuth(Roles.SUPER_ADMIN)
+@RolesAuth(Roles.ADMIN, Roles.SUPER_ADMIN)
+@UseGuards(TenantScopeGuard, TenantActiveGuard)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-@Controller('admin/tenants/:tenantId/lead-lists/:listId/leads/:leadId/messages')
+@Controller('tenant/:tenantId/lead-lists/:listId/leads/:leadId/messages')
 export class ListConversationsController {
   constructor(
     private readonly listConversationsService: ListConversationsService,
@@ -87,7 +93,7 @@ export class ListConversationsController {
     description:
       'Exige inbound do lead nas últimas 24h (janela Meta customer care). ' +
       '400 com corpo `OUTSIDE_MESSAGING_WINDOW` se não houver inbound recente. ' +
-      '502 se a Graph API falhar.',
+      '502 se a Graph API falhar. Super Admin sempre 403 (sem pontapé).',
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(LEAD_LIST_ID_PARAM)
@@ -100,6 +106,7 @@ export class ListConversationsController {
     description:
       'Texto vazio, fora da janela 24h (OUTSIDE_MESSAGING_WINDOW) ou erro 4xx da Graph',
   })
+  @ApiForbiddenResponse({ description: 'Super Admin ou tenant inativo' })
   @ApiBadGatewayResponse({ description: 'Erro 5xx da Graph API' })
   @ApiNotFoundResponse({ description: 'Tenant, lista ou lead não encontrado' })
   sendTextMessage(
@@ -107,8 +114,11 @@ export class ListConversationsController {
     @Param('listId', ParseIntPipe) listId: number,
     @Param('leadId', ParseIntPipe) leadId: number,
     @Body() dto: SendListConversationMessageDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
+    if (req.user.roles?.includes(Roles.SUPER_ADMIN)) {
+      throw new ForbiddenException('Acesso não permitido');
+    }
     rejectSecretTokenFields(req.body);
     return this.listConversationsService.sendTextMessage(
       tenantId,

@@ -22,11 +22,11 @@ import { CreateScrapeTargetDto } from './dto/create-scrape-target.dto';
 import { PatchScrapeTargetDto } from './dto/patch-scrape-target.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
 
-@ApiTags('Admin — Scrape')
+@ApiTags('Platform — Scrape')
 @ApiBearerAuth()
 @RolesAuth(Roles.SUPER_ADMIN)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-@Controller('admin/scrape-targets')
+@Controller('platform/scrape-targets')
 export class ScrapeTargetsController {
   constructor(private readonly scrapeTargetsService: ScrapeTargetsService) {}
 

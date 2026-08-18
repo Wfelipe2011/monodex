@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -8,6 +8,8 @@ import {
 } from '@nestjs/swagger';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { Roles } from '@prisma/client';
+import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
+import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { OpsService } from './ops.service';
 
 class OpsSummaryDto {
@@ -52,10 +54,10 @@ class LeadCountDto {
   count: number;
 }
 
-@ApiTags('Admin — Ops')
+@ApiTags('Platform — Ops')
 @ApiBearerAuth()
 @RolesAuth(Roles.SUPER_ADMIN)
-@Controller('admin')
+@Controller('platform')
 export class OpsController {
   constructor(private readonly opsService: OpsService) {}
 
@@ -89,5 +91,25 @@ export class OpsController {
   @ApiOkResponse({ type: LeadCountDto })
   leadsCount() {
     return this.opsService.leadsCount();
+  }
+}
+
+@ApiTags('Tenant — Ops')
+@ApiBearerAuth()
+@RolesAuth(Roles.ADMIN, Roles.SUPER_ADMIN)
+@UseGuards(TenantScopeGuard, TenantActiveGuard)
+@Controller('tenant/:tenantId')
+export class TenantLeadsStatsController {
+  constructor(private readonly opsService: OpsService) {}
+
+  @Get('leads/stats')
+  @ApiOperation({
+    summary: 'Funil de TenantLead do próprio tenant',
+    description:
+      'Counts onde cada booleano de TenantLead é true. 404 se o tenant não existir.',
+  })
+  @ApiOkResponse({ type: TenantLeadStatsDto })
+  leadsStats(@Param('tenantId', ParseIntPipe) tenantId: number) {
+    return this.opsService.leadsStats(tenantId);
   }
 }

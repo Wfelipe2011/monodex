@@ -24,6 +24,11 @@ model Tenant {
   CoinTransaction  CoinTransaction[]
   phone            String?               @unique
   outreachConfig               TenantOutreachConfig?
+  sendPolicy                   TenantSendPolicy?
+  respecting                   TenantRespect[]               @relation("RespectingTenant")
+  respectedBy                  TenantRespect[]               @relation("RespectedTenant")
+  templateGrants               TenantTemplateGrant[]
+  scrapeTargets                TenantScrapeTarget[]
   whatsappAccounts             WhatsappAccount[]
   leadLists                    TenantLeadList[]
   whatsappConversationMessages WhatsappConversationMessage[]
@@ -324,6 +329,7 @@ model WhatsappMessageTemplate {
   notifyConfigs       TenantOutreachConfig[] @relation("NotifyTemplate")
   listCampaigns       TenantListCampaign[]   @relation("ListCampaignTemplate")
   notifyListCampaigns TenantListCampaign[]   @relation("ListCampaignNotifyTemplate")
+  tenantGrants        TenantTemplateGrant[]
 
   @@unique([whatsappAccountId, name, language])
   @@map("whatsapp_message_templates")
@@ -351,6 +357,54 @@ model TenantOutreachConfig {
   @@map("tenant_outreach_configs")
 }
 
+model TenantSendPolicy {
+  tenantId          Int      @id @map("tenant_id")
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  allowedCityIds    Json     @default("[]") @map("allowed_city_ids")
+  deniedCityIds     Json     @default("[]") @map("denied_city_ids")
+  respectAllTenants Boolean  @default(false) @map("respect_all_tenants")
+  exclusive         Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("tenant_send_policies")
+}
+
+model TenantRespect {
+  id                Int    @id @default(autoincrement())
+  tenantId          Int    @map("tenant_id")
+  tenant            Tenant @relation("RespectingTenant", fields: [tenantId], references: [id])
+  respectedTenantId Int    @map("respected_tenant_id")
+  respectedTenant   Tenant @relation("RespectedTenant", fields: [respectedTenantId], references: [id])
+
+  @@unique([tenantId, respectedTenantId])
+  @@map("tenant_respects")
+}
+
+model TenantTemplateGrant {
+  id         Int                     @id @default(autoincrement())
+  tenantId   Int                     @map("tenant_id")
+  tenant     Tenant                  @relation(fields: [tenantId], references: [id])
+  templateId Int                     @map("template_id")
+  template   WhatsappMessageTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  createdAt  DateTime                @default(now()) @map("created_at")
+
+  @@unique([tenantId, templateId])
+  @@map("tenant_template_grants")
+}
+
+model TenantScrapeTarget {
+  id             Int          @id @default(autoincrement())
+  tenantId       Int          @map("tenant_id")
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  scrapeTargetId Int          @map("scrape_target_id")
+  scrapeTarget   ScrapeTarget @relation(fields: [scrapeTargetId], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@unique([tenantId, scrapeTargetId])
+  @@map("tenant_scrape_targets")
+}
+
 enum PlatformJobKey {
   WHATSAPP_TEMPLATE_SYNC
   SCRAPE
@@ -369,13 +423,14 @@ model PlatformJobSchedule {
 }
 
 model ScrapeTarget {
-  id        Int      @id @default(autoincrement())
-  cityId    Int      @map("city_id")
-  city      City     @relation(fields: [cityId], references: [id])
-  category  String
-  enabled   Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          Int                 @id @default(autoincrement())
+  cityId      Int                 @map("city_id")
+  city        City                @relation(fields: [cityId], references: [id])
+  category    String
+  enabled     Boolean             @default(true)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  tenantLinks TenantScrapeTarget[]
 
   @@unique([cityId, category])
   @@map("scrape_targets")

@@ -92,7 +92,7 @@ export class ScrapeTargetsService {
     return existing;
   }
 
-  private async resolveCity(name: string, state?: string) {
+  async resolveCity(name: string, state?: string) {
     if (state) {
       const byNameAndState = await this.prisma.city.findFirst({
         where: { name, state },

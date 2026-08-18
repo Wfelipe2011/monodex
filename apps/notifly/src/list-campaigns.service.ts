@@ -84,6 +84,13 @@ export class ListCampaignsService {
     const tenant = campaign.list.tenant;
     const costPerSend = campaign.list.costPerSend;
 
+    if (!tenant.active) {
+      this.logger.log(
+        `[runCampaign] Tenant ${tenant.id} inativo; pulando campanha ${campaign.id}`,
+      );
+      return;
+    }
+
     if (costPerSend <= 0) {
       this.logger.warn(
         `[runCampaign] Lista ${campaign.listId} com costPerSend=${costPerSend}; pulando`,

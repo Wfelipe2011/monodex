@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Roles } from '@prisma/client';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
+import { assertSuperAdminTenantWrite } from '@core/guard/bootstrap-write';
 import {
   normalizeCategoryKey,
   normalizeListPhone,
@@ -13,6 +15,7 @@ import { CreateLeadListDto } from './dto/create-lead-list.dto';
 import { PatchLeadListDto } from './dto/patch-lead-list.dto';
 import { CreateListLeadDto } from './dto/create-list-lead.dto';
 import { PatchListLeadDto } from './dto/patch-list-lead.dto';
+import { rejectForbiddenBodyKeys } from './reject-forbidden-body-keys';
 
 const listSelect = {
   id: true,
@@ -67,13 +70,30 @@ export class LeadListsService {
     });
   }
 
-  async createList(tenantId: number, dto: CreateLeadListDto) {
+  async createList(
+    tenantId: number,
+    dto: CreateLeadListDto,
+    roles: Roles[],
+    rawBody: unknown,
+  ) {
+    rejectForbiddenBodyKeys(rawBody, ['costPerSend']);
     await this.assertTenantExists(tenantId);
+    const existingCount = await this.prisma.tenantLeadList.count({
+      where: { tenantId },
+    });
+    if (roles?.includes(Roles.SUPER_ADMIN) && existingCount > 0) {
+      throw new ForbiddenException('Acesso não permitido');
+    }
+    assertSuperAdminTenantWrite({
+      roles,
+      resourceCreatedAt: null,
+      isPlatformField: false,
+    });
     return this.prisma.tenantLeadList.create({
       data: {
         tenantId,
         name: dto.name,
-        costPerSend: dto.costPerSend,
+        costPerSend: 0,
       },
       select: listSelect,
     });
@@ -83,16 +103,34 @@ export class LeadListsService {
     return this.getListOrThrow(tenantId, listId);
   }
 
-  async patchList(tenantId: number, listId: number, dto: PatchLeadListDto) {
-    await this.getListOrThrow(tenantId, listId);
+  async patchList(
+    tenantId: number,
+    listId: number,
+    dto: PatchLeadListDto,
+    roles: Roles[],
+    rawBody: unknown,
+  ) {
+    rejectForbiddenBodyKeys(rawBody, ['costPerSend']);
+    const list = await this.getListOrThrow(tenantId, listId);
+    assertSuperAdminTenantWrite({
+      roles,
+      resourceCreatedAt: list.createdAt,
+      isPlatformField: false,
+    });
     return this.prisma.tenantLeadList.update({
       where: { id: listId },
       data: {
         ...(dto.name !== undefined ? { name: dto.name } : {}),
-        ...(dto.costPerSend !== undefined
-          ? { costPerSend: dto.costPerSend }
-          : {}),
       },
+      select: listSelect,
+    });
+  }
+
+  async patchListCost(tenantId: number, listId: number, costPerSend: number) {
+    await this.getListOrThrow(tenantId, listId);
+    return this.prisma.tenantLeadList.update({
+      where: { id: listId },
+      data: { costPerSend },
       select: listSelect,
     });
   }
@@ -106,8 +144,14 @@ export class LeadListsService {
     });
   }
 
-  async createLead(tenantId: number, listId: number, dto: CreateListLeadDto) {
-    await this.getListOrThrow(tenantId, listId);
+  async createLead(
+    tenantId: number,
+    listId: number,
+    dto: CreateListLeadDto,
+    roles: Roles[],
+  ) {
+    const list = await this.getListOrThrow(tenantId, listId);
+    this.assertListWrite(roles, list.createdAt);
     const data = this.normalizeLeadInput(dto);
     await this.assertPhoneNotDuplicate(listId, data.phone);
     return this.prisma.tenantListLead.create({
@@ -120,8 +164,10 @@ export class LeadListsService {
     tenantId: number,
     listId: number,
     leads: CreateListLeadDto[],
+    roles: Roles[],
   ) {
-    await this.getListOrThrow(tenantId, listId);
+    const list = await this.getListOrThrow(tenantId, listId);
+    this.assertListWrite(roles, list.createdAt);
     const normalized = leads.map((lead) => this.normalizeLeadInput(lead));
     this.assertNoDuplicatePhonesInBatch(normalized);
     return this.createLeadsInTransaction(listId, normalized);
@@ -136,7 +182,10 @@ export class LeadListsService {
     listId: number,
     leadId: number,
     dto: PatchListLeadDto,
+    roles: Roles[],
   ) {
+    const list = await this.getListOrThrow(tenantId, listId);
+    this.assertListWrite(roles, list.createdAt);
     const existing = await this.getLeadOrThrow(tenantId, listId, leadId);
 
     let phone = existing.phone;
@@ -160,7 +209,14 @@ export class LeadListsService {
     });
   }
 
-  async deleteLead(tenantId: number, listId: number, leadId: number) {
+  async deleteLead(
+    tenantId: number,
+    listId: number,
+    leadId: number,
+    roles: Roles[],
+  ) {
+    const list = await this.getListOrThrow(tenantId, listId);
+    this.assertListWrite(roles, list.createdAt);
     const existing = await this.getLeadOrThrow(tenantId, listId, leadId);
     await this.prisma.tenantListLead.delete({ where: { id: leadId } });
     return existing;
@@ -174,8 +230,14 @@ export class LeadListsService {
     ].join('\n');
   }
 
-  async importCsv(tenantId: number, listId: number, buffer: Buffer) {
-    await this.getListOrThrow(tenantId, listId);
+  async importCsv(
+    tenantId: number,
+    listId: number,
+    buffer: Buffer,
+    roles: Roles[],
+  ) {
+    const list = await this.getListOrThrow(tenantId, listId);
+    this.assertListWrite(roles, list.createdAt);
     const rows = this.parseCsv(buffer);
     const normalized = rows.map((row) => this.normalizeLeadInput(row));
     this.assertNoDuplicatePhonesInBatch(normalized);
@@ -217,6 +279,14 @@ export class LeadListsService {
     return result.sort((a, b) =>
       a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }),
     );
+  }
+
+  private assertListWrite(roles: Roles[], createdAt: Date) {
+    assertSuperAdminTenantWrite({
+      roles,
+      resourceCreatedAt: createdAt,
+      isPlatformField: false,
+    });
   }
 
   private async assertTenantExists(tenantId: number) {

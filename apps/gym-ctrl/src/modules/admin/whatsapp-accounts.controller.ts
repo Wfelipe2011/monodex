@@ -19,11 +19,11 @@ import { CreateWhatsappAccountDto } from './dto/create-whatsapp-account.dto';
 import { PatchWhatsappAccountDto } from './dto/patch-whatsapp-account.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
 
-@ApiTags('Admin — WhatsApp Accounts')
+@ApiTags('Platform — WhatsApp Accounts')
 @ApiBearerAuth()
 @RolesAuth(Roles.SUPER_ADMIN)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-@Controller('admin/whatsapp-accounts')
+@Controller('platform/whatsapp-accounts')
 export class WhatsappAccountsController {
   constructor(
     private readonly whatsappAccountsService: WhatsappAccountsService,

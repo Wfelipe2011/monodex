@@ -10,6 +10,7 @@ import {
   Put,
   Query,
   Req,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -25,8 +26,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { RolesAuth } from '@core/decorators/roles.decorator';
+import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
-import type { Request } from 'express';
+import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
+import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { ListCampaignsService } from './list-campaigns.service';
 import { UpsertListCampaignDto } from './dto/upsert-list-campaign.dto';
 import { PatchListCampaignDto } from './dto/patch-list-campaign.dto';
@@ -39,11 +42,12 @@ import {
   ListSendResponseDto,
 } from './dto/swagger/tenant-list.swagger.dto';
 
-@ApiTags('Admin — List Campaigns')
+@ApiTags('Tenant — List Campaigns')
 @ApiBearerAuth()
-@RolesAuth(Roles.SUPER_ADMIN)
+@RolesAuth(Roles.ADMIN, Roles.SUPER_ADMIN)
+@UseGuards(TenantScopeGuard, TenantActiveGuard)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-@Controller('admin/tenants/:tenantId/lead-lists/:listId/campaigns')
+@Controller('tenant/:tenantId/lead-lists/:listId/campaigns')
 export class ListCampaignsController {
   constructor(private readonly listCampaignsService: ListCampaignsService) {}
 
@@ -81,10 +85,15 @@ export class ListCampaignsController {
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
     @Body() dto: UpsertListCampaignDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
     rejectSecretTokenFields(req.body);
-    return this.listCampaignsService.createCampaign(tenantId, listId, dto);
+    return this.listCampaignsService.createCampaign(
+      tenantId,
+      listId,
+      dto,
+      req.user.roles,
+    );
   }
 
   @Get(':campaignId')
@@ -117,7 +126,7 @@ export class ListCampaignsController {
     @Param('listId', ParseIntPipe) listId: number,
     @Param('campaignId', ParseIntPipe) campaignId: number,
     @Body() dto: UpsertListCampaignDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
     rejectSecretTokenFields(req.body);
     return this.listCampaignsService.replaceCampaign(
@@ -125,6 +134,7 @@ export class ListCampaignsController {
       listId,
       campaignId,
       dto,
+      req.user.roles,
     );
   }
 
@@ -144,7 +154,7 @@ export class ListCampaignsController {
     @Param('listId', ParseIntPipe) listId: number,
     @Param('campaignId', ParseIntPipe) campaignId: number,
     @Body() dto: PatchListCampaignDto,
-    @Req() req: Request,
+    @Req() req: RequestUser,
   ) {
     rejectSecretTokenFields(req.body);
     return this.listCampaignsService.patchCampaign(
@@ -152,14 +162,16 @@ export class ListCampaignsController {
       listId,
       campaignId,
       dto,
+      req.user.roles,
     );
   }
 }
 
-@ApiTags('Admin — List Campaigns')
+@ApiTags('Tenant — List Campaigns')
 @ApiBearerAuth()
-@RolesAuth(Roles.SUPER_ADMIN)
-@Controller('admin/tenants/:tenantId/lead-lists/:listId/sends')
+@RolesAuth(Roles.ADMIN, Roles.SUPER_ADMIN)
+@UseGuards(TenantScopeGuard, TenantActiveGuard)
+@Controller('tenant/:tenantId/lead-lists/:listId/sends')
 export class ListSendsController {
   constructor(private readonly listCampaignsService: ListCampaignsService) {}
 

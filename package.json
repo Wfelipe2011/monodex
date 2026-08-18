@@ -108,6 +108,11 @@
       "<rootDir>/libs/"
     ],
     "moduleNameMapper": {
+      "^@core/infra(|/.*)$": "<rootDir>/libs/infra$1",
+      "^@core/contracts(|/.*)$": "<rootDir>/libs/contracts$1",
+      "^@core/guard(|/.*)$": "<rootDir>/libs/guard$1",
+      "^@core/shared(|/.*)$": "<rootDir>/libs/shared$1",
+      "^@core/decorators(|/.*)$": "<rootDir>/libs/decorators$1",
       "^core/infra(|/.*)$": "<rootDir>/libs/infra/src/$1"
     }
   }

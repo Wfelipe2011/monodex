@@ -5,7 +5,6 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
-  IsNumber,
   IsObject,
   IsOptional,
   IsString,
@@ -14,22 +13,12 @@ import {
 } from 'class-validator';
 import { SlotBindingsDto } from './upsert-outreach-config.dto';
 
-/** PATCH: parcial — só campos enviados. */
+/** PATCH /tenant: knobs operacionais. Preço no body → 403. */
 export class PatchOutreachConfigDto {
   @ApiPropertyOptional({ description: 'Habilitar outreach' })
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;
-
-  @ApiPropertyOptional({ description: 'Custo em coins por lead contatado' })
-  @IsOptional()
-  @IsNumber()
-  costPerLead?: number;
-
-  @ApiPropertyOptional({ description: 'Cashback ao receber reply' })
-  @IsOptional()
-  @IsNumber()
-  cashbackOnReply?: number;
 
   @ApiPropertyOptional({ description: 'FK do template de outreach no catálogo' })
   @IsOptional()

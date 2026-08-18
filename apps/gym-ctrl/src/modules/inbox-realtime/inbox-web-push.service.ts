@@ -69,7 +69,7 @@ export function buildPushPayload(dto: InboxInboundEventDto): WebPushPayload {
     body: buildPreview(dto.message),
     tag: `inbox-lead-${dto.leadId}`,
     data: {
-      url: `/admin/tenants/${dto.tenantId}/lead-lists/${dto.listId}/leads/${dto.leadId}`,
+      url: `/tenant/${dto.tenantId}/lead-lists/${dto.listId}/leads/${dto.leadId}`,
       tenantId: dto.tenantId,
       listId: dto.listId,
       leadId: dto.leadId,

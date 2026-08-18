@@ -9,10 +9,10 @@ import { RolesAuth } from '@core/decorators/roles.decorator';
 import { Roles } from '@prisma/client';
 import { ScrapeCoveragesService } from './scrape-coverages.service';
 
-@ApiTags('Admin — Scrape')
+@ApiTags('Platform — Scrape')
 @ApiBearerAuth()
 @RolesAuth(Roles.SUPER_ADMIN)
-@Controller('admin/scrape-coverages')
+@Controller('platform/scrape-coverages')
 export class ScrapeCoveragesController {
   constructor(
     private readonly scrapeCoveragesService: ScrapeCoveragesService,
