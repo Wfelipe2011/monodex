@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { WsAdapter } from '@nestjs/platform-ws';
 import { GymModule } from './gym.module';
 import { ConfigService } from '@nestjs/config';
 import { writeFileSync } from 'fs';
@@ -7,6 +8,7 @@ import { writeFileSync } from 'fs';
 
 async function bootstrap() {
   const app = await NestFactory.create(GymModule);
+  app.useWebSocketAdapter(new WsAdapter(app));
   app.enableCors({
     origin: '*', // Permite todas as origens
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Métodos permitidos

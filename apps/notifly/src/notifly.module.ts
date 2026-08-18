@@ -11,6 +11,7 @@ import { PrismaConnectionMiddleware } from '@core/infra/prisma/prisma-connection
 import { WebhookPersistenceService } from './webhook-persistence.service';
 import { ListCampaignsService } from './list-campaigns.service';
 import { ListCampaignReplyService } from './list-campaign-reply.service';
+import { InboxRealtimeNotifyService } from './inbox-realtime-notify.service';
 
 @Module({
   imports: [PrismaModule, ScheduleModule.forRoot(), HttpModule],
@@ -22,6 +23,7 @@ import { ListCampaignReplyService } from './list-campaign-reply.service';
     WebhookPersistenceService,
     ListCampaignsService,
     ListCampaignReplyService,
+    InboxRealtimeNotifyService,
   ],
 })
 export class NotiflyModule implements NestModule {

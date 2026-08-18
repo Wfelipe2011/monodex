@@ -65,6 +65,11 @@
     {
       "key": "campaignId",
       "value": "1"
+    },
+    {
+      "key": "internalWsNotifySecret",
+      "value": "test-secret",
+      "description": "Mesmo valor de INTERNAL_WS_NOTIFY_SECRET no gym-ctrl e notifly"
     }
   ],
   "auth": {
@@ -1223,6 +1228,37 @@
             },
             "url": "{{notiflyBaseUrl}}/response-leads",
             "description": "Simula reply \"Sim\". Substitua `context.id` pelo `TenantLead.messageId` (wamid) gravado no envio."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inbox Realtime",
+      "description": "WebSocket inbox — notify interno (gym-ctrl). Ver openspec/changes/realtime-inbox-websocket/FRONT-INTEGRATION.md.\n\n1. Auth → Login (JWT)\n2. Conectar WS: ws://localhost:3000/ws/inbox?token={{token}}\n3. Internal Notify → cliente WS recebe message.inbound",
+      "item": [
+        {
+          "name": "Internal Notify (message.inbound)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Secret",
+                "value": "{{internalWsNotifySecret}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"message.inbound\",\n  \"tenantId\": {{tenantId}},\n  \"listId\": {{listId}},\n  \"leadId\": {{leadId}},\n  \"message\": {\n    \"id\": 1,\n    \"wamid\": \"wamid.test\",\n    \"direction\": \"IN\",\n    \"type\": \"text\",\n    \"body\": \"oi\",\n    \"phone\": \"5511999999999\",\n    \"createdAt\": \"2026-08-17T21:00:00.000Z\"\n  }\n}"
+            },
+            "url": "{{gymBaseUrl}}/internal/inbox/realtime/notify",
+            "description": "Fan-out WS para rooms tenant:{tenantId} e super-admin. Resposta 204. Requer WS conectado para observar o evento. Secret: variável internalWsNotifySecret."
           }
         }
       ]

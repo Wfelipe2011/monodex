@@ -1,3 +1,8 @@
+/**
+ * Env vars para realtime inbox (deploy conjunto com gym-ctrl):
+ * - GYM_CTRL_BASE_URL (obrigatória em PRD) — ex.: http://localhost:3000
+ * - INTERNAL_WS_NOTIFY_SECRET (obrigatória) — mesmo valor configurado no gym-ctrl
+ */
 import "dotenv/config";
 import { NestFactory } from '@nestjs/core';
 import { NotiflyModule } from './notifly.module';

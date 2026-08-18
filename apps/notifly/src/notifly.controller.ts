@@ -4,6 +4,7 @@ import { Message, WhatsAppWebhook } from './interfaces';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { WebhookPersistenceService } from './webhook-persistence.service';
 import { ListCampaignReplyService } from './list-campaign-reply.service';
+import { InboxRealtimeNotifyService } from './inbox-realtime-notify.service';
 
 function isTenhoInteresse(msg: Message): boolean {
   return (
@@ -19,6 +20,7 @@ export class NotiflyController {
     private readonly prisma: PrismaService,
     private readonly webhookPersistence: WebhookPersistenceService,
     private readonly listCampaignReplyService: ListCampaignReplyService,
+    private readonly inboxRealtimeNotify: InboxRealtimeNotifyService,
   ) {}
 
   @Get('health-check')
@@ -60,6 +62,38 @@ export class NotiflyController {
             msg,
             value.metadata,
           );
+          if (
+            result.persisted &&
+            result.listLeadId != null &&
+            result.tenantId != null &&
+            result.messageId != null &&
+            result.wamid != null &&
+            result.type != null &&
+            result.phone != null &&
+            result.createdAt != null
+          ) {
+            const listLead = await this.prisma.tenantListLead.findUnique({
+              where: { id: result.listLeadId },
+              select: { listId: true },
+            });
+            if (listLead) {
+              void this.inboxRealtimeNotify.notifyInbound({
+                type: 'message.inbound',
+                tenantId: result.tenantId,
+                listId: listLead.listId,
+                leadId: result.listLeadId,
+                message: {
+                  id: result.messageId,
+                  wamid: result.wamid,
+                  direction: 'IN',
+                  type: result.type,
+                  body: result.body ?? undefined,
+                  phone: result.phone,
+                  createdAt: result.createdAt.toISOString(),
+                },
+              });
+            }
+          }
           if (
             result.correlation === 'list_send' &&
             msg.type === 'button' &&

@@ -13,6 +13,14 @@ export type InboundCorrelation = 'list_send' | 'tenant_lead' | 'unknown';
 export type InboundHandleResult = {
   persisted: boolean;
   correlation: InboundCorrelation;
+  tenantId?: number;
+  listLeadId?: number | null;
+  messageId?: number;
+  wamid?: string;
+  type?: string;
+  body?: string | null;
+  phone?: string;
+  createdAt?: Date;
 };
 
 @Injectable()
@@ -37,7 +45,7 @@ export class WebhookPersistenceService {
     }
 
     try {
-      await this.prisma.whatsappConversationMessage.create({
+      const created = await this.prisma.whatsappConversationMessage.create({
         data: {
           wamid: msg.id,
           direction: WhatsappConversationDirection.IN,
@@ -50,6 +58,18 @@ export class WebhookPersistenceService {
           listSendId: resolved.listSendId,
         },
       });
+      return {
+        persisted: true,
+        correlation: resolved.kind,
+        tenantId: resolved.tenantId,
+        listLeadId: resolved.listLeadId,
+        messageId: created.id,
+        wamid: created.wamid,
+        type: created.type,
+        body: created.body,
+        phone: created.phone,
+        createdAt: created.createdAt,
+      };
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -62,8 +82,6 @@ export class WebhookPersistenceService {
       }
       throw e;
     }
-
-    return { persisted: true, correlation: resolved.kind };
   }
 
   async handleStatus(status: Status): Promise<void> {

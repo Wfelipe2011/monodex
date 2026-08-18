@@ -2559,6 +2559,30 @@
           "Admin — Ops"
         ]
       }
+    },
+    "/internal/inbox/realtime/notify": {
+      "post": {
+        "operationId": "InternalInboxRealtimeController_notify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboxInboundEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "InternalInboxRealtime"
+        ]
+      }
     }
   },
   "info": {
@@ -3967,6 +3991,67 @@
         },
         "required": [
           "count"
+        ]
+      },
+      "InboundMessageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "wamid": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "wamid",
+          "direction",
+          "type",
+          "phone",
+          "createdAt"
+        ]
+      },
+      "InboxInboundEventDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "number"
+          },
+          "listId": {
+            "type": "number"
+          },
+          "leadId": {
+            "type": "number"
+          },
+          "message": {
+            "$ref": "#/components/schemas/InboundMessageDto"
+          }
+        },
+        "required": [
+          "type",
+          "tenantId",
+          "listId",
+          "leadId",
+          "message"
         ]
       }
     }
