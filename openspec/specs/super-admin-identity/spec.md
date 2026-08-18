@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Platform operator identity via `SUPER_ADMIN` role on `User`, bootstrap seed, and authorization for `/admin/*` routes in gym-ctrl.
+Platform operator identity via `SUPER_ADMIN` role on `User`, bootstrap seed, and authorization for `/platform/*` routes in gym-ctrl.
 
 ## Requirements
 
@@ -32,16 +32,16 @@ The system SHALL allow the platform admin to authenticate via the existing `POST
 - **THEN** the response includes a JWT containing `roles` that include `SUPER_ADMIN` and a `tenantId` of the platform tenant
 
 ### Requirement: Admin routes require SUPER_ADMIN
-The system SHALL reject requests to `/admin/*` routes unless the request presents a valid JWT whose `roles` include `SUPER_ADMIN`.
+The system SHALL reject requests to `/platform/*` routes unless the request presents a valid JWT whose `roles` include `SUPER_ADMIN`. Tenant `ADMIN` callers MUST receive HTTP 403 on `/platform/*`. Documented gym-ctrl platform routes MUST use the `/platform` prefix rather than `/admin`.
 
 #### Scenario: Tenant ADMIN forbidden
-- **WHEN** a user whose roles are only `ADMIN` (tenant) calls any `/admin/*` endpoint with a valid JWT
+- **WHEN** a user whose roles are only `ADMIN` (tenant) calls any `/platform/*` endpoint with a valid JWT
 - **THEN** the API responds with HTTP 403
 
 #### Scenario: Unauthenticated forbidden
-- **WHEN** a client calls any `/admin/*` endpoint without a valid Bearer token
+- **WHEN** a client calls any `/platform/*` endpoint without a valid Bearer token
 - **THEN** the API responds with HTTP 401
 
 #### Scenario: Super admin allowed
-- **WHEN** a `SUPER_ADMIN` calls an `/admin/*` endpoint with a valid JWT
+- **WHEN** a `SUPER_ADMIN` calls a `/platform/*` endpoint with a valid JWT
 - **THEN** the request is authorized by the roles guard (subject to resource validation)
