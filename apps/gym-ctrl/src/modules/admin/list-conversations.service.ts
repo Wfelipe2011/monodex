@@ -106,7 +106,7 @@ export class ListConversationsService {
       throw new BadRequestException('OUTSIDE_MESSAGING_WINDOW');
     }
 
-    const creds = await this.platformWhatsapp.resolveCredentials();
+    const creds = await this.platformWhatsapp.resolveCredentials(tenantId);
     const payload = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',

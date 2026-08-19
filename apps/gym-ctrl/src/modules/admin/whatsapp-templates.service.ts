@@ -61,6 +61,7 @@ export class WhatsappTemplatesService {
   ) {}
 
   async sync() {
+    // Números extras compartilham o catálogo do WABA; não copiar rows.
     const creds = await this.platformWhatsapp.resolveCredentials();
     if (!creds.wabaId?.trim()) {
       throw new BadRequestException(
@@ -205,7 +206,7 @@ export class WhatsappTemplatesService {
       throw new BadRequestException('Telefone de destino inválido');
     }
 
-    const creds = await this.platformWhatsapp.resolveCredentials();
+    const creds = await this.resolveTestSendCredentials(dto.whatsappAccountId);
     const sendBody = buildTemplateSendBody({
       name: template.name,
       language: template.language,
@@ -241,6 +242,42 @@ export class WhatsappTemplatesService {
     } catch (error) {
       this.rethrowGraphError(error);
     }
+  }
+
+  private async resolveTestSendCredentials(whatsappAccountId?: number) {
+    const defaultCreds = await this.platformWhatsapp.resolveCredentials();
+    if (whatsappAccountId == null) {
+      return defaultCreds;
+    }
+
+    const account = await this.prisma.whatsappAccount.findUnique({
+      where: { id: whatsappAccountId },
+    });
+    if (
+      !account ||
+      account.tenantId != null ||
+      !account.enabled ||
+      (account.wabaId ?? '') !== defaultCreds.wabaId
+    ) {
+      throw new BadRequestException(
+        `WhatsappAccount id=${whatsappAccountId} inválida para test-send (inexistente, disabled, não-plataforma ou WABA divergente)`,
+      );
+    }
+
+    const token = process.env[account.tokenEnvKey];
+    if (!token) {
+      throw new BadRequestException(
+        `Token WhatsApp ausente: variável de ambiente "${account.tokenEnvKey}" não está definida ou está vazia`,
+      );
+    }
+
+    return {
+      accountId: account.id,
+      wabaId: account.wabaId ?? '',
+      phoneNumberId: account.phoneNumberId,
+      token,
+      messagesUrl: `https://graph.facebook.com/${GRAPH_API_VERSION}/${account.phoneNumberId}/messages`,
+    };
   }
 
   private resolveTestSlotValue(

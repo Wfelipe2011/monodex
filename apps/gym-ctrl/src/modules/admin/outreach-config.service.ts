@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Roles } from '@prisma/client';
+import { Prisma, Roles, WhatsappProvider } from '@prisma/client';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { assertSuperAdminTenantWrite } from '@core/guard/bootstrap-write';
 import { UpsertOutreachConfigDto } from './dto/upsert-outreach-config.dto';
@@ -31,7 +31,18 @@ const TENANT_OWNED_OUTREACH_KEYS = [
   'notifyTemplateId',
 ] as const;
 
-const PLATFORM_OUTREACH_KEYS = ['costPerLead', 'cashbackOnReply'] as const;
+const PLATFORM_OUTREACH_KEYS = [
+  'costPerLead',
+  'cashbackOnReply',
+  'whatsappAccountId',
+] as const;
+
+const RESOLVED_ACCOUNT_SELECT = {
+  id: true,
+  phoneNumberId: true,
+  displayPhone: true,
+  isDefault: true,
+} as const;
 
 const TEMPLATE_MIN_SELECT = {
   id: true,
@@ -62,7 +73,7 @@ export class OutreachConfigService {
         `Outreach config do tenant ${tenantId} não encontrada`,
       );
     }
-    return config;
+    return this.withResolvedWhatsappAccount(config);
   }
 
   async createBootstrap(
@@ -100,22 +111,31 @@ export class OutreachConfigService {
       slotBindings,
     });
 
-    return this.prisma.tenantOutreachConfig.create({
-      data: {
-        tenantId,
-        enabled,
-        costPerLead: dto.costPerLead,
-        cashbackOnReply,
-        outreachTemplateId: dto.outreachTemplateId,
-        notifyTemplateId: dto.notifyTemplateId,
-        slotBindings: slotBindings as unknown as Prisma.InputJsonValue,
-        schedule: dto.schedule as Prisma.InputJsonValue,
-        categories: dto.categories as Prisma.InputJsonValue,
-        leadsPerRun: dto.leadsPerRun ?? 5,
-        sendIntervalSeconds: dto.sendIntervalSeconds ?? 5,
-      },
-      include: CONFIG_INCLUDE,
-    });
+    const whatsappAccountId = dto.whatsappAccountId ?? null;
+    await this.assertAssignableWhatsappAccount(whatsappAccountId, tenantId);
+
+    try {
+      const created = await this.prisma.tenantOutreachConfig.create({
+        data: {
+          tenantId,
+          enabled,
+          costPerLead: dto.costPerLead,
+          cashbackOnReply,
+          outreachTemplateId: dto.outreachTemplateId,
+          notifyTemplateId: dto.notifyTemplateId,
+          whatsappAccountId,
+          slotBindings: slotBindings as unknown as Prisma.InputJsonValue,
+          schedule: dto.schedule as Prisma.InputJsonValue,
+          categories: dto.categories as Prisma.InputJsonValue,
+          leadsPerRun: dto.leadsPerRun ?? 5,
+          sendIntervalSeconds: dto.sendIntervalSeconds ?? 5,
+        },
+        include: CONFIG_INCLUDE,
+      });
+      return this.withResolvedWhatsappAccount(created);
+    } catch (error) {
+      this.rethrowAssignedAccountUnique(error);
+    }
   }
 
   async patchPlatform(
@@ -149,18 +169,33 @@ export class OutreachConfigService {
       isPlatformField: true,
     });
 
-    return this.prisma.tenantOutreachConfig.update({
-      where: { tenantId },
-      data: {
-        ...(dto.costPerLead !== undefined
-          ? { costPerLead: dto.costPerLead }
-          : {}),
-        ...(dto.cashbackOnReply !== undefined
-          ? { cashbackOnReply: dto.cashbackOnReply }
-          : {}),
-      },
-      include: CONFIG_INCLUDE,
-    });
+    if (dto.whatsappAccountId !== undefined) {
+      await this.assertAssignableWhatsappAccount(
+        dto.whatsappAccountId,
+        tenantId,
+      );
+    }
+
+    try {
+      const updated = await this.prisma.tenantOutreachConfig.update({
+        where: { tenantId },
+        data: {
+          ...(dto.costPerLead !== undefined
+            ? { costPerLead: dto.costPerLead }
+            : {}),
+          ...(dto.cashbackOnReply !== undefined
+            ? { cashbackOnReply: dto.cashbackOnReply }
+            : {}),
+          ...(dto.whatsappAccountId !== undefined
+            ? { whatsappAccountId: dto.whatsappAccountId }
+            : {}),
+        },
+        include: CONFIG_INCLUDE,
+      });
+      return this.withResolvedWhatsappAccount(updated);
+    } catch (error) {
+      this.rethrowAssignedAccountUnique(error);
+    }
   }
 
   async createTenant(
@@ -203,7 +238,7 @@ export class OutreachConfigService {
       slotBindings,
     });
 
-    return this.prisma.tenantOutreachConfig.create({
+    const created = await this.prisma.tenantOutreachConfig.create({
       data: {
         tenantId,
         enabled,
@@ -219,6 +254,7 @@ export class OutreachConfigService {
       },
       include: CONFIG_INCLUDE,
     });
+    return this.withResolvedWhatsappAccount(created);
   }
 
   async patchTenant(
@@ -279,7 +315,7 @@ export class OutreachConfigService {
 
     await this.assertEnableAllowed(tenant, merged);
 
-    return this.prisma.tenantOutreachConfig.update({
+    const updated = await this.prisma.tenantOutreachConfig.update({
       where: { tenantId },
       data: {
         ...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
@@ -309,6 +345,93 @@ export class OutreachConfigService {
       },
       include: CONFIG_INCLUDE,
     });
+    return this.withResolvedWhatsappAccount(updated);
+  }
+
+  private async assertAssignableWhatsappAccount(
+    id: number | null,
+    tenantId: number,
+  ): Promise<void> {
+    if (id == null) {
+      return;
+    }
+
+    const account = await this.prisma.whatsappAccount.findUnique({
+      where: { id },
+      include: {
+        assignedOutreachConfig: { select: { tenantId: true } },
+      },
+    });
+
+    if (!account) {
+      throw new BadRequestException(`Conta WhatsApp ${id} não encontrada`);
+    }
+    if (account.tenantId != null) {
+      throw new BadRequestException(
+        `Conta WhatsApp ${id} não é uma conta de plataforma`,
+      );
+    }
+    if (!account.enabled) {
+      throw new BadRequestException(`Conta WhatsApp ${id} está desabilitada`);
+    }
+    if (account.provider !== WhatsappProvider.CLOUD_API) {
+      throw new BadRequestException(
+        `Conta WhatsApp ${id} não é Cloud API (provider=${account.provider})`,
+      );
+    }
+    if (account.isDefault) {
+      throw new BadRequestException(
+        'Não é possível atribuir a conta default; use null para o remetente compartilhado',
+      );
+    }
+
+    const assignedTenantId = account.assignedOutreachConfig?.tenantId;
+    if (assignedTenantId != null && assignedTenantId !== tenantId) {
+      throw new BadRequestException(
+        `Conta WhatsApp ${id} já está atribuída a outro tenant`,
+      );
+    }
+  }
+
+  private async withResolvedWhatsappAccount<
+    T extends { whatsappAccountId: number | null },
+  >(config: T) {
+    return {
+      ...config,
+      resolvedWhatsappAccount: await this.resolveAccountSummary(
+        config.whatsappAccountId,
+      ),
+    };
+  }
+
+  private async resolveAccountSummary(whatsappAccountId: number | null) {
+    if (whatsappAccountId != null) {
+      return this.prisma.whatsappAccount.findUnique({
+        where: { id: whatsappAccountId },
+        select: RESOLVED_ACCOUNT_SELECT,
+      });
+    }
+
+    return this.prisma.whatsappAccount.findFirst({
+      where: {
+        isDefault: true,
+        tenantId: null,
+        provider: WhatsappProvider.CLOUD_API,
+      },
+      select: RESOLVED_ACCOUNT_SELECT,
+    });
+  }
+
+  private rethrowAssignedAccountUnique(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new BadRequestException(
+        'Número WhatsApp já atribuído a outro tenant',
+      );
+    }
+    throw error;
   }
 
   private tenantOwnedKeysInBody(raw: unknown): string[] {

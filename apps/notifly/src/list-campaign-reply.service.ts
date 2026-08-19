@@ -137,7 +137,7 @@ export class ListCampaignReplyService {
     }
 
     const { messagesUrl, token } =
-      await this.platformWhatsapp.resolveCredentials();
+      await this.platformWhatsapp.resolveCredentials(tenant.id);
     const sendBody = buildTemplateSendBody({
       name: notifyTemplate.name,
       language: notifyTemplate.language,

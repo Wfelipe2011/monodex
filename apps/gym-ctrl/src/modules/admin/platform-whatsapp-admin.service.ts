@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
-import { WhatsappProvider } from '@prisma/client';
+import { WhatsappAccount, WhatsappProvider } from '@prisma/client';
 
 export const GRAPH_API_VERSION = 'v23.0';
 
@@ -23,21 +23,60 @@ export class PlatformWhatsappAdminService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async resolveCredentials(): Promise<PlatformWhatsappAdminCredentials> {
+  async resolveCredentials(
+    tenantId?: number,
+  ): Promise<PlatformWhatsappAdminCredentials> {
+    if (tenantId != null) {
+      const config = await this.prisma.tenantOutreachConfig.findUnique({
+        where: { tenantId },
+      });
+
+      if (config?.whatsappAccountId) {
+        const account = await this.prisma.whatsappAccount.findUnique({
+          where: { id: config.whatsappAccountId },
+        });
+
+        if (
+          !account ||
+          !account.enabled ||
+          account.provider !== WhatsappProvider.CLOUD_API
+        ) {
+          const reason = !account
+            ? 'conta não encontrada'
+            : !account.enabled
+              ? 'conta desabilitada'
+              : `provider=${account.provider}`;
+          throw new BadRequestException(
+            `Conta WhatsApp dedicada do tenant ${tenantId} (whatsappAccountId=${config.whatsappAccountId}) indisponível (${reason}); ` +
+              'envio pelo número default não é permitido',
+          );
+        }
+
+        return this.credsFromAccount(account);
+      }
+    }
+
     const account = await this.prisma.whatsappAccount.findFirst({
       where: {
-        tenantId: null,
+        isDefault: true,
         enabled: true,
+        tenantId: null,
         provider: WhatsappProvider.CLOUD_API,
       },
     });
 
     if (!account) {
       throw new NotFoundException(
-        'Conta WhatsApp Cloud API da plataforma não encontrada (tenantId=null, enabled=true, provider=CLOUD_API)',
+        'Conta WhatsApp Cloud API default da plataforma não encontrada (isDefault=true, tenantId=null, enabled=true, provider=CLOUD_API)',
       );
     }
 
+    return this.credsFromAccount(account);
+  }
+
+  private credsFromAccount(
+    account: WhatsappAccount,
+  ): PlatformWhatsappAdminCredentials {
     const token = process.env[account.tokenEnvKey];
     if (!token) {
       throw new BadRequestException(

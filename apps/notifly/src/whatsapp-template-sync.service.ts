@@ -129,6 +129,7 @@ export class WhatsappTemplateSyncService implements OnModuleInit, OnModuleDestro
 
   async syncFromGraph(): Promise<void> {
     try {
+      // Números extras compartilham o catálogo do WABA; não copiar rows.
       const creds = await this.platformWhatsapp.resolveCredentials();
       if (!creds.wabaId?.trim()) {
         this.logger.warn(`[${JOB_NAME}] wabaId vazio; pulando sync`);

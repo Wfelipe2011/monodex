@@ -294,18 +294,20 @@ enum WhatsappProvider {
 }
 
 model WhatsappAccount {
-  id            Int                       @id @default(autoincrement())
-  provider      WhatsappProvider          @default(CLOUD_API)
-  phoneNumberId String                    @map("phone_number_id")
-  displayPhone  String?                   @map("display_phone")
-  tokenEnvKey   String                    @default("WHATSAPP_TOKEN") @map("token_env_key")
-  wabaId        String                    @map("waba_id")
-  tenantId      Int?                      @map("tenant_id")
-  tenant        Tenant?                   @relation(fields: [tenantId], references: [id])
-  enabled       Boolean                   @default(true)
-  createdAt     DateTime                  @default(now()) @map("created_at")
-  updatedAt     DateTime                  @updatedAt @map("updated_at")
-  templates     WhatsappMessageTemplate[]
+  id                      Int                       @id @default(autoincrement())
+  provider                WhatsappProvider          @default(CLOUD_API)
+  phoneNumberId           String                    @unique @map("phone_number_id")
+  displayPhone            String?                   @map("display_phone")
+  tokenEnvKey             String                    @default("WHATSAPP_TOKEN") @map("token_env_key")
+  wabaId                  String                    @map("waba_id")
+  tenantId                Int?                      @map("tenant_id")
+  tenant                  Tenant?                   @relation(fields: [tenantId], references: [id])
+  enabled                 Boolean                   @default(true)
+  isDefault               Boolean                   @default(false) @map("is_default")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+  templates               WhatsappMessageTemplate[]
+  assignedOutreachConfig  TenantOutreachConfig?
 
   @@map("whatsapp_accounts")
 }
@@ -346,6 +348,8 @@ model TenantOutreachConfig {
   notifyTemplateId    Int?                     @map("notify_template_id")
   outreachTemplate    WhatsappMessageTemplate? @relation("OutreachTemplate", fields: [outreachTemplateId], references: [id])
   notifyTemplate      WhatsappMessageTemplate? @relation("NotifyTemplate", fields: [notifyTemplateId], references: [id])
+  whatsappAccountId   Int?                     @unique @map("whatsapp_account_id")
+  whatsappAccount     WhatsappAccount?         @relation(fields: [whatsappAccountId], references: [id], onDelete: Restrict)
   slotBindings        Json                     @default("{}") @map("slot_bindings")
   schedule            Json
   categories          Json

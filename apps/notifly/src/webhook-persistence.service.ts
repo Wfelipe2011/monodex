@@ -8,7 +8,11 @@ import {
 import { normalizeListPhone } from '@core/shared/list-campaign-helpers';
 import { Message, Metadata, Status } from './interfaces';
 
-export type InboundCorrelation = 'list_send' | 'tenant_lead' | 'unknown';
+export type InboundCorrelation =
+  | 'list_send'
+  | 'tenant_lead'
+  | 'dedicated_number'
+  | 'unknown';
 
 export type InboundHandleResult = {
   persisted: boolean;
@@ -31,11 +35,11 @@ export class WebhookPersistenceService {
 
   async handleInboundMessage(
     msg: Message,
-    _metadata: Metadata,
+    metadata: Metadata,
   ): Promise<InboundHandleResult> {
     const phone = normalizeListPhone(msg.from);
     const body = msg.text?.body ?? msg.button?.text ?? null;
-    const resolved = await this.resolveCorrelation(msg);
+    const resolved = await this.resolveCorrelation(msg, metadata);
 
     if (resolved.tenantId == null) {
       this.logger.warn(
@@ -131,48 +135,64 @@ export class WebhookPersistenceService {
     }
   }
 
-  private async resolveCorrelation(msg: Message): Promise<{
+  private async resolveCorrelation(
+    msg: Message,
+    metadata: Metadata,
+  ): Promise<{
     kind: InboundCorrelation;
     tenantId: number | null;
     listLeadId: number | null;
     listSendId: number | null;
   }> {
     const contextWamid = msg.context?.id;
-    if (!contextWamid) {
-      return {
-        kind: 'unknown',
-        tenantId: null,
-        listLeadId: null,
-        listSendId: null,
-      };
+    if (contextWamid) {
+      const send = await this.prisma.tenantListSend.findUnique({
+        where: { wamid: contextWamid },
+        include: {
+          listLead: { include: { list: true } },
+        },
+      });
+      if (send) {
+        return {
+          kind: 'list_send',
+          tenantId: send.listLead.list.tenantId,
+          listLeadId: send.listLeadId,
+          listSendId: send.id,
+        };
+      }
+
+      const tenantLead = await this.prisma.tenantLead.findFirst({
+        where: { messageId: contextWamid },
+        select: { tenantId: true },
+      });
+      if (tenantLead) {
+        return {
+          kind: 'tenant_lead',
+          tenantId: tenantLead.tenantId,
+          listLeadId: null,
+          listSendId: null,
+        };
+      }
     }
 
-    const send = await this.prisma.tenantListSend.findUnique({
-      where: { wamid: contextWamid },
-      include: {
-        listLead: { include: { list: true } },
-      },
-    });
-    if (send) {
-      return {
-        kind: 'list_send',
-        tenantId: send.listLead.list.tenantId,
-        listLeadId: send.listLeadId,
-        listSendId: send.id,
-      };
-    }
-
-    const tenantLead = await this.prisma.tenantLead.findFirst({
-      where: { messageId: contextWamid },
-      select: { tenantId: true },
-    });
-    if (tenantLead) {
-      return {
-        kind: 'tenant_lead',
-        tenantId: tenantLead.tenantId,
-        listLeadId: null,
-        listSendId: null,
-      };
+    const phoneNumberId = metadata?.phone_number_id;
+    if (phoneNumberId) {
+      const account = await this.prisma.whatsappAccount.findFirst({
+        where: { phoneNumberId },
+      });
+      if (account && account.isDefault === false) {
+        const config = await this.prisma.tenantOutreachConfig.findUnique({
+          where: { whatsappAccountId: account.id },
+        });
+        if (config) {
+          return {
+            kind: 'dedicated_number',
+            tenantId: config.tenantId,
+            listLeadId: null,
+            listSendId: null,
+          };
+        }
+      }
     }
 
     return {

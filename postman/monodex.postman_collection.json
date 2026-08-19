@@ -55,6 +55,10 @@
       "value": "1"
     },
     {
+      "key": "dedicatedWhatsappAccountId",
+      "value": "2"
+    },
+    {
       "key": "wabaId",
       "value": "SET_WABA_ID"
     },
@@ -495,7 +499,8 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config"
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
+            "description": "Inclui `whatsappAccountId` e `resolvedWhatsappAccount` (id, phoneNumberId, displayPhone, isDefault)."
           }
         },
         {
@@ -533,6 +538,60 @@
               "raw": "{\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0\n}"
             }
           }
+        },
+        {
+          "name": "Patch Assign Dedicated WhatsApp Account",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
+            "description": "Super Admin amarra um número não-default. GET passa a mostrar `resolvedWhatsappAccount` dessa conta.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"whatsappAccountId\": {{dedicatedWhatsappAccountId}}\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch Unassign Dedicated WhatsApp Account",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
+            "description": "`null` = tenant volta a usar o número default compartilhado.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"whatsappAccountId\": null\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch Assign Default WhatsApp Account (expect 400)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
+            "description": "Id da conta default → 400. Use null para compartilhar o default.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"whatsappAccountId\": {{whatsappAccountId}}\n}"
+            }
+          }
         }
       ],
       "auth": {
@@ -555,7 +614,7 @@
             "method": "GET",
             "header": [],
             "url": "{{gymBaseUrl}}/platform/whatsapp-accounts",
-            "description": "Contas da plataforma (tenantId null). Token Meta nunca retorna."
+            "description": "Contas da plataforma (tenantId null). Cada item inclui `isDefault`. Token Meta nunca retorna."
           }
         },
         {
@@ -569,10 +628,10 @@
               }
             ],
             "url": "{{gymBaseUrl}}/platform/whatsapp-accounts",
-            "description": "Nunca envie o access token. Só `tokenEnvKey`.",
+            "description": "Nunca envie o access token. Só `tokenEnvKey`. `isDefault` é opcional (primeira conta da plataforma nasce default).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"wabaId\": \"{{wabaId}}\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
+              "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"wabaId\": \"{{wabaId}}\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true,\n  \"isDefault\": false\n}"
             }
           },
           "event": [
@@ -583,6 +642,38 @@
                   "if (pm.response.code === 200 || pm.response.code === 201) {",
                   "  const json = pm.response.json();",
                   "  if (json.id) pm.collectionVariables.set('whatsappAccountId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Second WhatsApp Number",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-accounts",
+            "description": "Segundo número no mesmo WABA. Placeholder de `phoneNumberId`. Nunca envie o access token. Grava `dedicatedWhatsappAccountId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumberId\": \"SET_SECOND_PHONE_NUMBER_ID\",\n  \"wabaId\": \"{{wabaId}}\",\n  \"displayPhone\": \"+5511988887777\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true,\n  \"isDefault\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('dedicatedWhatsappAccountId', String(json.id));",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -612,6 +703,42 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"phoneNumberId\": \"688645744332614\",\n  \"wabaId\": \"{{wabaId}}\",\n  \"displayPhone\": \"+5511999998888\",\n  \"tokenEnvKey\": \"WHATSAPP_TOKEN\",\n  \"enabled\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch Promote Default",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-accounts/{{dedicatedWhatsappAccountId}}",
+            "description": "Promove o segundo número a default (desmarca o anterior na mesma transação). Conta amarrada a tenant → 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isDefault\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch Disable Default (expect 400)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-accounts/{{whatsappAccountId}}",
+            "description": "`enabled: false` na conta default → 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false\n}"
             }
           }
         }
@@ -702,7 +829,7 @@
             "method": "POST",
             "header": [],
             "url": "{{gymBaseUrl}}/platform/whatsapp-templates/sync",
-            "description": "SUPER_ADMIN. Sincroniza catálogo a partir da WABA da plataforma."
+            "description": "SUPER_ADMIN. Sync Graph na conta isDefault (mesmo WABA); não duplica catálogo por número."
           }
         },
         {
@@ -740,10 +867,10 @@
               }
             ],
             "url": "{{gymBaseUrl}}/platform/whatsapp-templates/{{templateId}}/test",
-            "description": "Envia o template do catálogo sem TenantLead/coin.",
+            "description": "Envia o template do catálogo sem TenantLead/coin. `whatsappAccountId` opcional (omitido = default). Catálogo permanece na conta default.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"to\": \"11999999999\",\n  \"variables\": {}\n}"
+              "raw": "{\n  \"to\": \"11999999999\",\n  \"variables\": {},\n  \"whatsappAccountId\": {{dedicatedWhatsappAccountId}}\n}"
             }
           }
         }
@@ -1025,7 +1152,7 @@
             "method": "GET",
             "header": [],
             "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
-            "description": "Inclui preço read-only. ADMIN em outro tenantId → 403."
+            "description": "Inclui preço e `resolvedWhatsappAccount` só leitura. ADMIN em outro tenantId → 403."
           }
         },
         {
@@ -1061,6 +1188,24 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"leadsPerRun\": 5,\n  \"slotBindings\": {\n  \"outreach\": {\n    \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" },\n    \"header.image\": { \"type\": \"header_image\", \"value\": \"\" }\n  },\n  \"notify\": {\n    \"body.customer_name\": { \"type\": \"lead.name\" },\n    \"body.customer_phone\": { \"type\": \"lead.phone\" },\n    \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n  }\n}\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch WhatsApp Account (expect 403)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
+            "description": "Admin não escreve `whatsappAccountId` → 403. GET inclui `resolvedWhatsappAccount` só leitura.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"whatsappAccountId\": {{dedicatedWhatsappAccountId}}\n}"
             }
           }
         }

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
-import { WhatsappProvider } from '@prisma/client';
+import { WhatsappAccount, WhatsappProvider } from '@prisma/client';
 
 export const GRAPH_API_VERSION = 'v23.0';
 
@@ -18,22 +18,62 @@ export class PlatformWhatsappService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async resolveCredentials(): Promise<PlatformWhatsappCredentials> {
+  async resolveCredentials(
+    tenantId?: number,
+  ): Promise<PlatformWhatsappCredentials> {
+    if (tenantId != null) {
+      const config = await this.prisma.tenantOutreachConfig.findUnique({
+        where: { tenantId },
+      });
+
+      if (config?.whatsappAccountId) {
+        const account = await this.prisma.whatsappAccount.findUnique({
+          where: { id: config.whatsappAccountId },
+        });
+
+        if (
+          !account ||
+          !account.enabled ||
+          account.provider !== WhatsappProvider.CLOUD_API
+        ) {
+          const reason = !account
+            ? 'conta não encontrada'
+            : !account.enabled
+              ? 'conta desabilitada'
+              : `provider=${account.provider}`;
+          const message =
+            `Conta WhatsApp dedicada do tenant ${tenantId} (whatsappAccountId=${config.whatsappAccountId}) indisponível (${reason}); ` +
+            'envio pelo número default não é permitido';
+          this.logger.error(message);
+          throw new Error(message);
+        }
+
+        return this.credsFromAccount(account);
+      }
+    }
+
     const account = await this.prisma.whatsappAccount.findFirst({
       where: {
-        tenantId: null,
+        isDefault: true,
         enabled: true,
+        tenantId: null,
         provider: WhatsappProvider.CLOUD_API,
       },
     });
 
     if (!account) {
       const message =
-        'Conta WhatsApp Cloud API da plataforma não encontrada (tenantId=null, enabled=true, provider=CLOUD_API)';
+        'Conta WhatsApp Cloud API default da plataforma não encontrada (isDefault=true, tenantId=null, enabled=true, provider=CLOUD_API)';
       this.logger.error(message);
       throw new Error(message);
     }
 
+    return this.credsFromAccount(account);
+  }
+
+  private credsFromAccount(
+    account: WhatsappAccount,
+  ): PlatformWhatsappCredentials {
     const token = process.env[account.tokenEnvKey];
     if (!token) {
       const message = `Token WhatsApp ausente: variável de ambiente "${account.tokenEnvKey}" não está definida ou está vazia`;

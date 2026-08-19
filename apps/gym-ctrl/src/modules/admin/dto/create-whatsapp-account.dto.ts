@@ -38,6 +38,15 @@ export class CreateWhatsappAccountDto {
   @IsBoolean()
   enabled?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Se true, promove esta conta a default (desmarca a anterior na mesma transação). A primeira conta da plataforma sempre nasce default.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
   /** Apenas null permitido; não-nulo → 400 no service. */
   @ApiPropertyOptional({
     description: 'Deve ser null/omitido (somente contas de plataforma no MVP)',

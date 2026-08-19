@@ -134,39 +134,55 @@ function defaultSlotBindings(headerImageUrl: string | undefined) {
 
 async function upsertPlatformAccount() {
   const wabaId = resolveWabaId();
-  const existing = await prisma.whatsappAccount.findFirst({
-    where: {
-      tenantId: null,
-      provider: WhatsappProvider.CLOUD_API,
-      phoneNumberId: PLATFORM_PHONE_NUMBER_ID,
-    },
-  });
-
-  if (existing) {
-    const updated = await prisma.whatsappAccount.update({
-      where: { id: existing.id },
-      data: {
-        tokenEnvKey: 'WHATSAPP_TOKEN',
-        enabled: true,
-        wabaId,
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.whatsappAccount.findFirst({
+      where: {
+        tenantId: null,
+        provider: WhatsappProvider.CLOUD_API,
+        phoneNumberId: PLATFORM_PHONE_NUMBER_ID,
       },
     });
-    console.log(`[seed-outreach] Platform WhatsappAccount updated id=${updated.id}`);
-    return updated;
-  }
 
-  const created = await prisma.whatsappAccount.create({
-    data: {
-      provider: WhatsappProvider.CLOUD_API,
-      phoneNumberId: PLATFORM_PHONE_NUMBER_ID,
-      tokenEnvKey: 'WHATSAPP_TOKEN',
-      wabaId,
-      tenantId: null,
-      enabled: true,
-    },
+    await tx.whatsappAccount.updateMany({
+      where: {
+        isDefault: true,
+        ...(existing ? { id: { not: existing.id } } : {}),
+      },
+      data: { isDefault: false },
+    });
+
+    if (existing) {
+      const updated = await tx.whatsappAccount.update({
+        where: { id: existing.id },
+        data: {
+          tokenEnvKey: 'WHATSAPP_TOKEN',
+          enabled: true,
+          wabaId,
+          isDefault: true,
+        },
+      });
+      console.log(
+        `[seed-outreach] Platform WhatsappAccount updated id=${updated.id} isDefault=true`,
+      );
+      return updated;
+    }
+
+    const created = await tx.whatsappAccount.create({
+      data: {
+        provider: WhatsappProvider.CLOUD_API,
+        phoneNumberId: PLATFORM_PHONE_NUMBER_ID,
+        tokenEnvKey: 'WHATSAPP_TOKEN',
+        wabaId,
+        tenantId: null,
+        enabled: true,
+        isDefault: true,
+      },
+    });
+    console.log(
+      `[seed-outreach] Platform WhatsappAccount created id=${created.id} isDefault=true`,
+    );
+    return created;
   });
-  console.log(`[seed-outreach] Platform WhatsappAccount created id=${created.id}`);
-  return created;
 }
 
 async function ensureDefaultSchedules() {
@@ -388,6 +404,7 @@ async function main() {
   console.log('[seed-outreach] Done.', {
     platformAccountId: account.id,
     phoneNumberId: account.phoneNumberId,
+    isDefault: account.isDefault,
     wabaId: account.wabaId,
     outreachTemplateId: outreachTemplate.id,
     notifyTemplateId: notifyTemplate.id,

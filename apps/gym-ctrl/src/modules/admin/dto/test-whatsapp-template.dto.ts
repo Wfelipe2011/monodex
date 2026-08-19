@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -36,4 +37,15 @@ export class TestWhatsappTemplateDto {
   @IsInt()
   @IsPositive()
   leadId?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Conta plataforma para o envio (phoneNumberId). Omitido usa a default. O template continua no catálogo da default.',
+    example: 2,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  whatsappAccountId?: number;
 }

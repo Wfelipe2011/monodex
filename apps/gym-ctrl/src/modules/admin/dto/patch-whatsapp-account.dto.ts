@@ -39,6 +39,14 @@ export class PatchWhatsappAccountDto {
   @IsBoolean()
   enabled?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Se true, promove esta conta a default e desmarca a anterior na mesma transação. false na única default é recusado.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
   /** Apenas null permitido; não-nulo → 400 no service. */
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()

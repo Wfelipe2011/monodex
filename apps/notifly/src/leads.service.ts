@@ -372,7 +372,7 @@ export class LeadsService implements OnModuleInit {
       return;
     }
 
-    const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
+    const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials(tenant.id);
     const slots = this.asSlots(outreachTemplate.slots);
     const bindings = this.roleBindings(config.slotBindings, 'outreach');
 
@@ -555,7 +555,7 @@ export class LeadsService implements OnModuleInit {
       console.log(
         `[responseLeads] Notificando tenant=${lead.tenant.id} lead=${lead.lead.name} phone=${lead.lead.phone}`,
       );
-      const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials();
+      const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials(lead.tenant.id);
       const slots = this.asSlots(notifyTemplate.slots);
       const bindings = this.roleBindings(config.slotBindings, 'notify');
       const values = this.resolveRoleValues(slots, bindings, {

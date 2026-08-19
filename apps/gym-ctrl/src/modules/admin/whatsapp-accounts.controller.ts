@@ -32,6 +32,8 @@ export class WhatsappAccountsController {
   @Get()
   @ApiOperation({
     summary: 'Listar contas WhatsApp da plataforma (tenantId null)',
+    description:
+      'Retorna todas as contas da plataforma com isDefault; não filtra só a default. Nunca inclui access token.',
   })
   list() {
     return this.whatsappAccountsService.list();
@@ -41,7 +43,7 @@ export class WhatsappAccountsController {
   @ApiOperation({
     summary: 'Criar conta WhatsApp da plataforma',
     description:
-      'Força tenantId=null e provider=CLOUD_API. Nunca envie token/accessToken — só tokenEnvKey.',
+      'Força tenantId=null e provider=CLOUD_API. wabaId deve coincidir com a default quando ela existe. isDefault opcional; a primeira conta vira default. Nunca envie token/accessToken — só tokenEnvKey.',
   })
   create(@Body() dto: CreateWhatsappAccountDto, @Req() req: Request) {
     rejectSecretTokenFields(req.body);
@@ -49,7 +51,10 @@ export class WhatsappAccountsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Obter conta WhatsApp da plataforma por id' })
+  @ApiOperation({
+    summary: 'Obter conta WhatsApp da plataforma por id',
+    description: 'Inclui isDefault. Nunca devolve access token.',
+  })
   getById(@Param('id', ParseIntPipe) id: number) {
     return this.whatsappAccountsService.getById(id);
   }
@@ -57,7 +62,8 @@ export class WhatsappAccountsController {
   @Patch(':id')
   @ApiOperation({
     summary: 'Atualizar conta WhatsApp da plataforma',
-    description: 'Não aceita token Meta; só tokenEnvKey e campos não secretos.',
+    description:
+      'Não aceita token Meta; só tokenEnvKey e campos não secretos. PATCH isDefault true promove e desmarca a anterior na mesma transação. Desabilitar a default é recusado.',
   })
   patch(
     @Param('id', ParseIntPipe) id: number,

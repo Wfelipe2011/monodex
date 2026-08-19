@@ -10,6 +10,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { BINDING_TYPES } from '@core/shared/whatsapp-template-bindings';
@@ -60,6 +61,18 @@ export class UpsertOutreachConfigDto {
   @IsOptional()
   @IsNumber()
   cashbackOnReply?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Conta WhatsApp dedicada (não-default). Omitido ou null = remetente default da plataforma',
+    nullable: true,
+    example: 2,
+  })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsInt()
+  @Min(1)
+  whatsappAccountId?: number | null;
 
   @ApiProperty({ description: 'FK do template de outreach no catálogo' })
   @IsInt()

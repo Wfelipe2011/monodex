@@ -139,7 +139,7 @@ export class ListCampaignsService {
     );
 
     const { messagesUrl, token } =
-      await this.platformWhatsapp.resolveCredentials();
+      await this.platformWhatsapp.resolveCredentials(tenant.id);
     const slots = this.asSlots(sendTemplate.slots);
     const bindings = this.roleBindings(campaign.slotBindings, 'send');
 
