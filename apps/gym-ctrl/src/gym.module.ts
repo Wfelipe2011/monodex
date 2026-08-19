@@ -25,6 +25,8 @@ import { GymController } from './gym.controller';
         VAPID_PRIVATE_KEY: Joi.string().required().description('Chave privada VAPID (base64url) para Web Push'),
         VAPID_SUBJECT: Joi.string().required().description('Subject VAPID (mailto: ou URL https)'),
         VAPID_PUBLIC_KEY: Joi.string().optional().description('Chave pública VAPID; omitir = derivada da privada'),
+        INVITE_TTL_HOURS: Joi.number().integer().min(1).max(48).default(8),
+        INVITE_PUBLIC_BASE_URL: Joi.string().optional(),
       }),
     })],
   controllers: [GymController],

@@ -50,6 +50,46 @@
         ]
       }
     },
+    "/auth/change-password": {
+      "post": {
+        "operationId": "AuthController_changePassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Senha alterada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePasswordOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente/inválido, usuário inexistente ou senha atual incorreta (hash não é alterado)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alterar a própria senha informando a senha atual",
+        "tags": [
+          "Autenticação"
+        ]
+      }
+    },
     "/platform/health": {
       "get": {
         "operationId": "AdminHealthController_health",
@@ -459,6 +499,391 @@
         "summary": "Resetar senha de um user do tenant",
         "tags": [
           "Tenant — Users"
+        ]
+      }
+    },
+    "/platform/tenants/{tenantId}/invites": {
+      "post": {
+        "description": "Body vazio. Só se o tenant ainda não tiver users (409 se já tiver). Revoga o FIRST_ADMIN pendente anterior. O token plaintext sai só nesta response.",
+        "operationId": "InvitesController_issue",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedInviteResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          },
+          "409": {
+            "description": "Tenant já possui usuários"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Emitir convite FIRST_ADMIN (claim, sem identidade)",
+        "tags": [
+          "Platform — Tenant Invites"
+        ]
+      },
+      "get": {
+        "description": "Status derivado: CONSUMED > REVOKED > EXPIRED > PENDING. Sem token nem tokenHash.",
+        "operationId": "InvitesController_list",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InviteListItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar convites FIRST_ADMIN do tenant (sem token)",
+        "tags": [
+          "Platform — Tenant Invites"
+        ]
+      }
+    },
+    "/platform/tenants/{tenantId}/invites/{inviteId}/revoke": {
+      "post": {
+        "description": "404 se não achar. 409 se já consumido, revogado ou expirado.",
+        "operationId": "InvitesController_revoke",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "inviteId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do convite",
+            "schema": {
+              "example": 12,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteListItemDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant ou convite não encontrado"
+          },
+          "409": {
+            "description": "Convite não está pendente"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revogar convite FIRST_ADMIN pendente",
+        "tags": [
+          "Platform — Tenant Invites"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/invites": {
+      "post": {
+        "description": "Admin do tenant. Super Admin sempre 403. Vários PENDING permitidos. O token plaintext sai só nesta response.",
+        "operationId": "TenantInvitesController_issue",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedInviteResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Super Admin, tenant inativo ou Admin de outro tenant"
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Emitir convite TENANT_USER (claim, sem identidade)",
+        "tags": [
+          "Tenant — Invites"
+        ]
+      },
+      "get": {
+        "description": "Leitura operacional também para Super Admin. Sem token nem tokenHash.",
+        "operationId": "TenantInvitesController_list",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InviteListItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar convites TENANT_USER do tenant (sem token)",
+        "tags": [
+          "Tenant — Invites"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/invites/{inviteId}/revoke": {
+      "post": {
+        "description": "Super Admin sempre 403. 404 se não achar. 409 se não-PENDING.",
+        "operationId": "TenantInvitesController_revoke",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "inviteId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do convite",
+            "schema": {
+              "example": 12,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteListItemDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Super Admin, tenant inativo ou Admin de outro tenant"
+          },
+          "404": {
+            "description": "Tenant ou convite não encontrado"
+          },
+          "409": {
+            "description": "Convite não está pendente"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revogar convite TENANT_USER pendente",
+        "tags": [
+          "Tenant — Invites"
+        ]
+      }
+    },
+    "/public/invites/{token}": {
+      "get": {
+        "description": "Token no path, não Bearer. 404 genérico se desconhecido, expirado, revogado ou consumido. Inclui tenantId para o front.",
+        "operationId": "PublicInvitesController_preview",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "description": "Token curto de 8 caracteres em plaintext (não o hash)",
+            "schema": {
+              "example": "A3K7N2PQ",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewInviteResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Convite não encontrado"
+          },
+          "429": {
+            "description": "Rate limit por IP excedido"
+          }
+        },
+        "summary": "Preview de convite pendente (sem autenticação)",
+        "tags": [
+          "Public — Invites"
+        ]
+      }
+    },
+    "/public/invites/{token}/accept": {
+      "post": {
+        "description": "Cria ADMIN (FIRST_ADMIN) ou USER (TENANT_USER). Devolve JWT no mesmo contrato do login. Sem roles no body.",
+        "operationId": "PublicInvitesController_accept",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "description": "Token curto de 8 caracteres em plaintext (não o hash)",
+            "schema": {
+              "example": "A3K7N2PQ",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInviteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginOutput"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant inativo"
+          },
+          "404": {
+            "description": "Convite não encontrado"
+          },
+          "409": {
+            "description": "E-mail/username duplicado ou tenant já possui usuários"
+          },
+          "429": {
+            "description": "Rate limit por IP excedido"
+          }
+        },
+        "summary": "Aceitar convite e criar o usuário (sem autenticação)",
+        "tags": [
+          "Public — Invites"
         ]
       }
     },
@@ -3696,6 +4121,39 @@
           "token"
         ]
       },
+      "ChangePasswordDto": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 6,
+            "description": "Senha atual em plaintext",
+            "example": "antiga"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 6,
+            "description": "Nova senha em plaintext (será hasheada com bcrypt 10 rounds)",
+            "example": "nova-senha"
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "ChangePasswordOutput": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
       "CreateTenantDto": {
         "type": "object",
         "properties": {
@@ -3834,6 +4292,181 @@
           }
         },
         "required": [
+          "password"
+        ]
+      },
+      "IssuedInviteResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 12
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "FIRST_ADMIN",
+              "TENANT_USER"
+            ],
+            "example": "FIRST_ADMIN"
+          },
+          "token": {
+            "type": "string",
+            "description": "Token curto em plaintext; só nesta response de criação",
+            "example": "A3K7N2PQ"
+          },
+          "url": {
+            "type": "string",
+            "description": "URL do front para copiar (`{base}/convite/{token}` ou path relativo)",
+            "example": "/convite/A3K7N2PQ"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-19T22:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "purpose",
+          "token",
+          "url",
+          "expiresAt"
+        ]
+      },
+      "InviteListItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 12
+          },
+          "tenantId": {
+            "type": "number",
+            "example": 4
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "FIRST_ADMIN",
+              "TENANT_USER"
+            ],
+            "example": "FIRST_ADMIN"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONSUMED",
+              "REVOKED",
+              "EXPIRED"
+            ],
+            "example": "PENDING"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-19T22:00:00.000Z"
+          },
+          "consumedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "createdByUserId": {
+            "type": "number",
+            "nullable": true,
+            "example": 1
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-19T14:00:00.000Z"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-19T14:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "purpose",
+          "status",
+          "expiresAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "PreviewInviteResponseDto": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "FIRST_ADMIN",
+              "TENANT_USER"
+            ],
+            "example": "FIRST_ADMIN"
+          },
+          "tenantName": {
+            "type": "string",
+            "example": "Academia Centro"
+          },
+          "tenantId": {
+            "type": "number",
+            "description": "ID do tenant do convite (útil para o front montar a home)",
+            "example": 4
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-19T22:00:00.000Z"
+          }
+        },
+        "required": [
+          "purpose",
+          "tenantName",
+          "tenantId",
+          "expiresAt"
+        ]
+      },
+      "AcceptInviteDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Maria Silva"
+          },
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "example": "maria.admin"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "maria@academia.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6,
+            "example": "senha-segura"
+          }
+        },
+        "required": [
+          "name",
+          "username",
+          "email",
           "password"
         ]
       },

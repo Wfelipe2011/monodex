@@ -20,6 +20,11 @@ import { TenantsController, TenantSelfController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
 import { UsersController, TenantUsersController } from './users.controller';
 import { UsersService } from './users.service';
+import {
+  InvitesController,
+  TenantInvitesController,
+} from './invites.controller';
+import { InvitesService } from './invites.service';
 import { WhatsappAccountsController } from './whatsapp-accounts.controller';
 import { WhatsappAccountsService } from './whatsapp-accounts.service';
 import { PlatformJobSchedulesController } from './platform-job-schedules.controller';
@@ -56,15 +61,20 @@ import { TemplateGrantsService } from './template-grants.service';
 import { TenantTemplatesController } from './tenant-templates.controller';
 import { TenantScrapeTargetsController } from './tenant-scrape-targets.controller';
 import { TenantScrapeTargetsService } from './tenant-scrape-targets.service';
+import { AuthModule } from '../auth.module';
+import { PublicInvitesController } from './public-invites.controller';
 
 @Module({
-  imports: [PrismaModule, HttpModule],
+  imports: [PrismaModule, HttpModule, AuthModule],
   controllers: [
     AdminHealthController,
     TenantsController,
     TenantSelfController,
     UsersController,
     TenantUsersController,
+    InvitesController,
+    TenantInvitesController,
+    PublicInvitesController,
     CoinsController,
     TenantCoinsController,
     OutreachConfigController,
@@ -93,6 +103,7 @@ import { TenantScrapeTargetsService } from './tenant-scrape-targets.service';
   providers: [
     TenantsService,
     UsersService,
+    InvitesService,
     CoinsService,
     OutreachConfigService,
     OutreachSendsService,

@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Roles } from '@prisma/client';
+import { InvitePurpose, Prisma, Roles } from '@prisma/client';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
@@ -50,7 +50,7 @@ export class UsersService {
 
     const hashed = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     try {
-      return await this.prisma.user.create({
+      const user = await this.prisma.user.create({
         data: {
           name: dto.name,
           username: dto.username,
@@ -61,6 +61,16 @@ export class UsersService {
         },
         select: userSelect,
       });
+      await this.prisma.invite.updateMany({
+        where: {
+          tenantId,
+          purpose: InvitePurpose.FIRST_ADMIN,
+          consumedAt: null,
+          revokedAt: null,
+        },
+        data: { revokedAt: new Date() },
+      });
+      return user;
     } catch (error) {
       this.rethrowUnique(error);
     }

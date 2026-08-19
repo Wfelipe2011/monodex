@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Monodex",
-    "description": "Collection da API Monodex (gym-ctrl + notifly).\n\n## Contrato (breaking)\n`/admin/*` **foi removido**. Use:\n- `/platform/*` — SUPER_ADMIN (`{{platformToken}}`)\n- `/tenant/:tenantId/*` — ADMIN do tenant (`{{tenantToken}}`)\n- `POST /auth/login` — inalterado\n\n## Como usar\n1. Importe este arquivo no Postman.\n2. Ajuste `gymBaseUrl` (GYM_PORT, default 3001), `notiflyBaseUrl`, emails e senhas.\n3. Rode **Auth → Login Super Admin** (grava `platformToken`) e **Login Tenant Admin** (grava `tenantToken` e `tenantId` do JWT).\n4. Pastas `Platform — *` usam Bearer `{{platformToken}}`. Pastas `Tenant — *` usam `{{tenantToken}}`.\n\n## Seeds locais\n```bash\nNODE_ENV=development npx ts-node prisma/seed-platform-admin.ts\nnpx ts-node prisma/seed-outreach.ts\n```\nPlatform admin (dev): `platform-admin@local.dev` / `platform-admin-dev`.\n`seed-outreach` upserta policy vazia + grants dos stubs `test_gladson` e notify no tenant operacional (id 8 / `TENANT_ID`).",
+    "description": "Collection da API Monodex (gym-ctrl + notifly).\n\n## Contrato (breaking)\n`/admin/*` **foi removido**. Use:\n- `/platform/*` — SUPER_ADMIN (`{{platformToken}}`)\n- `/tenant/:tenantId/*` — ADMIN do tenant (`{{tenantToken}}`)\n- `POST /auth/login` — inalterado\n\n## Como usar\n1. Importe este arquivo no Postman.\n2. Ajuste `gymBaseUrl` (GYM_PORT, default 3001), `notiflyBaseUrl`, emails e senhas.\n3. Rode **Auth → Login Super Admin** (grava `platformToken`) e **Login Tenant Admin** (grava `tenantToken` e `tenantId` do JWT).\n4. Pastas `Platform — *` usam Bearer `{{platformToken}}`. Pastas `Tenant — *` usam `{{tenantToken}}`. `Public — Invites` **não** usa Bearer. `Auth → Change Password` usa `{{tenantToken}}` (ou o JWT de quem está logado).\n\n## Seeds locais\n```bash\nNODE_ENV=development npx ts-node prisma/seed-platform-admin.ts\nnpx ts-node prisma/seed-outreach.ts\n```\nPlatform admin (dev): `platform-admin@local.dev` / `platform-admin-dev`.\n`seed-outreach` upserta policy vazia + grants dos stubs `test_gladson` e notify no tenant operacional (id 8 / `TENANT_ID`).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -84,6 +84,14 @@
     },
     {
       "key": "conversationId",
+      "value": "1"
+    },
+    {
+      "key": "inviteToken",
+      "value": ""
+    },
+    {
+      "key": "inviteId",
       "value": "1"
     },
     {
@@ -185,6 +193,34 @@
           ]
         },
         {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/auth/change-password",
+            "description": "Qualquer role autenticada. Body `{ currentPassword, newPassword }`. Senha atual errada → 401 e o hash não muda. Super Admin não participa. Esqueci-senha deslogado não existe.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tenantToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{tenantPassword}}\",\n  \"newPassword\": \"nova-senha\"\n}"
+            }
+          }
+        },
+        {
           "name": "Health Check (gym)",
           "request": {
             "method": "GET",
@@ -196,7 +232,70 @@
           }
         }
       ],
-      "description": "Dois logins. `/admin/*` não existe mais."
+      "description": "Logins, troca da própria senha e health. `/admin/*` não existe mais."
+    },
+    {
+      "name": "Public — Invites",
+      "item": [
+        {
+          "name": "Preview Invite",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/public/invites/{{inviteToken}}",
+            "description": "Sem Bearer. Token no path. 404 genérico se desconhecido, expirado, revogado ou consumido. Devolve purpose, tenantName, tenantId, expiresAt.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Accept Invite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/public/invites/{{inviteToken}}/accept",
+            "description": "Sem Bearer. Cria ADMIN (FIRST_ADMIN) ou USER (TENANT_USER). 201 `{ token }` igual login. Sem roles no body.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maria Silva\",\n  \"username\": \"maria.admin\",\n  \"email\": \"maria@academia.com\",\n  \"password\": \"senha-segura\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) {",
+                  "    pm.collectionVariables.set('tenantToken', json.token);",
+                  "    try {",
+                  "      const payload = JSON.parse(atob(json.token.split('.')[1]));",
+                  "      if (payload.tenantId) pm.collectionVariables.set('tenantId', String(payload.tenantId));",
+                  "      if (payload.userId) pm.collectionVariables.set('userId', String(payload.userId));",
+                  "    } catch (e) {}",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Preview e aceite públicos. Sem Bearer.",
+      "auth": {
+        "type": "noauth"
+      }
     },
     {
       "name": "Platform — Health & Ops",
@@ -401,6 +500,73 @@
           ]
         }
       ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{platformToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Platform — Invites",
+      "item": [
+        {
+          "name": "Create First Admin Invite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/invites",
+            "description": "Body `{}`. Só se o tenant ainda não tiver users (409 se já tiver). 201 devolve `token` e `url` uma vez. Grava `inviteToken` e `inviteId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) pm.collectionVariables.set('inviteToken', json.token);",
+                  "  if (json.id) pm.collectionVariables.set('inviteId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List First Admin Invites",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/invites",
+            "description": "Sem token plaintext. Status derivado: PENDING | CONSUMED | REVOKED | EXPIRED."
+          }
+        },
+        {
+          "name": "Revoke First Admin Invite",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/invites/{{inviteId}}/revoke",
+            "description": "404 se não achar. 409 se já consumido, revogado ou expirado."
+          }
+        }
+      ],
+      "description": "Convite FIRST_ADMIN (claim, sem identidade). Auth `{{platformToken}}` SUPER_ADMIN.",
       "auth": {
         "type": "bearer",
         "bearer": [
@@ -1752,6 +1918,73 @@
         }
       ],
       "description": "Inbox por thread (tenant + telefone). Paths `.../lead-lists/.../leads/.../messages` foram removidos. POST de texto só neste folder (JWT Admin).",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tenantToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tenant — Invites",
+      "item": [
+        {
+          "name": "Create Tenant User Invite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/invites",
+            "description": "Admin do tenant. Super Admin → 403. Body `{}`. Vários PENDING permitidos. 201 grava `inviteToken` e `inviteId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) pm.collectionVariables.set('inviteToken', json.token);",
+                  "  if (json.id) pm.collectionVariables.set('inviteId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Tenant User Invites",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/invites",
+            "description": "Leitura também para Super Admin. Sem token plaintext."
+          }
+        },
+        {
+          "name": "Revoke Tenant User Invite",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/invites/{{inviteId}}/revoke",
+            "description": "Super Admin → 403. 404 se não achar. 409 se não-PENDING."
+          }
+        }
+      ],
+      "description": "Convite TENANT_USER (claim, sem identidade). Auth `{{tenantToken}}` ADMIN. Super Admin 403 no write.",
       "auth": {
         "type": "bearer",
         "bearer": [
