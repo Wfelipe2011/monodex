@@ -11,6 +11,11 @@ import {
   TenantOutreachConfigController,
 } from './outreach-config.controller';
 import { OutreachConfigService } from './outreach-config.service';
+import {
+  PlatformOutreachSendsController,
+  TenantOutreachSendsController,
+} from './outreach-sends.controller';
+import { OutreachSendsService } from './outreach-sends.service';
 import { TenantsController, TenantSelfController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
 import { UsersController, TenantUsersController } from './users.controller';
@@ -37,8 +42,8 @@ import {
   ListSendsController,
 } from './list-campaigns.controller';
 import { ListCampaignsService } from './list-campaigns.service';
-import { ListConversationsController } from './list-conversations.controller';
-import { ListConversationsService } from './list-conversations.service';
+import { ConversationsController } from './conversations.controller';
+import { ConversationsService } from './conversations.service';
 import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
 import {
@@ -64,6 +69,8 @@ import { TenantScrapeTargetsService } from './tenant-scrape-targets.service';
     TenantCoinsController,
     OutreachConfigController,
     TenantOutreachConfigController,
+    TenantOutreachSendsController,
+    PlatformOutreachSendsController,
     WhatsappAccountsController,
     WhatsappTemplatesController,
     PlatformJobSchedulesController,
@@ -74,7 +81,7 @@ import { TenantScrapeTargetsService } from './tenant-scrape-targets.service';
     TenantCategorySuggestionsController,
     ListCampaignsController,
     ListSendsController,
-    ListConversationsController,
+    ConversationsController,
     OpsController,
     TenantLeadsStatsController,
     SendPolicyController,
@@ -88,6 +95,7 @@ import { TenantScrapeTargetsService } from './tenant-scrape-targets.service';
     UsersService,
     CoinsService,
     OutreachConfigService,
+    OutreachSendsService,
     WhatsappAccountsService,
     WhatsappTemplatesService,
     PlatformWhatsappAdminService,
@@ -97,7 +105,7 @@ import { TenantScrapeTargetsService } from './tenant-scrape-targets.service';
     ScrapeCoveragesService,
     LeadListsService,
     ListCampaignsService,
-    ListConversationsService,
+    ConversationsService,
     OpsService,
     SendPolicyService,
     TemplateGrantsService,

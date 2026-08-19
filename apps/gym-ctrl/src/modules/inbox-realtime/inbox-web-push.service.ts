@@ -19,8 +19,7 @@ export type WebPushPayload = {
   data: {
     url: string;
     tenantId: number;
-    listId: number;
-    leadId: number;
+    conversationId: number;
     messageId: number;
   };
 };
@@ -63,16 +62,15 @@ export function buildPreview(message: InboundMessagePayload): string {
 }
 
 export function buildPushPayload(dto: InboxInboundEventDto): WebPushPayload {
-  const leadLabel = dto.leadName?.trim() || formatPhone(dto.message.phone);
+  const displayLabel = dto.displayName?.trim() || formatPhone(dto.message.phone);
   return {
-    title: `Nova mensagem de ${leadLabel}`,
+    title: `Nova mensagem de ${displayLabel}`,
     body: buildPreview(dto.message),
-    tag: `inbox-lead-${dto.leadId}`,
+    tag: `inbox-conversation-${dto.conversationId}`,
     data: {
-      url: `/tenant/${dto.tenantId}/lead-lists/${dto.listId}/leads/${dto.leadId}`,
+      url: `/tenant/${dto.tenantId}/conversations/${dto.conversationId}`,
       tenantId: dto.tenantId,
-      listId: dto.listId,
-      leadId: dto.leadId,
+      conversationId: dto.conversationId,
       messageId: dto.message.id,
     },
   };

@@ -83,6 +83,10 @@
       "value": "1"
     },
     {
+      "key": "conversationId",
+      "value": "1"
+    },
+    {
       "key": "campaignId",
       "value": "1"
     },
@@ -591,6 +595,42 @@
               "mode": "raw",
               "raw": "{\n  \"whatsappAccountId\": {{whatsappAccountId}}\n}"
             }
+          }
+        },
+        {
+          "name": "List City Outreach Sends",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach/sends",
+            "description": "Somente outreach de cidade (`TenantLead` com wamid). Não mistura `TenantListSend`."
+          }
+        },
+        {
+          "name": "List Failed City Outreach Sends",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach/sends?status=failed",
+              "host": [
+                "{{gymBaseUrl}}"
+              ],
+              "path": [
+                "platform",
+                "tenants",
+                "{{tenantId}}",
+                "outreach",
+                "sends"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "failed"
+                }
+              ]
+            },
+            "description": "Somente outreach de cidade (`TenantLead` com wamid). Não mistura `TenantListSend`."
           }
         }
       ],
@@ -1208,6 +1248,41 @@
               "raw": "{\n  \"whatsappAccountId\": {{dedicatedWhatsappAccountId}}\n}"
             }
           }
+        },
+        {
+          "name": "List City Outreach Sends",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach/sends",
+            "description": "Somente outreach de cidade (`TenantLead` com wamid). Não mistura `TenantListSend`."
+          }
+        },
+        {
+          "name": "List Failed City Outreach Sends",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach/sends?status=failed",
+              "host": [
+                "{{gymBaseUrl}}"
+              ],
+              "path": [
+                "tenant",
+                "{{tenantId}}",
+                "outreach",
+                "sends"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "failed"
+                }
+              ]
+            },
+            "description": "Somente outreach de cidade (`TenantLead` com wamid). Não mistura `TenantListSend`."
+          }
         }
       ],
       "auth": {
@@ -1583,40 +1658,82 @@
       }
     },
     {
-      "name": "Tenant — Inbox",
+      "name": "Tenant — Conversations",
       "item": [
         {
-          "name": "Get Conversation Messages",
+          "name": "List Conversations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/conversations",
+            "description": "Threads do tenant por lastMessageAt desc. Admin e Super Admin (leitura). Grava {{conversationId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const rows = Array.isArray(json) ? json : [];",
+                  "  if (rows[0] && rows[0].id) pm.collectionVariables.set('conversationId', String(rows[0].id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Messages",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}/messages",
+              "raw": "{{gymBaseUrl}}/tenant/{{tenantId}}/conversations/{{conversationId}}/messages",
               "host": [
                 "{{gymBaseUrl}}"
               ],
               "path": [
                 "tenant",
                 "{{tenantId}}",
-                "lead-lists",
-                "{{listId}}",
-                "leads",
-                "{{leadId}}",
+                "conversations",
+                "{{conversationId}}",
+                "messages"
+              ]
+            },
+            "description": "Histórico IN/OUT por createdAt asc. Admin e Super Admin."
+          }
+        },
+        {
+          "name": "List Messages Since",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gymBaseUrl}}/tenant/{{tenantId}}/conversations/{{conversationId}}/messages?since=2026-08-17T12:00:00.000Z",
+              "host": [
+                "{{gymBaseUrl}}"
+              ],
+              "path": [
+                "tenant",
+                "{{tenantId}}",
+                "conversations",
+                "{{conversationId}}",
                 "messages"
               ],
               "query": [
                 {
                   "key": "since",
-                  "value": "2026-08-17T12:00:00.000Z",
-                  "disabled": true
+                  "value": "2026-08-17T12:00:00.000Z"
                 }
               ]
             },
-            "description": "GET permitido a Admin e Super Admin. POST reply é só Admin."
+            "description": "Polling incremental: só mensagens com createdAt > since (ISO8601)."
           }
         },
         {
-          "name": "Send Conversation Text",
+          "name": "Send Text (Admin)",
           "request": {
             "method": "POST",
             "header": [
@@ -1625,8 +1742,8 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/lead-lists/{{listId}}/leads/{{leadId}}/messages",
-            "description": "Exige inbound nas últimas 24h. Super Admin → 403.",
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/conversations/{{conversationId}}/messages",
+            "description": "Só Admin do tenant ({{tenantToken}}). Body `{ \"text\" }`. Super Admin → 403. Fora da janela 24h → 400 OUTSIDE_MESSAGING_WINDOW. Sem número dedicado → 400.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"text\": \"Olá! Obrigado pelo retorno.\"\n}"
@@ -1634,6 +1751,7 @@
           }
         }
       ],
+      "description": "Inbox por thread (tenant + telefone). Paths `.../lead-lists/.../leads/.../messages` foram removidos. POST de texto só neste folder (JWT Admin).",
       "auth": {
         "type": "bearer",
         "bearer": [
@@ -1915,6 +2033,15 @@
             "header": [],
             "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/leads/stats"
           }
+        },
+        {
+          "name": "Tenant Home",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/ops/home",
+            "description": "Snapshot da home: coins, outreach.hasDedicatedNumber, cityFunnel, inbox, sends.today/yesterday (America/Sao_Paulo). Sem espelho /platform/ops/home."
+          }
         }
       ],
       "auth": {
@@ -1967,7 +2094,7 @@
           }
         }
       ],
-      "description": "Web Push VAPID. Deep link do clique: `/tenant/{tenantId}/lead-lists/{listId}/leads/{leadId}`.",
+      "description": "Web Push VAPID. Deep link do clique: `/tenant/{tenantId}/conversations/{conversationId}`. Tag: `inbox-conversation-{conversationId}`. PUT/DELETE em `/tenant/push-subscriptions` (inalterado).",
       "auth": {
         "type": "bearer",
         "bearer": [
@@ -2080,13 +2207,13 @@
               }
             ],
             "url": "{{gymBaseUrl}}/internal/inbox/realtime/notify",
-            "description": "Fan-out WS. Secret: internalWsNotifySecret. Conectar WS com `{{tenantToken}}`.",
+            "description": "Fan-out WS + push. Secret: internalWsNotifySecret. Payload breaking: conversationId + displayName (sem listId/leadId/leadName). Conectar WS com `{{tenantToken}}`.",
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"message.inbound\",\n  \"tenantId\": {{tenantId}},\n  \"listId\": {{listId}},\n  \"leadId\": {{leadId}},\n  \"leadName\": \"João Silva\",\n  \"message\": {\n    \"id\": 1,\n    \"wamid\": \"wamid.test\",\n    \"direction\": \"IN\",\n    \"type\": \"text\",\n    \"body\": \"oi\",\n    \"phone\": \"5511999999999\",\n    \"createdAt\": \"2026-08-17T21:00:00.000Z\"\n  }\n}"
+              "raw": "{\n  \"type\": \"message.inbound\",\n  \"tenantId\": {{tenantId}},\n  \"conversationId\": {{conversationId}},\n  \"displayName\": \"João Silva\",\n  \"message\": {\n    \"id\": 1,\n    \"wamid\": \"wamid.test\",\n    \"direction\": \"IN\",\n    \"type\": \"text\",\n    \"body\": \"oi\",\n    \"phone\": \"5511999999999\",\n    \"createdAt\": \"2026-08-17T21:00:00.000Z\"\n  }\n}"
             }
           }
         }

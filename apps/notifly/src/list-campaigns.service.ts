@@ -17,6 +17,10 @@ import {
   normalizeListPhone,
 } from '@core/shared/list-campaign-helpers';
 import {
+  isDedicatedBoundToTenant,
+  upsertConversationThenMessage,
+} from './conversation-thread';
+import {
   resolveBindingValue,
   SlotBinding,
 } from '@core/shared/whatsapp-template-bindings';
@@ -138,8 +142,13 @@ export class ListCampaignsService {
       `[runCampaign] Campanha ${campaign.id}: enviando ${batch.length} leads`,
     );
 
-    const { messagesUrl, token } =
+    const { messagesUrl, token, accountId } =
       await this.platformWhatsapp.resolveCredentials(tenant.id);
+    const persistConversation = await isDedicatedBoundToTenant(
+      this.prisma,
+      tenant.id,
+      { accountId },
+    );
     const slots = this.asSlots(sendTemplate.slots);
     const bindings = this.roleBindings(campaign.slotBindings, 'send');
 
@@ -157,6 +166,7 @@ export class ListCampaignsService {
           slots,
           bindings,
           sendTemplate,
+          persistConversation,
         });
       } catch (error) {
         const errData = (error as { response?: { data?: unknown } })?.response
@@ -183,6 +193,7 @@ export class ListCampaignsService {
     slots: TemplateSlot[];
     bindings: Record<string, SlotBinding>;
     sendTemplate: WhatsappMessageTemplate;
+    persistConversation: boolean;
   }) {
     const {
       campaign,
@@ -195,6 +206,7 @@ export class ListCampaignsService {
       slots,
       bindings,
       sendTemplate,
+      persistConversation,
     } = args;
 
     const values = this.resolveRoleValues(slots, bindings, {
@@ -247,22 +259,23 @@ export class ListCampaignsService {
         data: { sendLockCampaignId: campaign.id },
       });
 
-      await tsx.whatsappConversationMessage.create({
-        data: {
-          wamid,
+      if (persistConversation) {
+        await upsertConversationThenMessage(tsx, {
+          tenantId: tenant.id,
+          phone,
+          profileName: listLead.name ?? null,
           direction: WhatsappConversationDirection.OUT,
+          wamid,
           type: 'template',
           body: sendTemplate.name,
           raw: {
             ...sendBody,
             to: phone,
           } as unknown as Prisma.InputJsonValue,
-          phone,
-          tenantId: tenant.id,
           listLeadId: listLead.id,
           listSendId: send.id,
-        },
-      });
+        });
+      }
 
       await tsx.coin.update({
         where: {

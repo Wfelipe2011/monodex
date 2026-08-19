@@ -61,10 +61,11 @@ export class NotiflyController {
           const result = await this.webhookPersistence.handleInboundMessage(
             msg,
             value.metadata,
+            value.contacts,
           );
           if (
             result.persisted &&
-            result.listLeadId != null &&
+            result.conversationId != null &&
             result.tenantId != null &&
             result.messageId != null &&
             result.wamid != null &&
@@ -72,28 +73,21 @@ export class NotiflyController {
             result.phone != null &&
             result.createdAt != null
           ) {
-            const listLead = await this.prisma.tenantListLead.findUnique({
-              where: { id: result.listLeadId },
-              select: { listId: true, name: true },
+            void this.inboxRealtimeNotify.notifyInbound({
+              type: 'message.inbound',
+              tenantId: result.tenantId,
+              conversationId: result.conversationId,
+              displayName: result.displayName ?? result.phone,
+              message: {
+                id: result.messageId,
+                wamid: result.wamid,
+                direction: 'IN',
+                type: result.type,
+                body: result.body ?? undefined,
+                phone: result.phone,
+                createdAt: result.createdAt.toISOString(),
+              },
             });
-            if (listLead) {
-              void this.inboxRealtimeNotify.notifyInbound({
-                type: 'message.inbound',
-                tenantId: result.tenantId,
-                listId: listLead.listId,
-                leadId: result.listLeadId,
-                leadName: listLead.name,
-                message: {
-                  id: result.messageId,
-                  wamid: result.wamid,
-                  direction: 'IN',
-                  type: result.type,
-                  body: result.body ?? undefined,
-                  phone: result.phone,
-                  createdAt: result.createdAt.toISOString(),
-                },
-              });
-            }
           }
           if (
             result.correlation === 'list_send' &&

@@ -928,8 +928,123 @@
         ]
       }
     },
+    "/tenant/{tenantId}/outreach/sends": {
+      "get": {
+        "description": "Até 100 TenantLead com messageId (wamid), ordenados por sentAt desc. status=failed filtra por lastStatus failed e inclui latestError quando disponível. Não inclui envios de lista (TenantListSend). GET é leitura: TenantActiveGuard não bloqueia tenant inativo.",
+        "operationId": "TenantOutreachSendsController_listSends",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar apenas envios com falha de entrega Meta",
+            "schema": {
+              "enum": [
+                "failed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CityOutreachSendResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar envios de outreach de cidade",
+        "tags": [
+          "Tenant — City Outreach Sends"
+        ]
+      }
+    },
+    "/platform/tenants/{tenantId}/outreach/sends": {
+      "get": {
+        "description": "Até 100 TenantLead com messageId (wamid), ordenados por sentAt desc. status=failed filtra por lastStatus failed e inclui latestError quando disponível. Não inclui envios de lista (TenantListSend). GET é leitura: TenantActiveGuard não bloqueia tenant inativo.",
+        "operationId": "PlatformOutreachSendsController_listSends",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar apenas envios com falha de entrega Meta",
+            "schema": {
+              "enum": [
+                "failed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CityOutreachSendResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar envios de outreach de cidade",
+        "tags": [
+          "Platform — City Outreach Sends"
+        ]
+      }
+    },
     "/platform/whatsapp-accounts": {
       "get": {
+        "description": "Retorna todas as contas da plataforma com isDefault; não filtra só a default. Nunca inclui access token.",
         "operationId": "WhatsappAccountsController_list",
         "parameters": [],
         "responses": {
@@ -943,7 +1058,6 @@
           }
         ],
         "summary": "Listar contas WhatsApp da plataforma (tenantId null)",
-        "description": "Retorna todas as contas da plataforma com isDefault; não filtra só a default. Nunca inclui access token.",
         "tags": [
           "Platform — WhatsApp Accounts"
         ]
@@ -980,6 +1094,7 @@
     },
     "/platform/whatsapp-accounts/{id}": {
       "get": {
+        "description": "Inclui isDefault. Nunca devolve access token.",
         "operationId": "WhatsappAccountsController_getById",
         "parameters": [
           {
@@ -1002,7 +1117,6 @@
           }
         ],
         "summary": "Obter conta WhatsApp da plataforma por id",
-        "description": "Inclui isDefault. Nunca devolve access token.",
         "tags": [
           "Platform — WhatsApp Accounts"
         ]
@@ -2688,10 +2802,55 @@
         ]
       }
     },
-    "/tenant/{tenantId}/lead-lists/{listId}/leads/{leadId}/messages": {
+    "/tenant/{tenantId}/conversations": {
       "get": {
-        "description": "Mensagens de conversa (IN/OUT) ordenadas por createdAt ascendente. Use query `since` (ISO8601) para polling incremental no front.",
-        "operationId": "ListConversationsController_listMessages",
+        "description": "Threads ordenadas por lastMessageAt descendente. Inclui resumo da última mensagem e windowOpen (inbound nas últimas 24h).",
+        "operationId": "ConversationsController_listConversations",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Threads do tenant, mais recente primeiro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationThreadResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar threads de conversa do tenant",
+        "tags": [
+          "Tenant — Conversations"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/conversations/{conversationId}/messages": {
+      "get": {
+        "description": "Mensagens (IN/OUT) ordenadas por createdAt ascendente. Use query `since` (ISO8601) para polling incremental no front.",
+        "operationId": "ConversationsController_listMessages",
         "parameters": [
           {
             "name": "tenantId",
@@ -2704,22 +2863,12 @@
             }
           },
           {
-            "name": "listId",
+            "name": "conversationId",
             "required": true,
             "in": "path",
-            "description": "ID da lista de leads do tenant",
+            "description": "ID da thread de conversa do tenant",
             "schema": {
-              "example": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "leadId",
-            "required": true,
-            "in": "path",
-            "description": "ID do lead dentro da lista",
-            "schema": {
-              "example": 42,
+              "example": 88,
               "type": "number"
             }
           },
@@ -2752,7 +2901,7 @@
             "description": "since inválido (não ISO8601)"
           },
           "404": {
-            "description": "Tenant, lista ou lead não encontrado"
+            "description": "Tenant ou conversa não encontrada"
           }
         },
         "security": [
@@ -2760,14 +2909,14 @@
             "bearer": []
           }
         ],
-        "summary": "Histórico de mensagens do lead",
+        "summary": "Histórico de mensagens da thread",
         "tags": [
-          "Tenant — List Conversations"
+          "Tenant — Conversations"
         ]
       },
       "post": {
-        "description": "Exige inbound do lead nas últimas 24h (janela Meta customer care). 400 com corpo `OUTSIDE_MESSAGING_WINDOW` se não houver inbound recente. 502 se a Graph API falhar. Super Admin sempre 403 (sem pontapé).",
-        "operationId": "ListConversationsController_sendTextMessage",
+        "description": "Exige número dedicado do tenant e inbound na thread nas últimas 24h (janela Meta customer care). 400 com corpo `OUTSIDE_MESSAGING_WINDOW` se não houver inbound recente. 502 se a Graph API falhar. Super Admin sempre 403 (sem pontapé).",
+        "operationId": "ConversationsController_sendTextMessage",
         "parameters": [
           {
             "name": "tenantId",
@@ -2780,22 +2929,12 @@
             }
           },
           {
-            "name": "listId",
+            "name": "conversationId",
             "required": true,
             "in": "path",
-            "description": "ID da lista de leads do tenant",
+            "description": "ID da thread de conversa do tenant",
             "schema": {
-              "example": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "leadId",
-            "required": true,
-            "in": "path",
-            "description": "ID do lead dentro da lista",
-            "schema": {
-              "example": 42,
+              "example": 88,
               "type": "number"
             }
           }
@@ -2805,7 +2944,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SendListConversationMessageDto"
+                "$ref": "#/components/schemas/SendConversationMessageDto"
               }
             }
           }
@@ -2822,13 +2961,13 @@
             }
           },
           "400": {
-            "description": "Texto vazio, fora da janela 24h (OUTSIDE_MESSAGING_WINDOW) ou erro 4xx da Graph"
+            "description": "Texto vazio, sem número dedicado, fora da janela 24h (OUTSIDE_MESSAGING_WINDOW) ou erro 4xx da Graph"
           },
           "403": {
             "description": "Super Admin ou tenant inativo"
           },
           "404": {
-            "description": "Tenant, lista ou lead não encontrado"
+            "description": "Tenant ou conversa não encontrada"
           },
           "502": {
             "description": "Erro 5xx da Graph API"
@@ -2841,7 +2980,7 @@
         ],
         "summary": "Enviar texto livre via Cloud API",
         "tags": [
-          "Tenant — List Conversations"
+          "Tenant — Conversations"
         ]
       }
     },
@@ -2970,6 +3109,43 @@
           }
         ],
         "summary": "Funil de TenantLead do próprio tenant",
+        "tags": [
+          "Tenant — Ops"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/ops/home": {
+      "get": {
+        "description": "Coins (soma), outreach/funil cidade, flag de número dedicado, resumo de inbox e envios hoje/ontem em America/Sao_Paulo.",
+        "operationId": "TenantLeadsStatsController_home",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantHomeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Snapshot operacional da home do tenant",
         "tags": [
           "Tenant — Ops"
         ]
@@ -3772,7 +3948,7 @@
             "type": "number",
             "nullable": true,
             "minimum": 1,
-            "description": "Conta WhatsApp dedicada (não-default). null ou omitido = remetente default da plataforma",
+            "description": "Conta WhatsApp dedicada (não-default). Omitido ou null = remetente default da plataforma",
             "example": 2
           },
           "outreachTemplateId": {
@@ -3976,6 +4152,81 @@
             "example": 5
           }
         }
+      },
+      "CityOutreachSendLeadRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 90
+          },
+          "name": {
+            "type": "string",
+            "example": "Academia X"
+          },
+          "phone": {
+            "type": "string",
+            "example": "11999999999"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "phone"
+        ]
+      },
+      "CityOutreachSendResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 12
+          },
+          "wamid": {
+            "type": "string",
+            "description": "ID da mensagem outbound na Meta (wamid)",
+            "example": "wamid.xxx"
+          },
+          "sentAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-18T20:05:00.000Z"
+          },
+          "lastStatus": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "sent",
+              "delivered",
+              "read",
+              "failed"
+            ],
+            "example": "delivered"
+          },
+          "templateName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Nome do template no momento do disparo; null em histórico",
+            "example": "hello_city"
+          },
+          "lead": {
+            "$ref": "#/components/schemas/CityOutreachSendLeadRefDto"
+          },
+          "latestError": {
+            "type": "object",
+            "description": "Presente quando lastStatus=failed",
+            "example": {
+              "code": 131026,
+              "title": "Message undeliverable"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "wamid",
+          "sentAt",
+          "lead"
+        ]
       },
       "CreateWhatsappAccountDto": {
         "type": "object",
@@ -4851,6 +5102,93 @@
           "campaign"
         ]
       },
+      "ConversationLastMessageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 501
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "IN",
+              "OUT"
+            ],
+            "example": "IN"
+          },
+          "type": {
+            "type": "string",
+            "example": "text",
+            "description": "text | button | image | …"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true,
+            "example": "Tenho Interesse!"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T20:10:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "direction",
+          "type",
+          "createdAt"
+        ]
+      },
+      "ConversationThreadResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 88
+          },
+          "phone": {
+            "type": "string",
+            "description": "Telefone normalizado da thread",
+            "example": "5511987654321"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Maria"
+          },
+          "lastMessageAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-19T12:00:00.000Z"
+          },
+          "lastInboundAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "example": "2026-08-19T11:50:00.000Z"
+          },
+          "windowOpen": {
+            "type": "boolean",
+            "description": "true quando lastInboundAt está dentro das últimas 24h",
+            "example": true
+          },
+          "lastMessage": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConversationLastMessageDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "phone",
+          "displayName",
+          "lastMessageAt",
+          "windowOpen"
+        ]
+      },
       "ConversationMessageResponseDto": {
         "type": "object",
         "properties": {
@@ -4895,7 +5233,7 @@
           "createdAt"
         ]
       },
-      "SendListConversationMessageDto": {
+      "SendConversationMessageDto": {
         "type": "object",
         "properties": {
           "text": {
@@ -4981,6 +5319,142 @@
         },
         "required": [
           "count"
+        ]
+      },
+      "TenantHomeCoinsDto": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": "number",
+            "example": 12.5
+          }
+        },
+        "required": [
+          "balance"
+        ]
+      },
+      "TenantHomeOutreachDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "hasDedicatedNumber": {
+            "type": "boolean",
+            "example": true
+          },
+          "cityFunnel": {
+            "$ref": "#/components/schemas/TenantLeadStatsDto"
+          }
+        },
+        "required": [
+          "enabled",
+          "hasDedicatedNumber",
+          "cityFunnel"
+        ]
+      },
+      "TenantHomeInboxDto": {
+        "type": "object",
+        "properties": {
+          "threadCount": {
+            "type": "number",
+            "example": 10
+          },
+          "openWindows": {
+            "type": "number",
+            "example": 3
+          },
+          "lastInboundAt": {
+            "type": "string",
+            "example": "2026-08-19T11:00:00.000Z",
+            "nullable": true
+          }
+        },
+        "required": [
+          "threadCount",
+          "openWindows",
+          "lastInboundAt"
+        ]
+      },
+      "TenantHomeSendBucketsDto": {
+        "type": "object",
+        "properties": {
+          "sent": {
+            "type": "number",
+            "example": 1
+          },
+          "delivered": {
+            "type": "number",
+            "example": 4
+          },
+          "read": {
+            "type": "number",
+            "example": 2
+          },
+          "failed": {
+            "type": "number",
+            "example": 0
+          },
+          "pending": {
+            "type": "number",
+            "example": 1
+          },
+          "total": {
+            "type": "number",
+            "example": 8
+          }
+        },
+        "required": [
+          "sent",
+          "delivered",
+          "read",
+          "failed",
+          "pending",
+          "total"
+        ]
+      },
+      "TenantHomeSendsDto": {
+        "type": "object",
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "example": "America/Sao_Paulo"
+          },
+          "today": {
+            "$ref": "#/components/schemas/TenantHomeSendBucketsDto"
+          },
+          "yesterday": {
+            "$ref": "#/components/schemas/TenantHomeSendBucketsDto"
+          }
+        },
+        "required": [
+          "timezone",
+          "today",
+          "yesterday"
+        ]
+      },
+      "TenantHomeDto": {
+        "type": "object",
+        "properties": {
+          "coins": {
+            "$ref": "#/components/schemas/TenantHomeCoinsDto"
+          },
+          "outreach": {
+            "$ref": "#/components/schemas/TenantHomeOutreachDto"
+          },
+          "inbox": {
+            "$ref": "#/components/schemas/TenantHomeInboxDto"
+          },
+          "sends": {
+            "$ref": "#/components/schemas/TenantHomeSendsDto"
+          }
+        },
+        "required": [
+          "coins",
+          "outreach",
+          "inbox",
+          "sends"
         ]
       },
       "UpsertSendPolicyDto": {
@@ -5124,13 +5598,10 @@
           "tenantId": {
             "type": "number"
           },
-          "listId": {
+          "conversationId": {
             "type": "number"
           },
-          "leadId": {
-            "type": "number"
-          },
-          "leadName": {
+          "displayName": {
             "type": "string"
           },
           "message": {
@@ -5140,9 +5611,8 @@
         "required": [
           "type",
           "tenantId",
-          "listId",
-          "leadId",
-          "leadName",
+          "conversationId",
+          "displayName",
           "message"
         ]
       },

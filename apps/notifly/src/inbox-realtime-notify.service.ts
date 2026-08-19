@@ -14,9 +14,8 @@ export interface InboundMessagePayload {
 export interface InboxInboundEventPayload {
   type: 'message.inbound';
   tenantId: number;
-  listId: number;
-  leadId: number;
-  leadName: string;
+  conversationId: number;
+  displayName: string;
   message: InboundMessagePayload;
 }
 
@@ -50,7 +49,7 @@ export class InboxRealtimeNotifyService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `inbox realtime notify failed (tenantId=${payload.tenantId}, leadId=${payload.leadId}): ${message}`,
+        `inbox realtime notify failed (tenantId=${payload.tenantId}, conversationId=${payload.conversationId}): ${message}`,
       );
     }
   }

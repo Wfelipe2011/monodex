@@ -115,9 +115,8 @@ export class InboxRealtimeService {
     const payload: InboxInboundEventDto = {
       type: 'message.inbound',
       tenantId: dto.tenantId,
-      listId: dto.listId,
-      leadId: dto.leadId,
-      leadName: dto.leadName,
+      conversationId: dto.conversationId,
+      displayName: dto.displayName,
       message: dto.message,
     };
     this.broadcastToRooms([`tenant:${dto.tenantId}`, 'super-admin'], payload);

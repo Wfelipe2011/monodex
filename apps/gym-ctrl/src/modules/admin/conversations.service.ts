@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import axios from 'axios';
@@ -11,14 +12,21 @@ import {
   WhatsappConversationDirection,
 } from '@prisma/client';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
-import { normalizeListPhone } from '@core/shared/list-campaign-helpers';
-import { LeadListsService } from './lead-lists.service';
+import { isDedicatedPlatformAccount } from '@core/shared/whatsapp-conversation';
 import { PlatformWhatsappAdminService } from './platform-whatsapp-admin.service';
-import { SendListConversationMessageDto } from './dto/send-list-conversation-message.dto';
+import { SendConversationMessageDto } from './dto/send-conversation-message.dto';
 
 const MESSAGE_SELECT = {
   id: true,
   wamid: true,
+  direction: true,
+  type: true,
+  body: true,
+  createdAt: true,
+} satisfies Prisma.WhatsappConversationMessageSelect;
+
+const LAST_MESSAGE_SELECT = {
+  id: true,
   direction: true,
   type: true,
   body: true,
@@ -34,23 +42,51 @@ type GraphSendResponse = {
 };
 
 @Injectable()
-export class ListConversationsService {
-  private readonly logger = new Logger(ListConversationsService.name);
+export class ConversationsService {
+  private readonly logger = new Logger(ConversationsService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly httpService: HttpService,
-    private readonly leadListsService: LeadListsService,
     private readonly platformWhatsapp: PlatformWhatsappAdminService,
   ) {}
 
+  async listConversations(tenantId: number) {
+    await this.assertTenantExists(tenantId);
+
+    const windowStart = subHours(new Date(), 24);
+    const threads = await this.prisma.whatsappConversation.findMany({
+      where: { tenantId },
+      orderBy: { lastMessageAt: 'desc' },
+      select: {
+        id: true,
+        phone: true,
+        displayName: true,
+        lastMessageAt: true,
+        lastInboundAt: true,
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: LAST_MESSAGE_SELECT,
+        },
+      },
+    });
+
+    return threads.map(({ messages, lastInboundAt, ...rest }) => ({
+      ...rest,
+      lastInboundAt,
+      windowOpen:
+        lastInboundAt != null && lastInboundAt >= windowStart,
+      lastMessage: messages[0] ?? null,
+    }));
+  }
+
   async listMessages(
     tenantId: number,
-    listId: number,
-    leadId: number,
+    conversationId: number,
     since?: string,
   ) {
-    await this.leadListsService.getLead(tenantId, listId, leadId);
+    await this.getConversationOrThrow(tenantId, conversationId);
 
     let sinceDate: Date | undefined;
     if (since !== undefined && since !== '') {
@@ -62,7 +98,7 @@ export class ListConversationsService {
 
     return this.prisma.whatsappConversationMessage.findMany({
       where: {
-        listLeadId: leadId,
+        conversationId,
         ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}),
       },
       select: MESSAGE_SELECT,
@@ -72,11 +108,13 @@ export class ListConversationsService {
 
   async sendTextMessage(
     tenantId: number,
-    listId: number,
-    leadId: number,
-    dto: SendListConversationMessageDto,
+    conversationId: number,
+    dto: SendConversationMessageDto,
   ) {
-    const lead = await this.leadListsService.getLead(tenantId, listId, leadId);
+    const conversation = await this.getConversationOrThrow(
+      tenantId,
+      conversationId,
+    );
     const text = dto.text.trim();
     if (!text) {
       throw new BadRequestException('text não pode ser vazio');
@@ -87,21 +125,19 @@ export class ListConversationsService {
       );
     }
 
-    const phone = normalizeListPhone(lead.phone);
-    if (!phone) {
-      throw new BadRequestException('Telefone do lead inválido');
-    }
+    await this.assertDedicatedAccount(tenantId);
 
     const windowStart = subHours(new Date(), 24);
-    const lastInbound = await this.prisma.whatsappConversationMessage.findFirst({
-      where: {
-        listLeadId: leadId,
-        phone,
-        direction: WhatsappConversationDirection.IN,
-        createdAt: { gte: windowStart },
+    const lastInbound = await this.prisma.whatsappConversationMessage.findFirst(
+      {
+        where: {
+          conversationId: conversation.id,
+          direction: WhatsappConversationDirection.IN,
+          createdAt: { gte: windowStart },
+        },
+        orderBy: { createdAt: 'desc' },
       },
-      orderBy: { createdAt: 'desc' },
-    });
+    );
     if (!lastInbound) {
       throw new BadRequestException('OUTSIDE_MESSAGING_WINDOW');
     }
@@ -110,13 +146,13 @@ export class ListConversationsService {
     const payload = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
-      to: phone,
+      to: conversation.phone,
       type: 'text',
       text: { body: text },
     };
 
     this.logger.log(
-      `send-text tenant=${tenantId} list=${listId} lead=${leadId} to=${phone}`,
+      `send-text tenant=${tenantId} conversation=${conversationId} to=${conversation.phone}`,
     );
 
     let graphResponse: GraphSendResponse;
@@ -143,19 +179,74 @@ export class ListConversationsService {
       );
     }
 
-    return this.prisma.whatsappConversationMessage.create({
+    const created = await this.prisma.whatsappConversationMessage.create({
       data: {
         wamid,
         direction: WhatsappConversationDirection.OUT,
         type: 'text',
         body: text,
         raw: graphResponse as unknown as Prisma.InputJsonValue,
-        phone,
+        phone: conversation.phone,
         tenantId,
-        listLeadId: leadId,
+        conversationId: conversation.id,
       },
       select: MESSAGE_SELECT,
     });
+
+    await this.prisma.whatsappConversation.update({
+      where: { id: conversation.id },
+      data: { lastMessageAt: created.createdAt },
+    });
+
+    return created;
+  }
+
+  private async assertTenantExists(tenantId: number) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true },
+    });
+    if (!tenant) {
+      throw new NotFoundException(`Tenant ${tenantId} não encontrado`);
+    }
+  }
+
+  private async getConversationOrThrow(
+    tenantId: number,
+    conversationId: number,
+  ) {
+    const conversation = await this.prisma.whatsappConversation.findFirst({
+      where: { id: conversationId, tenantId },
+      select: {
+        id: true,
+        phone: true,
+      },
+    });
+    if (!conversation) {
+      throw new NotFoundException(
+        `Conversação id=${conversationId} não encontrada para tenant ${tenantId}`,
+      );
+    }
+    return conversation;
+  }
+
+  private async assertDedicatedAccount(tenantId: number) {
+    const config = await this.prisma.tenantOutreachConfig.findUnique({
+      where: { tenantId },
+      select: {
+        whatsappAccountId: true,
+        whatsappAccount: { select: { isDefault: true } },
+      },
+    });
+    if (
+      config?.whatsappAccountId == null ||
+      !config.whatsappAccount ||
+      !isDedicatedPlatformAccount(config.whatsappAccount)
+    ) {
+      throw new BadRequestException(
+        'Tenant sem número WhatsApp dedicado',
+      );
+    }
   }
 
   private rethrowGraphError(error: unknown): never {

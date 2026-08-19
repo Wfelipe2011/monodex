@@ -7,7 +7,6 @@ import {
   Tenant,
   TenantListLead,
   TenantListSend,
-  WhatsappConversationDirection,
   WhatsappMessageTemplate,
 } from '@prisma/client';
 import { normalizeListPhone } from '@core/shared/list-campaign-helpers';
@@ -93,10 +92,10 @@ export class ListCampaignReplyService {
       return;
     }
 
-    await this.handleNotify(typedSend, msg);
+    await this.handleNotify(typedSend);
   }
 
-  private async handleNotify(send: ListSendWithRelations, msg: Message) {
+  private async handleNotify(send: ListSendWithRelations) {
     const campaign = send.campaign;
     const tenant = campaign.list.tenant;
     const notifyTemplate = campaign.notifyTemplate;
@@ -162,24 +161,6 @@ export class ListCampaignReplyService {
     );
 
     const wamid = res.data.messages[0].id;
-
-    await this.prisma.whatsappConversationMessage.create({
-      data: {
-        wamid,
-        direction: WhatsappConversationDirection.OUT,
-        type: 'template',
-        body: notifyTemplate.name,
-        raw: {
-          ...sendBody,
-          to,
-          replyToButton: msg.button?.text ?? null,
-        } as unknown as Prisma.InputJsonValue,
-        phone: to,
-        tenantId: tenant.id,
-        listLeadId: send.listLeadId,
-        listSendId: send.id,
-      },
-    });
 
     this.logger.log(
       `[handleNotify] Notify enviado ao tenant ${tenant.id} wamid=${wamid} (reply send=${send.id})`,

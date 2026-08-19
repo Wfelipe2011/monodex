@@ -9,6 +9,7 @@ import {
   Tenant,
   TenantOutreachConfig,
   TenantSendPolicy,
+  WhatsappConversationDirection,
   WhatsappMessageTemplate,
 } from '@prisma/client';
 import {
@@ -25,6 +26,11 @@ import {
 import { Message } from './interfaces';
 import { PlatformWhatsappService } from './platform-whatsapp.service';
 import { WhatsAppSendMessageResponse } from './WhatsAppSendMessageResponse';
+import {
+  isDedicatedBoundToTenant,
+  upsertConversationThenMessage,
+} from './conversation-thread';
+import { normalizeListPhone } from '@core/shared/list-campaign-helpers';
 import {
   buildCategoryAverages,
   computeY,
@@ -372,7 +378,12 @@ export class LeadsService implements OnModuleInit {
       return;
     }
 
-    const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials(tenant.id);
+    const { messagesUrl, token, accountId } = await this.platformWhatsapp.resolveCredentials(tenant.id);
+    const persistConversation = await isDedicatedBoundToTenant(
+      this.prisma,
+      tenant.id,
+      { accountId },
+    );
     const slots = this.asSlots(outreachTemplate.slots);
     const bindings = this.roleBindings(config.slotBindings, 'outreach');
 
@@ -421,8 +432,25 @@ export class LeadsService implements OnModuleInit {
               replied: false,
               deleted: false,
               messageId: res.data.messages[0].id,
+              templateName: outreachTemplate.name,
             },
           });
+
+          if (persistConversation) {
+            await upsertConversationThenMessage(tsx, {
+              tenantId: tenant.id,
+              phone: normalizeListPhone(lead.phone),
+              profileName: lead.name ?? null,
+              direction: WhatsappConversationDirection.OUT,
+              wamid: res.data.messages[0].id,
+              type: 'template',
+              body: outreachTemplate.name,
+              raw: {
+                ...sendBody,
+                to: `55${lead.phone.replace(/[^0-9]/g, '')}`,
+              } as unknown as Prisma.InputJsonValue,
+            });
+          }
 
           const user = await tsx.user.findFirst({
             where: {

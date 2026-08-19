@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 
-export class SendListConversationMessageDto {
+export class SendConversationMessageDto {
   @ApiProperty({
     description: 'Texto livre (janela Meta 24h após último inbound)',
     example: 'Olá! Como posso ajudar?',

@@ -31,6 +31,7 @@ model Tenant {
   scrapeTargets                TenantScrapeTarget[]
   whatsappAccounts             WhatsappAccount[]
   leadLists                    TenantLeadList[]
+  whatsappConversations        WhatsappConversation[]
   whatsappConversationMessages WhatsappConversationMessage[]
 
   @@map("tenants")
@@ -159,8 +160,11 @@ model TenantLead {
   userLeads UserLead[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
-  uuid      String     @unique @default(uuid())
-  messageId String?    @map("message_id")
+  uuid         String                   @unique @default(uuid())
+  lastStatus   WhatsappDeliveryStatus?  @map("last_status")
+  templateName String?                  @map("template_name")
+  messageId    String?                  @unique @map("message_id")
+  sendStatuses WhatsappSendStatus[]
 
   @@map("tenant_leads")
 }
@@ -544,23 +548,43 @@ model TenantListSend {
   @@map("tenant_list_sends")
 }
 
+model WhatsappConversation {
+  id            Int      @id @default(autoincrement())
+  tenantId      Int      @map("tenant_id")
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  phone         String
+  displayName   String   @map("display_name")
+  lastInboundAt DateTime? @map("last_inbound_at")
+  lastMessageAt DateTime  @map("last_message_at")
+  messages      WhatsappConversationMessage[]
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, phone])
+  @@index([tenantId, lastMessageAt])
+  @@map("whatsapp_conversations")
+}
+
 model WhatsappConversationMessage {
-  id         Int                           @id @default(autoincrement())
-  wamid      String                        @unique
-  direction  WhatsappConversationDirection
-  type       String
-  body       String?
-  raw        Json
-  phone      String
-  tenantId   Int                           @map("tenant_id")
-  tenant     Tenant                        @relation(fields: [tenantId], references: [id])
-  listLeadId Int?                          @map("list_lead_id")
-  listLead   TenantListLead?               @relation(fields: [listLeadId], references: [id])
-  listSendId Int?                          @map("list_send_id")
-  listSend   TenantListSend?               @relation(fields: [listSendId], references: [id])
-  createdAt  DateTime                      @default(now()) @map("created_at")
+  id             Int                           @id @default(autoincrement())
+  wamid          String                        @unique
+  direction      WhatsappConversationDirection
+  type           String
+  body           String?
+  raw            Json
+  phone          String
+  tenantId       Int                           @map("tenant_id")
+  tenant         Tenant                        @relation(fields: [tenantId], references: [id])
+  conversationId Int                           @map("conversation_id")
+  conversation   WhatsappConversation          @relation(fields: [conversationId], references: [id])
+  listLeadId     Int?                          @map("list_lead_id")
+  listLead       TenantListLead?               @relation(fields: [listLeadId], references: [id])
+  listSendId     Int?                          @map("list_send_id")
+  listSend       TenantListSend?               @relation(fields: [listSendId], references: [id])
+  createdAt      DateTime                      @default(now()) @map("created_at")
 
   @@index([listLeadId, createdAt])
+  @@index([conversationId, createdAt])
   @@map("whatsapp_conversation_messages")
 }
 
@@ -573,6 +597,8 @@ model WhatsappSendStatus {
   errors        Json?
   listSendId    Int?                   @map("list_send_id")
   listSend      TenantListSend?        @relation(fields: [listSendId], references: [id])
+  tenantLeadId  Int?                   @map("tenant_lead_id")
+  tenantLead    TenantLead?            @relation(fields: [tenantLeadId], references: [id])
   createdAt     DateTime               @default(now()) @map("created_at")
 
   @@index([wamid, metaTimestamp])

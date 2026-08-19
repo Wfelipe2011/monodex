@@ -6,7 +6,15 @@ import {
   WhatsappDeliveryStatus,
 } from '@prisma/client';
 import { normalizeListPhone } from '@core/shared/list-campaign-helpers';
-import { Message, Metadata, Status } from './interfaces';
+import {
+  isDedicatedPlatformAccount,
+  matchContactProfileName,
+} from '@core/shared/whatsapp-conversation';
+import {
+  isDedicatedBoundToTenant,
+  upsertConversationThenMessage,
+} from './conversation-thread';
+import { Contact, Message, Metadata, Status } from './interfaces';
 
 export type InboundCorrelation =
   | 'list_send'
@@ -19,6 +27,8 @@ export type InboundHandleResult = {
   correlation: InboundCorrelation;
   tenantId?: number;
   listLeadId?: number | null;
+  conversationId?: number;
+  displayName?: string;
   messageId?: number;
   wamid?: string;
   type?: string;
@@ -36,6 +46,7 @@ export class WebhookPersistenceService {
   async handleInboundMessage(
     msg: Message,
     metadata: Metadata,
+    contacts?: Contact[],
   ): Promise<InboundHandleResult> {
     const phone = normalizeListPhone(msg.from);
     const body = msg.text?.body ?? msg.button?.text ?? null;
@@ -48,31 +59,56 @@ export class WebhookPersistenceService {
       return { persisted: false, correlation: resolved.kind };
     }
 
+    const phoneNumberId = metadata?.phone_number_id;
+    const dedicated =
+      phoneNumberId != null &&
+      phoneNumberId !== '' &&
+      (await isDedicatedBoundToTenant(this.prisma, resolved.tenantId, {
+        phoneNumberId,
+      }));
+
+    if (!dedicated) {
+      this.logger.warn(
+        `[handleInboundMessage] skipping conversation persist: not dedicated for tenant=${resolved.tenantId} wamid=${msg.id}`,
+      );
+      return {
+        persisted: false,
+        correlation: resolved.kind,
+        tenantId: resolved.tenantId,
+        listLeadId: resolved.listLeadId,
+      };
+    }
+
+    const profileName = matchContactProfileName(contacts, msg.from);
+
     try {
-      const created = await this.prisma.whatsappConversationMessage.create({
-        data: {
-          wamid: msg.id,
+      const result = await this.prisma.$transaction((tx) =>
+        upsertConversationThenMessage(tx, {
+          tenantId: resolved.tenantId,
+          phone,
+          profileName,
           direction: WhatsappConversationDirection.IN,
+          wamid: msg.id,
           type: msg.type,
           body,
           raw: msg as unknown as Prisma.InputJsonValue,
-          phone,
-          tenantId: resolved.tenantId,
           listLeadId: resolved.listLeadId,
           listSendId: resolved.listSendId,
-        },
-      });
+        }),
+      );
       return {
         persisted: true,
         correlation: resolved.kind,
         tenantId: resolved.tenantId,
         listLeadId: resolved.listLeadId,
-        messageId: created.id,
-        wamid: created.wamid,
-        type: created.type,
-        body: created.body,
-        phone: created.phone,
-        createdAt: created.createdAt,
+        conversationId: result.conversationId,
+        displayName: result.displayName,
+        messageId: result.message.id,
+        wamid: result.message.wamid,
+        type: result.message.type,
+        body: result.message.body,
+        phone: result.message.phone,
+        createdAt: result.message.createdAt,
       };
     } catch (e) {
       if (
@@ -97,8 +133,11 @@ export class WebhookPersistenceService {
       return;
     }
 
-    const send = await this.prisma.tenantListSend.findUnique({
+    const listSend = await this.prisma.tenantListSend.findUnique({
       where: { wamid: status.id },
+    });
+    const tenantLead = await this.prisma.tenantLead.findUnique({
+      where: { messageId: status.id },
     });
 
     const metaTimestamp = new Date(Number(status.timestamp) * 1000);
@@ -114,23 +153,29 @@ export class WebhookPersistenceService {
           rawErrors != null
             ? (rawErrors as Prisma.InputJsonValue)
             : undefined,
-        listSendId: send?.id ?? null,
+        listSendId: listSend?.id ?? null,
+        tenantLeadId: tenantLead?.id ?? null,
       },
     });
 
-    if (!send) {
-      return;
+    if (listSend) {
+      await this.prisma.tenantListSend.update({
+        where: { id: listSend.id },
+        data: { lastStatus: deliveryStatus },
+      });
+
+      if (deliveryStatus === WhatsappDeliveryStatus.failed) {
+        await this.prisma.tenantListLead.update({
+          where: { id: listSend.listLeadId },
+          data: { sendLockCampaignId: null },
+        });
+      }
     }
 
-    await this.prisma.tenantListSend.update({
-      where: { id: send.id },
-      data: { lastStatus: deliveryStatus },
-    });
-
-    if (deliveryStatus === WhatsappDeliveryStatus.failed) {
-      await this.prisma.tenantListLead.update({
-        where: { id: send.listLeadId },
-        data: { sendLockCampaignId: null },
+    if (tenantLead) {
+      await this.prisma.tenantLead.update({
+        where: { id: tenantLead.id },
+        data: { lastStatus: deliveryStatus },
       });
     }
   }
@@ -180,7 +225,7 @@ export class WebhookPersistenceService {
       const account = await this.prisma.whatsappAccount.findFirst({
         where: { phoneNumberId },
       });
-      if (account && account.isDefault === false) {
+      if (account && isDedicatedPlatformAccount(account)) {
         const config = await this.prisma.tenantOutreachConfig.findUnique({
           where: { whatsappAccountId: account.id },
         });

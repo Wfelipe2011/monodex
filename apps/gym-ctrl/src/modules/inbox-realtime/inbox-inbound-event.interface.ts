@@ -11,8 +11,7 @@ export interface InboundMessagePayload {
 export interface InboxInboundEventDto {
   type: 'message.inbound';
   tenantId: number;
-  listId: number;
-  leadId: number;
-  leadName: string;
+  conversationId: number;
+  displayName: string;
   message: InboundMessagePayload;
 }

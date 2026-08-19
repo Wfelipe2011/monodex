@@ -56,6 +56,15 @@ describe('WhatsappTemplatesService', () => {
         ),
       },
       lead: { findUnique: jest.fn() },
+      tenantOutreachConfig: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      whatsappConversation: {
+        upsert: jest.fn().mockResolvedValue({ id: 77 }),
+      },
+      whatsappConversationMessage: {
+        create: jest.fn().mockResolvedValue({}),
+      },
     };
     const httpService = {
       axiosRef: {
@@ -121,7 +130,7 @@ describe('WhatsappTemplatesService', () => {
 
   it('test-send sem whatsappAccountId POST Graph no phoneNumberId default', async () => {
     const { service, httpService, prisma } = build();
-    await service.testSend(TEMPLATE_ID, { to: '11999999999' });
+    const result = await service.testSend(TEMPLATE_ID, { to: '11999999999' });
 
     expect(prisma.whatsappAccount.findUnique).not.toHaveBeenCalled();
     expect(httpService.axiosRef.post).toHaveBeenCalledWith(
@@ -133,6 +142,13 @@ describe('WhatsappTemplatesService', () => {
         }),
       }),
     );
+    expect(result).toEqual({
+      wamid: 'wamid.1',
+      to: '5511999999999',
+      messageStatus: 'accepted',
+    });
+    expect(prisma.whatsappConversation.upsert).not.toHaveBeenCalled();
+    expect(prisma.whatsappConversationMessage.create).not.toHaveBeenCalled();
   });
 
   it('test-send com whatsappAccountId do segundo número POST nesse phoneNumberId', async () => {
@@ -155,6 +171,51 @@ describe('WhatsappTemplatesService', () => {
         }),
       }),
     );
+    expect(prisma.whatsappConversation.upsert).not.toHaveBeenCalled();
+    expect(prisma.whatsappConversationMessage.create).not.toHaveBeenCalled();
+  });
+
+  it('test-send em conta dedicada amarrada grava thread OUT template', async () => {
+    process.env.WA_TOKEN_SECOND = 'token-second';
+    const { service, prisma } = build();
+    prisma.tenantOutreachConfig.findUnique.mockResolvedValue({
+      tenantId: 4,
+      whatsappAccount: { isDefault: false },
+    });
+
+    const result = await service.testSend(TEMPLATE_ID, {
+      to: '11999999999',
+      whatsappAccountId: SECOND_ACCOUNT_ID,
+    });
+
+    expect(result).toEqual({
+      wamid: 'wamid.1',
+      to: '5511999999999',
+      messageStatus: 'accepted',
+    });
+    expect(prisma.whatsappConversation.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId_phone: { tenantId: 4, phone: '5511999999999' },
+        },
+        create: expect.objectContaining({
+          tenantId: 4,
+          phone: '5511999999999',
+          displayName: '5511999999999',
+        }),
+      }),
+    );
+    expect(prisma.whatsappConversationMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        wamid: 'wamid.1',
+        direction: 'OUT',
+        type: 'template',
+        body: 'test_gladson',
+        phone: '5511999999999',
+        tenantId: 4,
+        conversationId: 77,
+      }),
+    });
   });
 
   it('test-send com id inexistente → 400 e não chama Graph', async () => {

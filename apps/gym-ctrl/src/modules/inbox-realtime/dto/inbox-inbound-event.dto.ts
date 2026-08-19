@@ -40,13 +40,10 @@ export class InboxInboundEventDto {
   tenantId: number;
 
   @IsInt()
-  listId: number;
-
-  @IsInt()
-  leadId: number;
+  conversationId: number;
 
   @IsString()
-  leadName: string;
+  displayName: string;
 
   @ValidateNested()
   @Type(() => InboundMessageDto)

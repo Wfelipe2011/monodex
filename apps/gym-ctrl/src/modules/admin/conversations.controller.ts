@@ -30,36 +30,50 @@ import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
 import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
 import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
-import { ListConversationsService } from './list-conversations.service';
-import { SendListConversationMessageDto } from './dto/send-list-conversation-message.dto';
+import { ConversationsService } from './conversations.service';
+import { SendConversationMessageDto } from './dto/send-conversation-message.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
+import { ADMIN_TENANT_ID_PARAM } from './dto/swagger/tenant-list.swagger.dto';
 import {
-  ADMIN_TENANT_ID_PARAM,
+  CONVERSATION_ID_PARAM,
   ConversationMessageResponseDto,
-  LEAD_LIST_ID_PARAM,
-  LIST_LEAD_ID_PARAM,
-} from './dto/swagger/tenant-list.swagger.dto';
+  ConversationThreadResponseDto,
+} from './dto/swagger/tenant-conversations.swagger.dto';
 
-@ApiTags('Tenant — List Conversations')
+@ApiTags('Tenant — Conversations')
 @ApiBearerAuth()
 @RolesAuth(Roles.ADMIN, Roles.SUPER_ADMIN)
 @UseGuards(TenantScopeGuard, TenantActiveGuard)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-@Controller('tenant/:tenantId/lead-lists/:listId/leads/:leadId/messages')
-export class ListConversationsController {
-  constructor(
-    private readonly listConversationsService: ListConversationsService,
-  ) {}
+@Controller('tenant/:tenantId/conversations')
+export class ConversationsController {
+  constructor(private readonly conversationsService: ConversationsService) {}
 
   @Get()
   @ApiOperation({
-    summary: 'Histórico de mensagens do lead',
+    summary: 'Listar threads de conversa do tenant',
     description:
-      'Mensagens de conversa (IN/OUT) ordenadas por createdAt ascendente. Use query `since` (ISO8601) para polling incremental no front.',
+      'Threads ordenadas por lastMessageAt descendente. Inclui resumo da última mensagem e windowOpen (inbound nas últimas 24h).',
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
-  @ApiParam(LEAD_LIST_ID_PARAM)
-  @ApiParam(LIST_LEAD_ID_PARAM)
+  @ApiOkResponse({
+    type: ConversationThreadResponseDto,
+    isArray: true,
+    description: 'Threads do tenant, mais recente primeiro',
+  })
+  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  listConversations(@Param('tenantId', ParseIntPipe) tenantId: number) {
+    return this.conversationsService.listConversations(tenantId);
+  }
+
+  @Get(':conversationId/messages')
+  @ApiOperation({
+    summary: 'Histórico de mensagens da thread',
+    description:
+      'Mensagens (IN/OUT) ordenadas por createdAt ascendente. Use query `since` (ISO8601) para polling incremental no front.',
+  })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiParam(CONVERSATION_ID_PARAM)
   @ApiQuery({
     name: 'since',
     required: false,
@@ -72,58 +86,53 @@ export class ListConversationsController {
     description: 'Histórico completo ou delta desde `since`',
   })
   @ApiBadRequestResponse({ description: 'since inválido (não ISO8601)' })
-  @ApiNotFoundResponse({ description: 'Tenant, lista ou lead não encontrado' })
+  @ApiNotFoundResponse({ description: 'Tenant ou conversa não encontrada' })
   listMessages(
     @Param('tenantId', ParseIntPipe) tenantId: number,
-    @Param('listId', ParseIntPipe) listId: number,
-    @Param('leadId', ParseIntPipe) leadId: number,
+    @Param('conversationId', ParseIntPipe) conversationId: number,
     @Query('since') since?: string,
   ) {
-    return this.listConversationsService.listMessages(
+    return this.conversationsService.listMessages(
       tenantId,
-      listId,
-      leadId,
+      conversationId,
       since,
     );
   }
 
-  @Post()
+  @Post(':conversationId/messages')
   @ApiOperation({
     summary: 'Enviar texto livre via Cloud API',
     description:
-      'Exige inbound do lead nas últimas 24h (janela Meta customer care). ' +
+      'Exige número dedicado do tenant e inbound na thread nas últimas 24h (janela Meta customer care). ' +
       '400 com corpo `OUTSIDE_MESSAGING_WINDOW` se não houver inbound recente. ' +
       '502 se a Graph API falhar. Super Admin sempre 403 (sem pontapé).',
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
-  @ApiParam(LEAD_LIST_ID_PARAM)
-  @ApiParam(LIST_LEAD_ID_PARAM)
+  @ApiParam(CONVERSATION_ID_PARAM)
   @ApiCreatedResponse({
     type: ConversationMessageResponseDto,
     description: 'Mensagem OUT persistida com wamid retornado pela Meta',
   })
   @ApiBadRequestResponse({
     description:
-      'Texto vazio, fora da janela 24h (OUTSIDE_MESSAGING_WINDOW) ou erro 4xx da Graph',
+      'Texto vazio, sem número dedicado, fora da janela 24h (OUTSIDE_MESSAGING_WINDOW) ou erro 4xx da Graph',
   })
   @ApiForbiddenResponse({ description: 'Super Admin ou tenant inativo' })
   @ApiBadGatewayResponse({ description: 'Erro 5xx da Graph API' })
-  @ApiNotFoundResponse({ description: 'Tenant, lista ou lead não encontrado' })
+  @ApiNotFoundResponse({ description: 'Tenant ou conversa não encontrada' })
   sendTextMessage(
     @Param('tenantId', ParseIntPipe) tenantId: number,
-    @Param('listId', ParseIntPipe) listId: number,
-    @Param('leadId', ParseIntPipe) leadId: number,
-    @Body() dto: SendListConversationMessageDto,
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Body() dto: SendConversationMessageDto,
     @Req() req: RequestUser,
   ) {
     if (req.user.roles?.includes(Roles.SUPER_ADMIN)) {
       throw new ForbiddenException('Acesso não permitido');
     }
     rejectSecretTokenFields(req.body);
-    return this.listConversationsService.sendTextMessage(
+    return this.conversationsService.sendTextMessage(
       tenantId,
-      listId,
-      leadId,
+      conversationId,
       dto,
     );
   }

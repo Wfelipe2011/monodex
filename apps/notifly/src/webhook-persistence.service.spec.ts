@@ -1,5 +1,6 @@
+import { WhatsappDeliveryStatus } from '@prisma/client';
 import { WebhookPersistenceService } from './webhook-persistence.service';
-import { Message, Metadata } from './interfaces';
+import { Contact, Message, Metadata, Status } from './interfaces';
 
 const LIST_TENANT_ID = 3;
 const DEDICATED_TENANT_ID = 11;
@@ -8,10 +9,14 @@ const DEFAULT_ACCOUNT_ID = 1;
 const DEDICATED_PHONE_NUMBER_ID = '999000111222';
 const DEFAULT_PHONE_NUMBER_ID = '1292251013966333';
 const LIST_SEND_WAMID = 'wamid.list.out';
+const CITY_WAMID = 'wamid.city.out';
+const ORPHAN_WAMID = 'wamid.orphan';
+const FROM_PHONE = '5511999998888';
+const CONVERSATION_ID = 88;
 
 function inboundText(overrides?: Partial<Message>): Message {
   return {
-    from: '5511999998888',
+    from: FROM_PHONE,
     id: 'wamid.in.1',
     timestamp: '1710000000',
     type: 'text',
@@ -27,6 +32,29 @@ function metadata(phoneNumberId: string): Metadata {
   };
 }
 
+function contactMaria(): Contact[] {
+  return [{ profile: { name: 'Maria' }, wa_id: FROM_PHONE }];
+}
+
+function statusEvent(overrides?: Partial<Status>): Status {
+  return {
+    id: CITY_WAMID,
+    status: 'delivered',
+    timestamp: '1710000000',
+    recipient_id: FROM_PHONE,
+    conversation: {
+      id: 'conv.1',
+      origin: { type: 'marketing' },
+    },
+    pricing: {
+      billable: true,
+      pricing_model: 'CBP',
+      category: 'marketing',
+    },
+    ...overrides,
+  };
+}
+
 describe('WebhookPersistenceService', () => {
   function build(options?: {
     listSend?: {
@@ -34,20 +62,39 @@ describe('WebhookPersistenceService', () => {
       listLeadId: number;
       listLead: { list: { tenantId: number } };
     } | null;
+    tenantLead?: { id: number; tenantId?: number } | null;
     dedicatedAccount?: { id: number; isDefault: boolean } | null;
-    outreachConfig?: { tenantId: number } | null;
+    outreachConfig?: {
+      tenantId: number;
+      whatsappAccountId?: number | null;
+    } | null;
+    existingConversation?: { id: number; displayName: string } | null;
     created?: { id: number };
   }) {
     const createdAt = new Date('2026-08-18T12:00:00.000Z');
     const prisma = {
       tenantListSend: {
         findUnique: jest.fn().mockResolvedValue(options?.listSend ?? null),
+        update: jest.fn().mockResolvedValue({}),
       },
       tenantLead: {
-        findFirst: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(options?.tenantLead ?? null),
+        findUnique: jest.fn().mockResolvedValue(options?.tenantLead ?? null),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      tenantListLead: {
+        update: jest.fn().mockResolvedValue({}),
+      },
+      whatsappSendStatus: {
+        create: jest.fn().mockResolvedValue({ id: 1 }),
       },
       whatsappAccount: {
         findFirst: jest.fn().mockResolvedValue(
+          options?.dedicatedAccount === undefined
+            ? null
+            : options.dedicatedAccount,
+        ),
+        findUnique: jest.fn().mockResolvedValue(
           options?.dedicatedAccount === undefined
             ? null
             : options.dedicatedAccount,
@@ -60,27 +107,140 @@ describe('WebhookPersistenceService', () => {
             : options.outreachConfig,
         ),
       },
+      whatsappConversation: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(options?.existingConversation ?? null),
+        upsert: jest.fn().mockImplementation(async (args: {
+          create: { displayName: string; phone: string; tenantId: number };
+          update: { displayName: string };
+        }) => ({
+          id: options?.existingConversation?.id ?? CONVERSATION_ID,
+          displayName: args.create?.displayName ?? args.update?.displayName,
+          phone: args.create?.phone,
+          tenantId: args.create?.tenantId,
+        })),
+      },
       whatsappConversationMessage: {
         create: jest.fn().mockResolvedValue({
           id: options?.created?.id ?? 50,
           wamid: 'wamid.in.1',
           type: 'text',
           body: 'oi',
-          phone: '5511999998888',
+          phone: FROM_PHONE,
           createdAt,
         }),
       },
+      $transaction: jest.fn(),
     };
+    prisma.$transaction.mockImplementation(async (fn: (tx: typeof prisma) => unknown) =>
+      fn(prisma),
+    );
     const service = new WebhookPersistenceService(prisma as never);
     return { service, prisma };
   }
 
-  it('context.id de list send vence mesmo se metadata for outro número', async () => {
+  it('dedicado frio + contacts nome persiste thread com displayName', async () => {
+    const { service, prisma } = build({
+      dedicatedAccount: { id: DEDICATED_ACCOUNT_ID, isDefault: false },
+      outreachConfig: {
+        tenantId: DEDICATED_TENANT_ID,
+        whatsappAccountId: DEDICATED_ACCOUNT_ID,
+      },
+    });
+
+    const result = await service.handleInboundMessage(
+      inboundText(),
+      metadata(DEDICATED_PHONE_NUMBER_ID),
+      contactMaria(),
+    );
+
+    expect(result.persisted).toBe(true);
+    expect(result.correlation).toBe('dedicated_number');
+    expect(result.tenantId).toBe(DEDICATED_TENANT_ID);
+    expect(result.listLeadId).toBeNull();
+    expect(result.conversationId).toBe(CONVERSATION_ID);
+    expect(typeof result.conversationId).toBe('number');
+    expect(result.displayName).toBe('Maria');
+    expect(prisma.whatsappConversation.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          tenantId: DEDICATED_TENANT_ID,
+          phone: FROM_PHONE,
+          displayName: 'Maria',
+        }),
+      }),
+    );
+    expect(prisma.whatsappConversationMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tenantId: DEDICATED_TENANT_ID,
+          conversationId: CONVERSATION_ID,
+          listLeadId: null,
+          listSendId: null,
+          direction: 'IN',
+        }),
+      }),
+    );
+  });
+
+  it('dedicado frio sem contacts usa displayName = phone', async () => {
+    const { service, prisma } = build({
+      dedicatedAccount: { id: DEDICATED_ACCOUNT_ID, isDefault: false },
+      outreachConfig: {
+        tenantId: DEDICATED_TENANT_ID,
+        whatsappAccountId: DEDICATED_ACCOUNT_ID,
+      },
+    });
+
+    const result = await service.handleInboundMessage(
+      inboundText(),
+      metadata(DEDICATED_PHONE_NUMBER_ID),
+    );
+
+    expect(result.persisted).toBe(true);
+    expect(result.conversationId).toBe(CONVERSATION_ID);
+    expect(result.listLeadId).toBeNull();
+    expect(result.displayName).toBe(FROM_PHONE);
+    expect(prisma.whatsappConversation.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          displayName: FROM_PHONE,
+          phone: FROM_PHONE,
+        }),
+      }),
+    );
+  });
+
+  it('default sem assignment não cria WhatsappConversation', async () => {
+    const { service, prisma } = build({
+      dedicatedAccount: { id: DEFAULT_ACCOUNT_ID, isDefault: true },
+    });
+
+    const result = await service.handleInboundMessage(
+      inboundText(),
+      metadata(DEFAULT_PHONE_NUMBER_ID),
+    );
+
+    expect(result.persisted).toBe(false);
+    expect(result.correlation).toBe('unknown');
+    expect(result.tenantId).toBeUndefined();
+    expect(result.conversationId).toBeUndefined();
+    expect(prisma.whatsappConversation.upsert).not.toHaveBeenCalled();
+    expect(prisma.whatsappConversationMessage.create).not.toHaveBeenCalled();
+  });
+
+  it('context list_send no dedicado persiste thread + listLeadId', async () => {
     const { service, prisma } = build({
       listSend: {
         id: 9,
         listLeadId: 42,
         listLead: { list: { tenantId: LIST_TENANT_ID } },
+      },
+      dedicatedAccount: { id: DEDICATED_ACCOUNT_ID, isDefault: false },
+      outreachConfig: {
+        tenantId: LIST_TENANT_ID,
+        whatsappAccountId: DEDICATED_ACCOUNT_ID,
       },
     });
 
@@ -95,11 +255,12 @@ describe('WebhookPersistenceService', () => {
     expect(result.correlation).toBe('list_send');
     expect(result.tenantId).toBe(LIST_TENANT_ID);
     expect(result.listLeadId).toBe(42);
-    expect(prisma.whatsappAccount.findFirst).not.toHaveBeenCalled();
+    expect(result.conversationId).toBe(CONVERSATION_ID);
     expect(prisma.whatsappConversationMessage.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           tenantId: LIST_TENANT_ID,
+          conversationId: CONVERSATION_ID,
           listLeadId: 42,
           listSendId: 9,
         }),
@@ -107,31 +268,33 @@ describe('WebhookPersistenceService', () => {
     );
   });
 
-  it('sem context + phone_number_id dedicado amarrado persiste tenantId certo e listLeadId null', async () => {
+  it('context tenant_lead no dedicado persiste thread com listLeadId null', async () => {
     const { service, prisma } = build({
+      tenantLead: { id: 77, tenantId: DEDICATED_TENANT_ID },
       dedicatedAccount: { id: DEDICATED_ACCOUNT_ID, isDefault: false },
-      outreachConfig: { tenantId: DEDICATED_TENANT_ID },
+      outreachConfig: {
+        tenantId: DEDICATED_TENANT_ID,
+        whatsappAccountId: DEDICATED_ACCOUNT_ID,
+      },
     });
 
     const result = await service.handleInboundMessage(
-      inboundText(),
+      inboundText({
+        context: { from: '5511999990000', id: CITY_WAMID },
+      }),
       metadata(DEDICATED_PHONE_NUMBER_ID),
     );
 
-    expect(prisma.whatsappAccount.findFirst).toHaveBeenCalledWith({
-      where: { phoneNumberId: DEDICATED_PHONE_NUMBER_ID },
-    });
-    expect(prisma.tenantOutreachConfig.findUnique).toHaveBeenCalledWith({
-      where: { whatsappAccountId: DEDICATED_ACCOUNT_ID },
-    });
     expect(result.persisted).toBe(true);
-    expect(result.correlation).toBe('dedicated_number');
+    expect(result.correlation).toBe('tenant_lead');
     expect(result.tenantId).toBe(DEDICATED_TENANT_ID);
     expect(result.listLeadId).toBeNull();
+    expect(result.conversationId).toBe(CONVERSATION_ID);
+    expect(prisma.whatsappConversation.upsert).toHaveBeenCalled();
     expect(prisma.whatsappConversationMessage.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          tenantId: DEDICATED_TENANT_ID,
+          conversationId: CONVERSATION_ID,
           listLeadId: null,
           listSendId: null,
         }),
@@ -139,20 +302,143 @@ describe('WebhookPersistenceService', () => {
     );
   });
 
-  it('sem context + número default não persiste nem chuta tenant', async () => {
+  it('context list_send no default não cria thread mas preserva correlação', async () => {
     const { service, prisma } = build({
+      listSend: {
+        id: 9,
+        listLeadId: 42,
+        listLead: { list: { tenantId: LIST_TENANT_ID } },
+      },
       dedicatedAccount: { id: DEFAULT_ACCOUNT_ID, isDefault: true },
     });
 
     const result = await service.handleInboundMessage(
-      inboundText(),
+      inboundText({
+        context: { from: '5511999990000', id: LIST_SEND_WAMID },
+      }),
       metadata(DEFAULT_PHONE_NUMBER_ID),
     );
 
     expect(result.persisted).toBe(false);
-    expect(result.correlation).toBe('unknown');
-    expect(result.tenantId).toBeUndefined();
-    expect(prisma.tenantOutreachConfig.findUnique).not.toHaveBeenCalled();
+    expect(result.correlation).toBe('list_send');
+    expect(result.listLeadId).toBe(42);
+    expect(result.conversationId).toBeUndefined();
+    expect(prisma.whatsappConversation.upsert).not.toHaveBeenCalled();
     expect(prisma.whatsappConversationMessage.create).not.toHaveBeenCalled();
+  });
+
+  it('status só-cidade amarra tenantLeadId, atualiza lastStatus e não unlock de lista', async () => {
+    const { service, prisma } = build({
+      tenantLead: { id: 77 },
+    });
+
+    await service.handleStatus(statusEvent({ id: CITY_WAMID, status: 'delivered' }));
+
+    expect(prisma.tenantLead.findUnique).toHaveBeenCalledWith({
+      where: { messageId: CITY_WAMID },
+    });
+    expect(prisma.whatsappSendStatus.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          wamid: CITY_WAMID,
+          status: WhatsappDeliveryStatus.delivered,
+          listSendId: null,
+          tenantLeadId: 77,
+        }),
+      }),
+    );
+    expect(prisma.tenantLead.update).toHaveBeenCalledWith({
+      where: { id: 77 },
+      data: { lastStatus: WhatsappDeliveryStatus.delivered },
+    });
+    expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
+    expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
+  });
+
+  it('status só-lista amarra listSendId, atualiza send e unlock em failed', async () => {
+    const { service, prisma } = build({
+      listSend: {
+        id: 9,
+        listLeadId: 42,
+        listLead: { list: { tenantId: LIST_TENANT_ID } },
+      },
+    });
+
+    await service.handleStatus(
+      statusEvent({ id: LIST_SEND_WAMID, status: 'failed' }),
+    );
+
+    expect(prisma.whatsappSendStatus.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          wamid: LIST_SEND_WAMID,
+          status: WhatsappDeliveryStatus.failed,
+          listSendId: 9,
+          tenantLeadId: null,
+        }),
+      }),
+    );
+    expect(prisma.tenantListSend.update).toHaveBeenCalledWith({
+      where: { id: 9 },
+      data: { lastStatus: WhatsappDeliveryStatus.failed },
+    });
+    expect(prisma.tenantListLead.update).toHaveBeenCalledWith({
+      where: { id: 42 },
+      data: { sendLockCampaignId: null },
+    });
+    expect(prisma.tenantLead.update).not.toHaveBeenCalled();
+  });
+
+  it('failed de cidade não chama unlock de lista', async () => {
+    const { service, prisma } = build({
+      tenantLead: { id: 77 },
+    });
+
+    await service.handleStatus(statusEvent({ id: CITY_WAMID, status: 'failed' }));
+
+    expect(prisma.whatsappSendStatus.create).toHaveBeenCalled();
+    expect(prisma.tenantLead.update).toHaveBeenCalledWith({
+      where: { id: 77 },
+      data: { lastStatus: WhatsappDeliveryStatus.failed },
+    });
+    expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
+    expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
+  });
+
+  it('status sem match persiste row órfã sem update de lead/send', async () => {
+    const { service, prisma } = build();
+
+    await service.handleStatus(
+      statusEvent({ id: ORPHAN_WAMID, status: 'sent' }),
+    );
+
+    expect(prisma.whatsappSendStatus.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          wamid: ORPHAN_WAMID,
+          status: WhatsappDeliveryStatus.sent,
+          listSendId: null,
+          tenantLeadId: null,
+        }),
+      }),
+    );
+    expect(prisma.tenantLead.update).not.toHaveBeenCalled();
+    expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
+    expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
+  });
+
+  it('status desconhecido não insere nem atualiza', async () => {
+    const { service, prisma } = build({
+      tenantLead: { id: 77 },
+    });
+
+    await service.handleStatus(
+      statusEvent({ id: CITY_WAMID, status: 'deleted' }),
+    );
+
+    expect(prisma.whatsappSendStatus.create).not.toHaveBeenCalled();
+    expect(prisma.tenantLead.update).not.toHaveBeenCalled();
+    expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
+    expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
   });
 });

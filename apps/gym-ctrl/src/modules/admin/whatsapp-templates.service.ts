@@ -6,9 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { Prisma } from '@prisma/client';
+import { Prisma, WhatsappConversationDirection } from '@prisma/client';
 import axios from 'axios';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
+import { normalizeListPhone } from '@core/shared/list-campaign-helpers';
+import { isDedicatedPlatformAccount } from '@core/shared/whatsapp-conversation';
 import {
   BINDING_TYPES,
   BindingLeadContext,
@@ -214,6 +216,12 @@ export class WhatsappTemplatesService {
       values,
     });
 
+    const graphPayload = {
+      ...sendBody,
+      recipient_type: 'individual' as const,
+      to,
+    };
+
     this.logger.log(
       `test-send user=${operatorUserId ?? 'unknown'} templateId=${id} to=${to}`,
     );
@@ -221,11 +229,7 @@ export class WhatsappTemplatesService {
     try {
       const res = await this.httpService.axiosRef.post<GraphSendResponse>(
         creds.messagesUrl,
-        {
-          ...sendBody,
-          recipient_type: 'individual',
-          to,
-        },
+        graphPayload,
         {
           headers: {
             Authorization: `Bearer ${creds.token}`,
@@ -234,6 +238,16 @@ export class WhatsappTemplatesService {
         },
       );
       const wamid = res.data.messages?.[0]?.id ?? null;
+      if (wamid) {
+        await this.persistDedicatedTestSendConversation({
+          accountId: creds.accountId,
+          wamid,
+          to,
+          templateName: template.name,
+          graphPayload,
+          leadName: leadCtx?.name ?? null,
+        });
+      }
       return {
         wamid,
         to,
@@ -242,6 +256,60 @@ export class WhatsappTemplatesService {
     } catch (error) {
       this.rethrowGraphError(error);
     }
+  }
+
+  private async persistDedicatedTestSendConversation(input: {
+    accountId: number;
+    wamid: string;
+    to: string;
+    templateName: string;
+    graphPayload: Record<string, unknown>;
+    leadName: string | null;
+  }) {
+    const config = await this.prisma.tenantOutreachConfig.findUnique({
+      where: { whatsappAccountId: input.accountId },
+      select: {
+        tenantId: true,
+        whatsappAccount: { select: { isDefault: true } },
+      },
+    });
+    if (
+      !config?.whatsappAccount ||
+      !isDedicatedPlatformAccount(config.whatsappAccount)
+    ) {
+      return;
+    }
+
+    const phone = normalizeListPhone(input.to);
+    const trimmedLeadName = input.leadName?.trim() ?? '';
+    const displayName = trimmedLeadName.length > 0 ? trimmedLeadName : phone;
+    const now = new Date();
+
+    const conversation = await this.prisma.whatsappConversation.upsert({
+      where: {
+        tenantId_phone: { tenantId: config.tenantId, phone },
+      },
+      create: {
+        tenantId: config.tenantId,
+        phone,
+        displayName,
+        lastMessageAt: now,
+      },
+      update: { lastMessageAt: now },
+    });
+
+    await this.prisma.whatsappConversationMessage.create({
+      data: {
+        wamid: input.wamid,
+        direction: WhatsappConversationDirection.OUT,
+        type: 'template',
+        body: input.templateName,
+        raw: input.graphPayload as Prisma.InputJsonValue,
+        phone,
+        tenantId: config.tenantId,
+        conversationId: conversation.id,
+      },
+    });
   }
 
   private async resolveTestSendCredentials(whatsappAccountId?: number) {

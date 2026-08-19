@@ -54,6 +54,81 @@ class LeadCountDto {
   count: number;
 }
 
+class TenantHomeCoinsDto {
+  @ApiProperty({ example: 12.5 })
+  balance: number;
+}
+
+class TenantHomeOutreachDto {
+  @ApiProperty({ example: true })
+  enabled: boolean;
+
+  @ApiProperty({ example: true })
+  hasDedicatedNumber: boolean;
+
+  @ApiProperty({ type: TenantLeadStatsDto })
+  cityFunnel: TenantLeadStatsDto;
+}
+
+class TenantHomeInboxDto {
+  @ApiProperty({ example: 10 })
+  threadCount: number;
+
+  @ApiProperty({ example: 3 })
+  openWindows: number;
+
+  @ApiProperty({
+    example: '2026-08-19T11:00:00.000Z',
+    nullable: true,
+  })
+  lastInboundAt: string | null;
+}
+
+class TenantHomeSendBucketsDto {
+  @ApiProperty({ example: 1 })
+  sent: number;
+
+  @ApiProperty({ example: 4 })
+  delivered: number;
+
+  @ApiProperty({ example: 2 })
+  read: number;
+
+  @ApiProperty({ example: 0 })
+  failed: number;
+
+  @ApiProperty({ example: 1 })
+  pending: number;
+
+  @ApiProperty({ example: 8 })
+  total: number;
+}
+
+class TenantHomeSendsDto {
+  @ApiProperty({ example: 'America/Sao_Paulo' })
+  timezone: string;
+
+  @ApiProperty({ type: TenantHomeSendBucketsDto })
+  today: TenantHomeSendBucketsDto;
+
+  @ApiProperty({ type: TenantHomeSendBucketsDto })
+  yesterday: TenantHomeSendBucketsDto;
+}
+
+class TenantHomeDto {
+  @ApiProperty({ type: TenantHomeCoinsDto })
+  coins: TenantHomeCoinsDto;
+
+  @ApiProperty({ type: TenantHomeOutreachDto })
+  outreach: TenantHomeOutreachDto;
+
+  @ApiProperty({ type: TenantHomeInboxDto })
+  inbox: TenantHomeInboxDto;
+
+  @ApiProperty({ type: TenantHomeSendsDto })
+  sends: TenantHomeSendsDto;
+}
+
 @ApiTags('Platform — Ops')
 @ApiBearerAuth()
 @RolesAuth(Roles.SUPER_ADMIN)
@@ -111,5 +186,16 @@ export class TenantLeadsStatsController {
   @ApiOkResponse({ type: TenantLeadStatsDto })
   leadsStats(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.opsService.leadsStats(tenantId);
+  }
+
+  @Get('ops/home')
+  @ApiOperation({
+    summary: 'Snapshot operacional da home do tenant',
+    description:
+      'Coins (soma), outreach/funil cidade, flag de número dedicado, resumo de inbox e envios hoje/ontem em America/Sao_Paulo.',
+  })
+  @ApiOkResponse({ type: TenantHomeDto })
+  home(@Param('tenantId', ParseIntPipe) tenantId: number) {
+    return this.opsService.home(tenantId);
   }
 }
