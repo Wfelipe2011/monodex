@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Lead } from '@prisma/client';
+import { scrollMapsFeedUntilSettled, waitForMapsFeed } from './maps-feed-scroll';
 
 @Injectable()
 export class GoogleMapsScraper {
@@ -38,45 +39,14 @@ export class GoogleMapsScraper {
                     console.log(`🌐 Navegando para URL: ${url}`);
                     await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-                    console.log('⏳ Aguardando seletor do container de resultados...');
-                    await page.waitForSelector('.m6QErb.DxyBCb.kA9KIf.dS8AEf', { timeout: 10000 });
-
-                    console.log('⏳ Aguardando novamente seletor do container de resultados...');
-                    await page.waitForSelector('.m6QErb.DxyBCb.kA9KIf.dS8AEf', { timeout: 15000 });
-                    const scrollContainers = await page.$$('.m6QErb.DxyBCb.kA9KIf.dS8AEf');
-                    console.log(`🔧 Containers de scroll encontrados: ${scrollContainers.length}`);
-
-                    if (scrollContainers.length < 2) {
-                        console.warn('⚠️ Container de scroll não encontrado. Pulando...');
+                    console.log('⏳ Aguardando feed de resultados...');
+                    const hasFeed = await waitForMapsFeed(page);
+                    if (!hasFeed) {
+                        console.warn('⚠️ Feed de resultados não encontrado. Pulando...');
                         continue;
                     }
 
-                    const scrollTarget = scrollContainers[1];
-                    const randomScrollPosition = Math.floor(Math.random() * (2000 - 500 + 1)) + 500;
-                    console.log(`🔽 Rolando para a posição aleatória: ${randomScrollPosition}px`);
-                    let isAtBottom = false;
-                    let attempts = 0;
-                    const maxScrolls = randomScrollPosition;
-
-                    console.log('🔽 Iniciando scroll para carregar todos os resultados...');
-                    while (!isAtBottom && attempts < maxScrolls) {
-                        console.log(`🔽 Scroll attempt ${attempts + 1} - ${category} no bairro ${bairro}`);
-                        await page.evaluate((el) => {
-                            el.scrollBy(0, 200);
-                        }, scrollTarget);
-
-                        await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 2000));
-
-                        isAtBottom = await page.evaluate(() => {
-                            return !!document.querySelector('span.HlvSq');
-                        });
-
-                        if (isAtBottom) {
-                            console.log('✅ Fim da lista detectado.');
-                        }
-
-                        attempts++;
-                    }
+                    await scrollMapsFeedUntilSettled(page, `${category} no bairro ${bairro}`);
 
                     console.log('📝 Extraindo dados dos resultados...');
                     const categoryResults = await page.evaluate(() => {

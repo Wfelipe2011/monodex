@@ -1,5 +1,6 @@
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
+import { scrollMapsFeedUntilSettled, waitForMapsFeed } from './maps-feed-scroll';
 
 @Injectable()
 export class GoogleMapsNeighborhoodScraper {
@@ -41,38 +42,15 @@ export class GoogleMapsNeighborhoodScraper {
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
 
-        console.log('⏳ Aguardando seletor do container de resultados...');
-        await page.waitForSelector('.m6QErb.DxyBCb.kA9KIf.dS8AEf', { timeout: 10000 });
-
-        console.log('⏳ Aguardando novamente seletor do container de resultados...');
-        await page.waitForSelector('.m6QErb.DxyBCb.kA9KIf.dS8AEf', { timeout: 15000 });
-        const scrollContainers = await page.$$('.m6QErb.DxyBCb.kA9KIf.dS8AEf');
-        console.log(`🔧 Containers de scroll encontrados: ${scrollContainers.length}`);
-
-        const scrollTarget = scrollContainers[1];
-        let isAtBottom = false;
-        let attempts = 0;
-
-
-        console.log('🔽 Iniciando scroll para carregar todos os resultados...');
-        while (!isAtBottom) {
-            console.log(`🔽 Scroll attempt ${attempts + 1} - na cidade ${cityName}`);
-            await page.evaluate((el) => {
-                el.scrollBy(0, 200);
-            }, scrollTarget);
-
-            await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-
-            isAtBottom = await page.evaluate(() => {
-                return !!document.querySelector('span.HlvSq');
-            });
-
-            if (isAtBottom) {
-                console.log('✅ Fim da lista detectado.');
-            }
-
-            attempts++;
+        console.log('⏳ Aguardando feed de resultados...');
+        const hasFeed = await waitForMapsFeed(page);
+        if (!hasFeed) {
+            console.warn(`⚠️ Feed de resultados não encontrado para ${cityName}. Abortando.`);
+            await browser.close();
+            return;
         }
+
+        await scrollMapsFeedUntilSettled(page, `na cidade ${cityName}`);
 
         console.log('📝 Extraindo dados dos resultados...');
         const result = await page.evaluate(() => {
