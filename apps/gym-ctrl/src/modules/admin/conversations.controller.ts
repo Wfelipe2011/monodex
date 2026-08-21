@@ -23,8 +23,10 @@ import {
   ApiOperation,
   ApiParam,
   ApiQuery,
+  ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiKeyAllowlist } from '@core/decorators/api-key-allowlist.decorator';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
@@ -42,6 +44,8 @@ import {
 
 @ApiTags('Tenant — Conversations')
 @ApiBearerAuth()
+@ApiSecurity('X-API-KEY')
+@ApiKeyAllowlist()
 @RolesAuth(Roles.ADMIN, Roles.SUPER_ADMIN)
 @UseGuards(TenantScopeGuard, TenantActiveGuard)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))

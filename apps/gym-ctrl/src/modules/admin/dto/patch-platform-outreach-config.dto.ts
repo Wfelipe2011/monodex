@@ -8,6 +8,15 @@ export class PatchPlatformOutreachConfigDto {
   @IsNumber()
   costPerLead?: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Custo em coins por envio on-demand. 0 fecha o canal. Só Super Admin.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  costPerOnDemandSend?: number;
+
   @ApiPropertyOptional({ description: 'Cashback ao receber reply' })
   @IsOptional()
   @IsNumber()

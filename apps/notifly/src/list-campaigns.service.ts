@@ -29,8 +29,9 @@ import { buildTemplateSendBody } from '@core/shared/whatsapp-template-payload';
 import { PlatformWhatsappService } from './platform-whatsapp.service';
 import { WhatsAppSendMessageResponse } from './WhatsAppSendMessageResponse';
 import {
-  computeAffordableSends,
-  pendingUnchargedListSendsWhere,
+  affordableFromAvailable,
+  computeAvailableBalance,
+  loadCrossChannelPending,
 } from './coin-reservation';
 
 type CampaignWithRelations = TenantListCampaign & {
@@ -111,17 +112,24 @@ export class ListCampaignsService {
       select: { balance: true },
     });
     const balance = coin?.balance ?? 0;
-    const pendingUncharged = await this.prisma.tenantListSend.count({
-      where: pendingUnchargedListSendsWhere(campaign.listId),
+    const { pendingCity, pendingListAmount, pendingOnDemand } =
+      await loadCrossChannelPending(this.prisma, tenant.id);
+    const outreach = await this.prisma.tenantOutreachConfig.findUnique({
+      where: { tenantId: tenant.id },
+      select: { costPerLead: true, costPerOnDemandSend: true },
     });
-    const affordable = computeAffordableSends(
+    const available = computeAvailableBalance({
       balance,
-      pendingUncharged,
-      costPerSend,
-    );
+      pendingCity,
+      costPerLead: outreach?.costPerLead ?? 0,
+      pendingListAmount,
+      pendingOnDemand,
+      costPerOnDemandSend: outreach?.costPerOnDemandSend ?? 0,
+    });
+    const affordable = affordableFromAvailable(available, costPerSend);
     if (affordable <= 0) {
       this.logger.warn(
-        `[runCampaign] Tenant ${tenant.id} saldo disponível insuficiente (balance=${balance}, pending=${pendingUncharged}, costPerSend=${costPerSend})`,
+        `[runCampaign] Tenant ${tenant.id} saldo disponível insuficiente (balance=${balance}, available=${available}, pendingCity=${pendingCity}, pendingListAmount=${pendingListAmount}, pendingOnDemand=${pendingOnDemand}, costPerSend=${costPerSend})`,
       );
       return;
     }

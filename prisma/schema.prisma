@@ -12,6 +12,7 @@ model Tenant {
   id               Int                   @id @default(autoincrement())
   name             String
   active           Boolean               @default(true)
+  apiAccessEnabled Boolean               @default(false) @map("api_access_enabled")
   users            User[]
   leads            TenantLead[]
   createdAt        DateTime              @default(now()) @map("created_at")
@@ -34,6 +35,10 @@ model Tenant {
   whatsappConversations        WhatsappConversation[]
   whatsappConversationMessages WhatsappConversationMessage[]
   invites                      Invite[]
+  apiKeys                      TenantApiKey[]
+  media                        TenantMedia[]
+  onDemandSends                TenantOnDemandSend[]
+  onDemandSchedules            TenantOnDemandSchedule[]
 
   @@map("tenants")
 }
@@ -361,6 +366,8 @@ model WhatsappMessageTemplate {
   listCampaigns       TenantListCampaign[]   @relation("ListCampaignTemplate")
   notifyListCampaigns TenantListCampaign[]   @relation("ListCampaignNotifyTemplate")
   tenantGrants        TenantTemplateGrant[]
+  onDemandSends       TenantOnDemandSend[]
+  onDemandSchedules   TenantOnDemandSchedule[]
 
   @@unique([whatsappAccountId, name, language])
   @@map("whatsapp_message_templates")
@@ -372,6 +379,7 @@ model TenantOutreachConfig {
   tenant              Tenant                   @relation(fields: [tenantId], references: [id])
   enabled             Boolean                  @default(false)
   costPerLead         Float                    @map("cost_per_lead")
+  costPerOnDemandSend Float                    @default(0) @map("cost_per_on_demand_send")
   cashbackOnReply     Float                    @default(0) @map("cashback_on_reply")
   coinDebitOnStatus   CoinDebitOnStatus        @default(delivered) @map("coin_debit_on_status")
   outreachTemplateId  Int?                     @map("outreach_template_id")
@@ -442,6 +450,8 @@ model TenantScrapeTarget {
 enum PlatformJobKey {
   WHATSAPP_TEMPLATE_SYNC
   SCRAPE
+  ORPHAN_MEDIA_CLEANUP
+  ON_DEMAND_SCHEDULE_RUN
 }
 
 model PlatformJobSchedule {
@@ -591,6 +601,7 @@ model WhatsappConversation {
   lastInboundAt DateTime? @map("last_inbound_at")
   lastMessageAt DateTime  @map("last_message_at")
   messages      WhatsappConversationMessage[]
+  onDemandSends TenantOnDemandSend[]
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -623,18 +634,122 @@ model WhatsappConversationMessage {
 }
 
 model WhatsappSendStatus {
-  id            Int                    @id @default(autoincrement())
-  wamid         String
-  status        WhatsappDeliveryStatus
-  metaTimestamp DateTime               @map("meta_timestamp")
-  recipientId   String?                @map("recipient_id")
-  errors        Json?
-  listSendId    Int?                   @map("list_send_id")
-  listSend      TenantListSend?        @relation(fields: [listSendId], references: [id])
-  tenantLeadId  Int?                   @map("tenant_lead_id")
-  tenantLead    TenantLead?            @relation(fields: [tenantLeadId], references: [id])
-  createdAt     DateTime               @default(now()) @map("created_at")
+  id             Int                    @id @default(autoincrement())
+  wamid          String
+  status         WhatsappDeliveryStatus
+  metaTimestamp  DateTime               @map("meta_timestamp")
+  recipientId    String?                @map("recipient_id")
+  errors         Json?
+  listSendId     Int?                   @map("list_send_id")
+  listSend       TenantListSend?        @relation(fields: [listSendId], references: [id])
+  tenantLeadId   Int?                   @map("tenant_lead_id")
+  tenantLead     TenantLead?            @relation(fields: [tenantLeadId], references: [id])
+  onDemandSendId Int?                   @map("on_demand_send_id")
+  onDemandSend   TenantOnDemandSend?    @relation(fields: [onDemandSendId], references: [id])
+  createdAt      DateTime               @default(now()) @map("created_at")
 
   @@index([wamid, metaTimestamp])
   @@map("whatsapp_send_statuses")
+}
+
+enum OnDemandSendSource {
+  ADMIN_JWT
+  API_KEY
+  SCHEDULE
+}
+
+enum OnDemandScheduleStatus {
+  PENDING
+  CANCELLED
+  SENT
+  FAILED
+}
+
+model TenantApiKey {
+  id         Int                  @id @default(autoincrement())
+  tenantId   Int                  @map("tenant_id")
+  tenant     Tenant               @relation(fields: [tenantId], references: [id])
+  name       String
+  prefix     String
+  keyHash    String               @unique @map("key_hash")
+  lastUsedAt DateTime?            @map("last_used_at")
+  revokedAt  DateTime?            @map("revoked_at")
+  createdAt  DateTime             @default(now()) @map("created_at")
+  updatedAt  DateTime             @updatedAt @map("updated_at")
+  sends      TenantOnDemandSend[]
+
+  @@index([tenantId, revokedAt])
+  @@map("tenant_api_keys")
+}
+
+model TenantMedia {
+  id               Int                      @id @default(autoincrement())
+  publicId         String                   @unique @default(uuid()) @map("public_id")
+  tenantId         Int                      @map("tenant_id")
+  tenant           Tenant                   @relation(fields: [tenantId], references: [id])
+  originalFileName String                   @map("original_file_name")
+  mimeType         String                   @map("mime_type")
+  relativePath     String                   @map("relative_path")
+  byteSize         Int                      @map("byte_size")
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+  sends            TenantOnDemandSend[]
+  schedules        TenantOnDemandSchedule[]
+
+  @@index([tenantId, createdAt])
+  @@map("tenant_media")
+}
+
+model TenantOnDemandSend {
+  id             Int                      @id @default(autoincrement())
+  tenantId       Int                      @map("tenant_id")
+  tenant         Tenant                   @relation(fields: [tenantId], references: [id])
+  templateId     Int                      @map("template_id")
+  template       WhatsappMessageTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  phone          String
+  wamid          String                   @unique
+  variables      Json
+  mediaId        Int?                     @map("media_id")
+  media          TenantMedia?             @relation(fields: [mediaId], references: [id])
+  source         OnDemandSendSource
+  apiKeyId       Int?                     @map("api_key_id")
+  apiKey         TenantApiKey?            @relation(fields: [apiKeyId], references: [id])
+  scheduleId     Int?                     @unique @map("schedule_id")
+  schedule       TenantOnDemandSchedule?  @relation("OnDemandScheduleSendLink", fields: [scheduleId], references: [id])
+  lastStatus     WhatsappDeliveryStatus?  @map("last_status")
+  coinDebitedAt  DateTime?                @map("coin_debited_at")
+  coinRefundedAt DateTime?                @map("coin_refunded_at")
+  conversationId Int?                     @map("conversation_id")
+  conversation   WhatsappConversation?    @relation(fields: [conversationId], references: [id])
+  sentAt         DateTime                 @default(now()) @map("sent_at")
+  statuses       WhatsappSendStatus[]
+  fromSchedule   TenantOnDemandSchedule?  @relation("OnDemandScheduleResult")
+
+  @@index([tenantId, sentAt])
+  @@map("tenant_on_demand_sends")
+}
+
+model TenantOnDemandSchedule {
+  id             Int                    @id @default(autoincrement())
+  tenantId       Int                    @map("tenant_id")
+  tenant         Tenant                 @relation(fields: [tenantId], references: [id])
+  templateId     Int                    @map("template_id")
+  template       WhatsappMessageTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  phone          String
+  scheduledFor   DateTime               @map("scheduled_for")
+  variables      Json
+  mediaId        Int?                   @map("media_id")
+  media          TenantMedia?           @relation(fields: [mediaId], references: [id])
+  leadId         Int?                   @map("lead_id")
+  status         OnDemandScheduleStatus @default(PENDING)
+  failedReason   String?                @map("failed_reason")
+  onDemandSendId Int?                   @unique @map("on_demand_send_id")
+  onDemandSend   TenantOnDemandSend?    @relation("OnDemandScheduleResult", fields: [onDemandSendId], references: [id])
+  cancelledAt    DateTime?              @map("cancelled_at")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+  linkedSend     TenantOnDemandSend?    @relation("OnDemandScheduleSendLink")
+
+  @@index([status, scheduledFor])
+  @@map("tenant_on_demand_schedules")
 }

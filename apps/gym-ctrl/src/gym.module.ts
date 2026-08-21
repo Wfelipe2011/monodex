@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '@core/infra';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import * as Joi from 'joi';
 import { AuthModule } from './modules/auth.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { InboxRealtimeModule } from './modules/inbox-realtime/inbox-realtime.module';
 import { GymController } from './gym.controller';
+import { OrphanMediaCleanupCron } from './modules/admin/orphan-media-cleanup.cron';
 
 @Module({
   imports: [
@@ -13,6 +15,7 @@ import { GymController } from './gym.controller';
     AdminModule,
     InboxRealtimeModule,
     PrismaModule,
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: Joi.object({
@@ -27,9 +30,17 @@ import { GymController } from './gym.controller';
         VAPID_PUBLIC_KEY: Joi.string().optional().description('Chave pública VAPID; omitir = derivada da privada'),
         INVITE_TTL_HOURS: Joi.number().integer().min(1).max(48).default(8),
         INVITE_PUBLIC_BASE_URL: Joi.string().optional(),
+        PUBLIC_API_BASE_URL: Joi.when('NODE_ENV', {
+          is: 'production',
+          then: Joi.string().uri().required(),
+          otherwise: Joi.string().uri().optional(),
+        }).description('Base absoluta HTTPS da API (mídia pública / Graph image.link)'),
+        TENANT_MEDIA_DIR: Joi.string()
+          .default('uploads/tenant-media')
+          .description('Diretório de arquivos de mídia dos tenants'),
       }),
     })],
   controllers: [GymController],
-  providers: [],
+  providers: [OrphanMediaCleanupCron],
 })
 export class GymModule { }

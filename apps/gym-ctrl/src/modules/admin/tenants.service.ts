@@ -14,6 +14,7 @@ const tenantSelect = {
   phone: true,
   uuid: true,
   active: true,
+  apiAccessEnabled: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.TenantSelect;
@@ -63,6 +64,9 @@ export class TenantsService {
           ...(dto.name !== undefined ? { name: dto.name } : {}),
           ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
           ...(dto.active !== undefined ? { active: dto.active } : {}),
+          ...(dto.apiAccessEnabled !== undefined
+            ? { apiAccessEnabled: dto.apiAccessEnabled }
+            : {}),
         },
         select: tenantSelect,
       });

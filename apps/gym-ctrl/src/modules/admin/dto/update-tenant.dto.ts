@@ -17,4 +17,12 @@ export class UpdateTenantDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Concede acesso à API do tenant (chaves X-API-KEY). Só Super Admin.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  apiAccessEnabled?: boolean;
 }

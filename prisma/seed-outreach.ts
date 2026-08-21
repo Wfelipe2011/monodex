@@ -46,6 +46,18 @@ const DEFAULT_SCHEDULES: Array<{
     timeZone: 'America/Sao_Paulo',
     enabled: true,
   },
+  {
+    jobKey: PlatformJobKey.ORPHAN_MEDIA_CLEANUP,
+    cronExpression: '0 3 1,16 * *',
+    timeZone: 'America/Sao_Paulo',
+    enabled: true,
+  },
+  {
+    jobKey: PlatformJobKey.ON_DEMAND_SCHEDULE_RUN,
+    cronExpression: '0 * * * *',
+    timeZone: 'America/Sao_Paulo',
+    enabled: true,
+  },
 ];
 
 const SCHEDULE = {
@@ -336,6 +348,7 @@ async function upsertOutreachConfig(
         tenantId,
         enabled: true,
         costPerLead: 0.35,
+        costPerOnDemandSend: 0,
         cashbackOnReply: 0,
         coinDebitOnStatus: 'delivered',
         outreachTemplateId,

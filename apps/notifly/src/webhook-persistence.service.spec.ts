@@ -11,9 +11,12 @@ const DEDICATED_PHONE_NUMBER_ID = '999000111222';
 const DEFAULT_PHONE_NUMBER_ID = '1292251013966333';
 const LIST_SEND_WAMID = 'wamid.list.out';
 const CITY_WAMID = 'wamid.city.out';
+const ON_DEMAND_WAMID = 'wamid.ondemand.out';
 const ORPHAN_WAMID = 'wamid.orphan';
 const FROM_PHONE = '5511999998888';
 const CONVERSATION_ID = 88;
+const ON_DEMAND_TENANT_ID = 15;
+const ON_DEMAND_SEND_ID = 101;
 
 function inboundText(overrides?: Partial<Message>): Message {
   return {
@@ -64,6 +67,7 @@ describe('WebhookPersistenceService', () => {
       listLead: { list: { tenantId: number } };
     } | null;
     tenantLead?: { id: number; tenantId?: number } | null;
+    onDemandSend?: { id: number; tenantId: number } | null;
     dedicatedAccount?: { id: number; isDefault: boolean } | null;
     outreachConfig?: {
       tenantId: number;
@@ -82,6 +86,12 @@ describe('WebhookPersistenceService', () => {
       tenantLead: {
         findFirst: jest.fn().mockResolvedValue(options?.tenantLead ?? null),
         findUnique: jest.fn().mockResolvedValue(options?.tenantLead ?? null),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      tenantOnDemandSend: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(options?.onDemandSend ?? null),
         update: jest.fn().mockResolvedValue({}),
       },
       tenantListLead: {
@@ -354,6 +364,7 @@ describe('WebhookPersistenceService', () => {
           status: WhatsappDeliveryStatus.delivered,
           listSendId: null,
           tenantLeadId: 77,
+          onDemandSendId: null,
         }),
       }),
     );
@@ -363,11 +374,13 @@ describe('WebhookPersistenceService', () => {
     });
     expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
     expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
+    expect(prisma.tenantOnDemandSend.update).not.toHaveBeenCalled();
     expect(coinDebitOnStatus.applyAfterStatus).toHaveBeenCalledWith({
       tenantId: CITY_TENANT_ID,
       status: WhatsappDeliveryStatus.delivered,
       listSendId: null,
       tenantLeadId: 77,
+      onDemandSendId: null,
     });
   });
 
@@ -391,6 +404,7 @@ describe('WebhookPersistenceService', () => {
           status: WhatsappDeliveryStatus.failed,
           listSendId: 9,
           tenantLeadId: null,
+          onDemandSendId: null,
         }),
       }),
     );
@@ -403,11 +417,13 @@ describe('WebhookPersistenceService', () => {
       data: { sendLockCampaignId: null },
     });
     expect(prisma.tenantLead.update).not.toHaveBeenCalled();
+    expect(prisma.tenantOnDemandSend.update).not.toHaveBeenCalled();
     expect(coinDebitOnStatus.applyAfterStatus).toHaveBeenCalledWith({
       tenantId: LIST_TENANT_ID,
       status: WhatsappDeliveryStatus.failed,
       listSendId: 9,
       tenantLeadId: null,
+      onDemandSendId: null,
     });
   });
 
@@ -429,6 +445,82 @@ describe('WebhookPersistenceService', () => {
       status: WhatsappDeliveryStatus.delivered,
       listSendId: 9,
       tenantLeadId: null,
+      onDemandSendId: null,
+    });
+  });
+
+  it('status on-demand delivered grava onDemandSendId e lastStatus (XOR)', async () => {
+    const { service, prisma, coinDebitOnStatus } = build({
+      onDemandSend: {
+        id: ON_DEMAND_SEND_ID,
+        tenantId: ON_DEMAND_TENANT_ID,
+      },
+    });
+
+    await service.handleStatus(
+      statusEvent({ id: ON_DEMAND_WAMID, status: 'delivered' }),
+    );
+
+    expect(prisma.tenantOnDemandSend.findUnique).toHaveBeenCalledWith({
+      where: { wamid: ON_DEMAND_WAMID },
+    });
+    expect(prisma.whatsappSendStatus.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          wamid: ON_DEMAND_WAMID,
+          status: WhatsappDeliveryStatus.delivered,
+          listSendId: null,
+          tenantLeadId: null,
+          onDemandSendId: ON_DEMAND_SEND_ID,
+        }),
+      }),
+    );
+    expect(prisma.tenantOnDemandSend.update).toHaveBeenCalledWith({
+      where: { id: ON_DEMAND_SEND_ID },
+      data: { lastStatus: WhatsappDeliveryStatus.delivered },
+    });
+    expect(prisma.tenantLead.update).not.toHaveBeenCalled();
+    expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
+    expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
+    expect(coinDebitOnStatus.applyAfterStatus).toHaveBeenCalledWith({
+      tenantId: ON_DEMAND_TENANT_ID,
+      status: WhatsappDeliveryStatus.delivered,
+      listSendId: null,
+      tenantLeadId: null,
+      onDemandSendId: ON_DEMAND_SEND_ID,
+    });
+  });
+
+  it('colisão wamid on-demand+cidade preferência on-demand (XOR)', async () => {
+    const { service, prisma, coinDebitOnStatus } = build({
+      tenantLead: { id: 77, tenantId: CITY_TENANT_ID },
+      onDemandSend: {
+        id: ON_DEMAND_SEND_ID,
+        tenantId: ON_DEMAND_TENANT_ID,
+      },
+    });
+
+    await service.handleStatus(
+      statusEvent({ id: ON_DEMAND_WAMID, status: 'delivered' }),
+    );
+
+    expect(prisma.whatsappSendStatus.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          listSendId: null,
+          tenantLeadId: null,
+          onDemandSendId: ON_DEMAND_SEND_ID,
+        }),
+      }),
+    );
+    expect(prisma.tenantLead.update).not.toHaveBeenCalled();
+    expect(prisma.tenantOnDemandSend.update).toHaveBeenCalled();
+    expect(coinDebitOnStatus.applyAfterStatus).toHaveBeenCalledWith({
+      tenantId: ON_DEMAND_TENANT_ID,
+      status: WhatsappDeliveryStatus.delivered,
+      listSendId: null,
+      tenantLeadId: null,
+      onDemandSendId: ON_DEMAND_SEND_ID,
     });
   });
 
@@ -454,6 +546,7 @@ describe('WebhookPersistenceService', () => {
       status: WhatsappDeliveryStatus.failed,
       listSendId: null,
       tenantLeadId: 77,
+      onDemandSendId: null,
     });
   });
 
@@ -486,12 +579,14 @@ describe('WebhookPersistenceService', () => {
           status: WhatsappDeliveryStatus.sent,
           listSendId: null,
           tenantLeadId: null,
+          onDemandSendId: null,
         }),
       }),
     );
     expect(prisma.tenantLead.update).not.toHaveBeenCalled();
     expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
     expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
+    expect(prisma.tenantOnDemandSend.update).not.toHaveBeenCalled();
     expect(coinDebitOnStatus.applyAfterStatus).not.toHaveBeenCalled();
   });
 

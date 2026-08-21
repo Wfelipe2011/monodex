@@ -77,9 +77,12 @@ async function upsertPlatformTenant() {
       name: PLATFORM_TENANT_NAME,
       active: true,
       phone: null,
+      // apiAccessEnabled default false — canal on-demand fechado até Super Admin ligar
     },
   });
-  console.log(`[seed-platform-admin] Platform tenant created id=${created.id}`);
+  console.log(
+    `[seed-platform-admin] Platform tenant created id=${created.id} apiAccessEnabled=false (schema default)`,
+  );
   return created;
 }
 

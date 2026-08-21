@@ -65,7 +65,12 @@ export class TenantsController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Atualizar tenant (incl. active)' })
+  @ApiOperation({
+    summary: 'Atualizar tenant (active, nome, phone, apiAccessEnabled)',
+    description:
+      'Inclui `apiAccessEnabled` (grant de API keys / X-API-KEY). Default false. ' +
+      'Só Super Admin neste path.',
+  })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateTenantDto,
@@ -86,14 +91,15 @@ export class TenantSelfController {
   @Patch()
   @ApiOperation({
     summary: 'Atualizar phone do tenant',
-    description: 'Somente `{ phone }`. `active` neste path retorna 403.',
+    description:
+      'Somente `{ phone }`. `active` e `apiAccessEnabled` neste path retornam 403.',
   })
   patchPhone(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: PatchTenantPhoneDto,
     @Req() req: RequestUser,
   ) {
-    rejectForbiddenBodyKeys(req.body, ['active']);
+    rejectForbiddenBodyKeys(req.body, ['active', 'apiAccessEnabled']);
     return this.tenantsService.updatePhone(tenantId, dto.phone);
   }
 }

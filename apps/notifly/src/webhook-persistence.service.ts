@@ -137,15 +137,46 @@ export class WebhookPersistenceService {
       return;
     }
 
-    const listSend = await this.prisma.tenantListSend.findUnique({
-      where: { wamid: status.id },
-      include: {
-        listLead: { include: { list: { select: { tenantId: true } } } },
-      },
-    });
-    const tenantLead = await this.prisma.tenantLead.findUnique({
-      where: { messageId: status.id },
-    });
+    const [listSendRaw, tenantLeadRaw, onDemandSendRaw] = await Promise.all([
+      this.prisma.tenantListSend.findUnique({
+        where: { wamid: status.id },
+        include: {
+          listLead: { include: { list: { select: { tenantId: true } } } },
+        },
+      }),
+      this.prisma.tenantLead.findUnique({
+        where: { messageId: status.id },
+      }),
+      this.prisma.tenantOnDemandSend.findUnique({
+        where: { wamid: status.id },
+      }),
+    ]);
+
+    // XOR entre canais: no máximo um match billing. Colisão (não deveria):
+    // preferir on-demand > lista > cidade.
+    let listSend = listSendRaw;
+    let tenantLead = tenantLeadRaw;
+    let onDemandSend = onDemandSendRaw;
+    const matchCount = [listSend, tenantLead, onDemandSend].filter(
+      (m) => m != null,
+    ).length;
+    if (matchCount > 1) {
+      this.logger.warn(
+        `[handleStatus] wamid collision channels=${[
+          onDemandSend ? 'on_demand' : null,
+          listSend ? 'list' : null,
+          tenantLead ? 'city' : null,
+        ]
+          .filter(Boolean)
+          .join('+')} wamid=${status.id}; preferring most specific`,
+      );
+      if (onDemandSend) {
+        listSend = null;
+        tenantLead = null;
+      } else if (listSend) {
+        tenantLead = null;
+      }
+    }
 
     const metaTimestamp = new Date(Number(status.timestamp) * 1000);
     const rawErrors = (status as unknown as Record<string, unknown>).errors;
@@ -162,6 +193,7 @@ export class WebhookPersistenceService {
             : undefined,
         listSendId: listSend?.id ?? null,
         tenantLeadId: tenantLead?.id ?? null,
+        onDemandSendId: onDemandSend?.id ?? null,
       },
     });
 
@@ -191,13 +223,23 @@ export class WebhookPersistenceService {
       });
     }
 
+    if (onDemandSend) {
+      await this.prisma.tenantOnDemandSend.update({
+        where: { id: onDemandSend.id },
+        data: { lastStatus: deliveryStatus },
+      });
+    }
+
     // Billing após append + lastStatus/unlock. try/log: falha de coin
     // não reverte WhatsappSendStatus (Meta pode reenviar; idempotência cobre).
     const billingTenantId =
-      listSend?.listLead.list.tenantId ?? tenantLead?.tenantId ?? null;
+      onDemandSend?.tenantId ??
+      listSend?.listLead.list.tenantId ??
+      tenantLead?.tenantId ??
+      null;
     if (
       billingTenantId != null &&
-      (listSend != null || tenantLead != null)
+      (listSend != null || tenantLead != null || onDemandSend != null)
     ) {
       try {
         await this.coinDebitOnStatus.applyAfterStatus({
@@ -205,6 +247,7 @@ export class WebhookPersistenceService {
           status: deliveryStatus,
           listSendId: listSend?.id ?? null,
           tenantLeadId: tenantLead?.id ?? null,
+          onDemandSendId: onDemandSend?.id ?? null,
         });
       } catch (e) {
         this.logger.error(

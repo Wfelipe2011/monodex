@@ -13,6 +13,7 @@ import { CoinDebitOnStatusService } from './coin-debit-on-status.service';
 import { ListCampaignsService } from './list-campaigns.service';
 import { ListCampaignReplyService } from './list-campaign-reply.service';
 import { InboxRealtimeNotifyService } from './inbox-realtime-notify.service';
+import { OnDemandScheduleCronService } from './on-demand-schedule-cron.service';
 
 @Module({
   imports: [PrismaModule, ScheduleModule.forRoot(), HttpModule],
@@ -21,6 +22,7 @@ import { InboxRealtimeNotifyService } from './inbox-realtime-notify.service';
     LeadsService,
     PlatformWhatsappService,
     WhatsappTemplateSyncService,
+    OnDemandScheduleCronService,
     CoinDebitOnStatusService,
     WebhookPersistenceService,
     ListCampaignsService,

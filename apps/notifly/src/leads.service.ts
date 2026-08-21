@@ -32,9 +32,10 @@ import {
 } from './conversation-thread';
 import { normalizeListPhone } from '@core/shared/list-campaign-helpers';
 import {
+  affordableFromAvailable,
   cityUsedPhonesWhere,
-  computeAffordableSends,
-  pendingUnchargedCityWhere,
+  computeAvailableBalance,
+  loadCrossChannelPending,
 } from './coin-reservation';
 import {
   buildCategoryAverages,
@@ -285,17 +286,24 @@ export class LeadsService implements OnModuleInit {
       },
     });
     const balance = coin?.balance ?? 0;
-    const pendingUncharged = await this.prisma.tenantLead.count({
-      where: pendingUnchargedCityWhere(tenant.id),
-    });
-    const affordable = computeAffordableSends(
+    const { pendingCity, pendingListAmount, pendingOnDemand } =
+      await loadCrossChannelPending(this.prisma, tenant.id);
+    const costPerOnDemandSend = config.costPerOnDemandSend ?? 0;
+    const available = computeAvailableBalance({
       balance,
-      pendingUncharged,
+      pendingCity,
+      costPerLead: config.costPerLead,
+      pendingListAmount,
+      pendingOnDemand,
+      costPerOnDemandSend,
+    });
+    const affordable = affordableFromAvailable(
+      available,
       config.costPerLead,
     );
     if (affordable <= 0) {
       this.logger.warn(
-        `[contactLeads] Tenant ${tenant.id} sem saldo disponível para um lead. Saldo: ${balance}, pending=${pendingUncharged}, costPerLead: ${config.costPerLead}`,
+        `[contactLeads] Tenant ${tenant.id} sem saldo disponível para um lead. Saldo: ${balance}, available=${available}, pendingCity=${pendingCity}, pendingListAmount=${pendingListAmount}, pendingOnDemand=${pendingOnDemand}, costPerLead: ${config.costPerLead}`,
       );
       return;
     }

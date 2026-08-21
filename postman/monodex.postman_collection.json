@@ -102,6 +102,36 @@
       "key": "internalWsNotifySecret",
       "value": "test-secret",
       "description": "Mesmo valor de INTERNAL_WS_NOTIFY_SECRET no gym-ctrl e notifly"
+    },
+    {
+      "key": "tenantApiKey",
+      "value": "",
+      "description": "Plaintext da chave (so apos create; nao commitar prod)"
+    },
+    {
+      "key": "apiKeyId",
+      "value": "",
+      "description": "id da TenantApiKey"
+    },
+    {
+      "key": "mediaPublicId",
+      "value": "",
+      "description": "publicId da midia"
+    },
+    {
+      "key": "onDemandSendId",
+      "value": "",
+      "description": "id do TenantOnDemandSend"
+    },
+    {
+      "key": "onDemandScheduleId",
+      "value": "",
+      "description": "id da agenda"
+    },
+    {
+      "key": "onDemandTemplateId",
+      "value": "{{templateId}}",
+      "description": "template granted para send"
     }
   ],
   "auth": {
@@ -702,10 +732,28 @@
               }
             ],
             "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
-            "description": "Somente campos de plataforma: `costPerLead` / `cashbackOnReply` / `coinDebitOnStatus` / `whatsappAccountId`. `leadsPerRun` no body após a janela → 403.",
+            "description": "Campos de plataforma: costPerLead / costPerOnDemandSend / cashbackOnReply / coinDebitOnStatus / whatsappAccountId. knobs tenant-owned -> 403.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch costPerOnDemandSend",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
+            "description": "Preco on-demand. 0 fecha o canal.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"costPerOnDemandSend\": 0.4\n}"
             }
           }
         },
@@ -1047,6 +1095,60 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"cronExpression\": \"0 5 * * *\",\n  \"timeZone\": \"America/Sao_Paulo\",\n  \"enabled\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Job Schedule ORPHAN_MEDIA_CLEANUP",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/platform-job-schedules/ORPHAN_MEDIA_CLEANUP",
+            "description": "Default seed: 0 3 1,16 * * America/Sao_Paulo (gym-ctrl)."
+          }
+        },
+        {
+          "name": "Put Job Schedule ORPHAN_MEDIA_CLEANUP",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/platform-job-schedules/ORPHAN_MEDIA_CLEANUP",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cronExpression\": \"0 3 1,16 * *\",\n  \"timeZone\": \"America/Sao_Paulo\",\n  \"enabled\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Job Schedule ON_DEMAND_SCHEDULE_RUN",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/platform-job-schedules/ON_DEMAND_SCHEDULE_RUN",
+            "description": "Default seed: 0 * * * * America/Sao_Paulo (notifly)."
+          }
+        },
+        {
+          "name": "Put Job Schedule ON_DEMAND_SCHEDULE_RUN",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/platform-job-schedules/ON_DEMAND_SCHEDULE_RUN",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cronExpression\": \"0 * * * *\",\n  \"timeZone\": \"America/Sao_Paulo\",\n  \"enabled\": true\n}"
             }
           }
         }
@@ -2392,6 +2494,567 @@
           }
         ]
       }
+    },
+    {
+      "name": "On-demand API",
+      "description": "Canal on-demand + X-API-KEY. Ordem sugerida: Login SA -> enable API -> set price -> Login Admin -> create key -> upload -> send -> get send -> conversations -> schedule -> cancel -> 401 platform. Sem raw keys de producao.",
+      "item": [
+        {
+          "name": "Login Super Admin (ref)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/auth/login",
+            "description": "Grava platformToken. Preferir pasta Auth se ja logado.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{platformEmail}}\",\n  \"password\": \"{{platformPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  if (j.token) pm.collectionVariables.set('platformToken', j.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SA - Enable apiAccessEnabled",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}",
+            "description": "Grant de API. Default seed = false.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"apiAccessEnabled\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "SA - Set costPerOnDemandSend",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
+            "description": "0 fecha o canal. Admin GET ve; Admin PATCH 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"costPerOnDemandSend\": 0.4\n}"
+            }
+          }
+        },
+        {
+          "name": "Login Tenant Admin (ref)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/auth/login",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{tenantEmail}}\",\n  \"password\": \"{{tenantPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  if (j.token) pm.collectionVariables.set('tenantToken', j.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin JWT - Create API key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/api-keys",
+            "description": "201 com key uma vez. Salva {{tenantApiKey}}.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tenantToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"postman-on-demand\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  if (j.key) pm.collectionVariables.set('tenantApiKey', j.key);",
+                  "  if (j.id != null) pm.collectionVariables.set('apiKeyId', String(j.id));",
+                  "  pm.test('key plaintext uma vez', () => pm.expect(j.key).to.be.a('string'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin JWT - List API keys (sem raw)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/api-keys",
+            "description": "Nao deve conter campo key/plaintext.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tenantToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Key - List granted templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/whatsapp-templates",
+            "description": "Allowlist. So templates granted.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-KEY",
+                  "type": "string"
+                },
+                {
+                  "key": "value",
+                  "value": "{{tenantApiKey}}",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Key - Upload media",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/media",
+            "description": "Salva mediaPublicId. Selecione arquivo no Postman.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-KEY",
+                  "type": "string"
+                },
+                {
+                  "key": "value",
+                  "value": "{{tenantApiKey}}",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "jpeg/png/webp <= 5 MB"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  if (j.publicId) pm.collectionVariables.set('mediaPublicId', j.publicId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public - GET media by publicId",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/public/media/{{mediaPublicId}}",
+            "description": "Sem auth. Meta precisa HTTPS em producao (PUBLIC_API_BASE_URL).",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Key - Send on-demand template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/whatsapp-templates/{{onDemandTemplateId}}/sends",
+            "description": "201 sem debito de coins. Live Graph se WABA configurada.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-KEY",
+                  "type": "string"
+                },
+                {
+                  "key": "value",
+                  "value": "{{tenantApiKey}}",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"11999999999\",\n  \"variables\": { \"body.1\": \"Postman\" },\n  \"imageId\": \"{{mediaPublicId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  if (j.id != null) pm.collectionVariables.set('onDemandSendId', String(j.id));",
+                  "  if (j.conversationId != null) pm.collectionVariables.set('conversationId', String(j.conversationId));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Key - Get on-demand send",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/on-demand-sends/{{onDemandSendId}}",
+            "description": "lastStatus null/sent ate webhook.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-KEY",
+                  "type": "string"
+                },
+                {
+                  "key": "value",
+                  "value": "{{tenantApiKey}}",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Key - List conversations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/conversations",
+            "description": "Allowlist. Status C = windowOpen.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-KEY",
+                  "type": "string"
+                },
+                {
+                  "key": "value",
+                  "value": "{{tenantApiKey}}",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Key - Create schedule (hora futura SP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/on-demand-schedules",
+            "description": "Hora passada -> 400. Ajuste scheduledFor para futuro real se for testar fire.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-KEY",
+                  "type": "string"
+                },
+                {
+                  "key": "value",
+                  "value": "{{tenantApiKey}}",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateId\": {{onDemandTemplateId}},\n  \"to\": \"11999999999\",\n  \"scheduledFor\": \"2099-01-15T14:00:00\",\n  \"variables\": { \"body.1\": \"Agenda\" },\n  \"imageId\": \"{{mediaPublicId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  if (j.id != null) pm.collectionVariables.set('onDemandScheduleId', String(j.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Key - Cancel schedule",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/on-demand-schedules/{{onDemandScheduleId}}/cancel",
+            "description": "So PENDING.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-KEY",
+                  "type": "string"
+                },
+                {
+                  "key": "value",
+                  "value": "{{tenantApiKey}}",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Key - GET /platform/tenants (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/tenants",
+            "description": "Fora da allowlist -> 401.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-KEY",
+                  "type": "string"
+                },
+                {
+                  "key": "value",
+                  "value": "{{tenantApiKey}}",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 fora da allowlist', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SA JWT - POST send (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/whatsapp-templates/{{onDemandTemplateId}}/sends",
+            "description": "Super Admin nao dispara on-demand.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"11999999999\",\n  \"variables\": {}\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Super Admin', () => pm.expect(pm.response.code).to.eql(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Notifly",

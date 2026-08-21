@@ -26,6 +26,7 @@ export type ApplyAfterStatusArgs = {
   status: WhatsappDeliveryStatus;
   tenantLeadId?: number | null;
   listSendId?: number | null;
+  onDemandSendId?: number | null;
 };
 
 @Injectable()
@@ -40,18 +41,34 @@ export class CoinDebitOnStatusService {
    * o caller deve preferir try/log para não reverter o append de WhatsappSendStatus.
    */
   async applyAfterStatus(args: ApplyAfterStatusArgs): Promise<void> {
-    const { tenantId, status, tenantLeadId, listSendId } = args;
+    const { tenantId, status, tenantLeadId, listSendId, onDemandSendId } =
+      args;
 
-    if (tenantLeadId == null && listSendId == null) {
+    if (
+      tenantLeadId == null &&
+      listSendId == null &&
+      onDemandSendId == null
+    ) {
       return;
     }
 
     if (status === WhatsappDeliveryStatus.failed) {
-      await this.refundIfNeeded({ tenantId, tenantLeadId, listSendId });
+      await this.refundIfNeeded({
+        tenantId,
+        tenantLeadId,
+        listSendId,
+        onDemandSendId,
+      });
       return;
     }
 
-    await this.debitIfDue({ tenantId, status, tenantLeadId, listSendId });
+    await this.debitIfDue({
+      tenantId,
+      status,
+      tenantLeadId,
+      listSendId,
+      onDemandSendId,
+    });
   }
 
   private async debitIfDue(args: {
@@ -59,12 +76,17 @@ export class CoinDebitOnStatusService {
     status: WhatsappDeliveryStatus;
     tenantLeadId?: number | null;
     listSendId?: number | null;
+    onDemandSendId?: number | null;
   }): Promise<void> {
     const trigger = await this.resolveTrigger(args.tenantId);
     if (!this.meetsTrigger(args.status, trigger)) {
       return;
     }
 
+    if (args.onDemandSendId != null) {
+      await this.debitOnDemandSend(args.tenantId, args.onDemandSendId);
+      return;
+    }
     if (args.listSendId != null) {
       await this.debitListSend(args.tenantId, args.listSendId);
       return;
@@ -78,7 +100,12 @@ export class CoinDebitOnStatusService {
     tenantId: number;
     tenantLeadId?: number | null;
     listSendId?: number | null;
+    onDemandSendId?: number | null;
   }): Promise<void> {
+    if (args.onDemandSendId != null) {
+      await this.refundOnDemandSend(args.tenantId, args.onDemandSendId);
+      return;
+    }
     if (args.listSendId != null) {
       await this.refundListSend(args.tenantId, args.listSendId);
       return;
@@ -369,6 +396,144 @@ export class CoinDebitOnStatusService {
     });
   }
 
+  private async debitOnDemandSend(
+    tenantId: number,
+    onDemandSendId: number,
+  ): Promise<void> {
+    const send = await this.prisma.tenantOnDemandSend.findUnique({
+      where: { id: onDemandSendId },
+      select: {
+        id: true,
+        tenantId: true,
+        wamid: true,
+        coinDebitedAt: true,
+      },
+    });
+    if (
+      !send ||
+      send.tenantId !== tenantId ||
+      send.coinDebitedAt != null
+    ) {
+      return;
+    }
+
+    const cost = await this.resolveOnDemandCost(tenantId);
+    if (cost <= 0) {
+      this.logger.warn(
+        `[debitOnDemandSend] costPerOnDemandSend=${cost} tenant=${tenantId} onDemandSendId=${onDemandSendId}; skip debit`,
+      );
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const fresh = await tx.tenantOnDemandSend.findUnique({
+        where: { id: onDemandSendId },
+        select: { coinDebitedAt: true },
+      });
+      if (fresh?.coinDebitedAt != null) {
+        return;
+      }
+
+      const userId = await this.resolveWalletUserId(tx, tenantId);
+      if (userId == null) {
+        this.logger.warn(
+          `[debitOnDemandSend] sem carteira/user para tenant=${tenantId} onDemandSendId=${onDemandSendId}`,
+        );
+        return;
+      }
+
+      await tx.coin.update({
+        where: {
+          userId_tenantId: { userId, tenantId },
+        },
+        data: { balance: { decrement: cost } },
+      });
+      await tx.coinTransaction.create({
+        data: {
+          userId,
+          tenantId,
+          type: 'DEBITO',
+          amount: -cost,
+          description: `on_demand wamid=${send.wamid} onDemandSendId=${onDemandSendId}`,
+        },
+      });
+      await tx.tenantOnDemandSend.update({
+        where: { id: onDemandSendId },
+        data: { coinDebitedAt: new Date() },
+      });
+    });
+  }
+
+  private async refundOnDemandSend(
+    tenantId: number,
+    onDemandSendId: number,
+  ): Promise<void> {
+    const send = await this.prisma.tenantOnDemandSend.findUnique({
+      where: { id: onDemandSendId },
+      select: {
+        id: true,
+        tenantId: true,
+        wamid: true,
+        coinDebitedAt: true,
+        coinRefundedAt: true,
+      },
+    });
+    if (
+      !send ||
+      send.tenantId !== tenantId ||
+      send.coinDebitedAt == null ||
+      send.coinRefundedAt != null
+    ) {
+      return;
+    }
+
+    const cost = await this.resolveOnDemandCost(tenantId);
+    if (cost <= 0) {
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const fresh = await tx.tenantOnDemandSend.findUnique({
+        where: { id: onDemandSendId },
+        select: { coinDebitedAt: true, coinRefundedAt: true },
+      });
+      if (
+        fresh?.coinDebitedAt == null ||
+        fresh.coinRefundedAt != null
+      ) {
+        return;
+      }
+
+      const userId = await this.resolveWalletUserId(tx, tenantId);
+      if (userId == null) {
+        this.logger.warn(
+          `[refundOnDemandSend] sem carteira/user para tenant=${tenantId} onDemandSendId=${onDemandSendId}`,
+        );
+        return;
+      }
+
+      await tx.coin.update({
+        where: {
+          userId_tenantId: { userId, tenantId },
+        },
+        data: { balance: { increment: cost } },
+      });
+      await tx.coinTransaction.create({
+        data: {
+          userId,
+          tenantId,
+          type: 'CREDITO',
+          amount: cost,
+          description: `on_demand refund wamid=${send.wamid} onDemandSendId=${onDemandSendId}`,
+        },
+      });
+      await tx.tenantOnDemandSend.update({
+        where: { id: onDemandSendId },
+        data: { coinRefundedAt: new Date() },
+      });
+    });
+  }
+
   private async resolveTrigger(
     tenantId: number,
   ): Promise<CoinDebitOnStatus> {
@@ -385,6 +550,14 @@ export class CoinDebitOnStatusService {
       select: { costPerLead: true },
     });
     return config?.costPerLead ?? 0;
+  }
+
+  private async resolveOnDemandCost(tenantId: number): Promise<number> {
+    const config = await this.prisma.tenantOutreachConfig.findUnique({
+      where: { tenantId },
+      select: { costPerOnDemandSend: true },
+    });
+    return config?.costPerOnDemandSend ?? 0;
   }
 
   /**

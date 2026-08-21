@@ -31,6 +31,7 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
     overrides?: {
       whatsappAccountId?: number | null;
       coinDebitOnStatus?: 'sent' | 'delivered' | 'read';
+      costPerOnDemandSend?: number;
     },
   ) {
     return {
@@ -38,6 +39,7 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
       tenantId,
       enabled: false,
       costPerLead: 0.35,
+      costPerOnDemandSend: overrides?.costPerOnDemandSend ?? 0,
       cashbackOnReply: 0,
       coinDebitOnStatus: overrides?.coinDebitOnStatus ?? 'delivered',
       outreachTemplateId: 1,
@@ -197,6 +199,61 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
     const { service } = build();
     const result = await service.get(10);
     expect(result.coinDebitOnStatus).toBe('delivered');
+  });
+
+  it('PATCH platform { costPerOnDemandSend: 0.4 } persiste o preço', async () => {
+    const { service, prisma } = build();
+    const result = await service.patchPlatform(
+      10,
+      { costPerOnDemandSend: 0.4 },
+      [Roles.SUPER_ADMIN],
+      { costPerOnDemandSend: 0.4 },
+    );
+    expect(prisma.tenantOutreachConfig.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ costPerOnDemandSend: 0.4 }),
+      }),
+    );
+    expect(result.costPerOnDemandSend).toBe(0.4);
+  });
+
+  it('Admin PATCH { costPerOnDemandSend } → 403, row inalterada', async () => {
+    const { service, prisma } = build();
+    await expect(
+      service.patchTenant(
+        10,
+        { leadsPerRun: 10 },
+        [Roles.ADMIN],
+        { costPerOnDemandSend: 0.01 },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.tenantOutreachConfig.update).not.toHaveBeenCalled();
+  });
+
+  it('GET inclui costPerOnDemandSend (default 0)', async () => {
+    const { service } = build();
+    const result = await service.get(10);
+    expect(result.costPerOnDemandSend).toBe(0);
+  });
+
+  it('Admin create sem o campo → costPerOnDemandSend 0', async () => {
+    const { service, prisma } = build();
+    const result = await service.createTenant(
+      30,
+      {
+        enabled: false,
+        schedule: {},
+        categories: [],
+      },
+      [Roles.ADMIN],
+      { enabled: false, schedule: {}, categories: [] },
+    );
+    expect(prisma.tenantOutreachConfig.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ costPerOnDemandSend: 0 }),
+      }),
+    );
+    expect(result.costPerOnDemandSend).toBe(0);
   });
 
   it('PATCH platform { whatsappAccountId: 2 } persiste conta válida não-default', async () => {

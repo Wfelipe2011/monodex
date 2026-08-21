@@ -63,6 +63,15 @@ import { TenantScrapeTargetsController } from './tenant-scrape-targets.controlle
 import { TenantScrapeTargetsService } from './tenant-scrape-targets.service';
 import { AuthModule } from '../auth.module';
 import { PublicInvitesController } from './public-invites.controller';
+import { ApiKeysController } from './api-keys.controller';
+import { ApiKeysService } from './api-keys.service';
+import { MediaController } from './media.controller';
+import { PublicMediaController } from './public-media.controller';
+import { MediaService } from './media.service';
+import { OnDemandSendsController } from './on-demand-sends.controller';
+import { OnDemandSendsService } from './on-demand-sends.service';
+import { OnDemandSchedulesController } from './on-demand-schedules.controller';
+import { OnDemandSchedulesService } from './on-demand-schedules.service';
 
 @Module({
   imports: [PrismaModule, HttpModule, AuthModule],
@@ -75,6 +84,9 @@ import { PublicInvitesController } from './public-invites.controller';
     InvitesController,
     TenantInvitesController,
     PublicInvitesController,
+    MediaController,
+    PublicMediaController,
+    ApiKeysController,
     CoinsController,
     TenantCoinsController,
     OutreachConfigController,
@@ -92,6 +104,8 @@ import { PublicInvitesController } from './public-invites.controller';
     ListCampaignsController,
     ListSendsController,
     ConversationsController,
+    OnDemandSendsController,
+    OnDemandSchedulesController,
     OpsController,
     TenantLeadsStatsController,
     SendPolicyController,
@@ -104,6 +118,7 @@ import { PublicInvitesController } from './public-invites.controller';
     TenantsService,
     UsersService,
     InvitesService,
+    ApiKeysService,
     CoinsService,
     OutreachConfigService,
     OutreachSendsService,
@@ -117,11 +132,15 @@ import { PublicInvitesController } from './public-invites.controller';
     LeadListsService,
     ListCampaignsService,
     ConversationsService,
+    OnDemandSendsService,
+    OnDemandSchedulesService,
     OpsService,
     SendPolicyService,
     TemplateGrantsService,
+    MediaService,
     TenantScopeGuard,
     TenantActiveGuard,
   ],
+  exports: [MediaService],
 })
 export class AdminModule {}

@@ -26,7 +26,8 @@ export class PlatformJobSchedulesController {
 
   @Get()
   @ApiOperation({
-    summary: 'Listar schedules de jobs da plataforma (sync templates e scrape)',
+    summary:
+      'Listar schedules de jobs da plataforma (sync templates, scrape, orphan media, on-demand schedule)',
   })
   list() {
     return this.platformJobSchedulesService.list();
@@ -46,7 +47,7 @@ export class PlatformJobSchedulesController {
   @ApiOperation({
     summary: 'Atualizar (upsert) cron, timezone e enabled de um job da plataforma',
     description:
-      'jobKey deve ser WHATSAPP_TEMPLATE_SYNC ou SCRAPE. Workers fazem poll; PUT não notifica processos.',
+      'jobKey deve ser um valor de PlatformJobKey (ex.: WHATSAPP_TEMPLATE_SYNC, SCRAPE, ORPHAN_MEDIA_CLEANUP, ON_DEMAND_SCHEDULE_RUN). Workers fazem poll; PUT não notifica processos.',
   })
   @ApiParam({ name: 'jobKey', enum: PlatformJobKey })
   upsert(
