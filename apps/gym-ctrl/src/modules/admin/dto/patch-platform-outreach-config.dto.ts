@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNumber, IsOptional, Min, ValidateIf } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsOptional, Min, ValidateIf } from 'class-validator';
 
-/** PATCH /platform: preço e número WhatsApp. Campos tenant-owned no body → 403. */
+/** PATCH /platform: preço, gatilho de débito e número WhatsApp. Campos tenant-owned no body → 403. */
 export class PatchPlatformOutreachConfigDto {
   @ApiPropertyOptional({ description: 'Custo em coins por lead contatado' })
   @IsOptional()
@@ -12,6 +12,16 @@ export class PatchPlatformOutreachConfigDto {
   @IsOptional()
   @IsNumber()
   cashbackOnReply?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Status Meta em que o coin é debitado (cidade e lista). Default no schema: delivered. failed não é permitido.',
+    enum: ['sent', 'delivered', 'read'],
+    example: 'delivered',
+  })
+  @IsOptional()
+  @IsIn(['sent', 'delivered', 'read'])
+  coinDebitOnStatus?: 'sent' | 'delivered' | 'read';
 
   @ApiPropertyOptional({
     description:

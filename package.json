@@ -28,7 +28,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./apps/dexworld/test/jest-e2e.json",
     "seed:platform-admin": "ts-node prisma/seed-platform-admin.ts",
-    "seed:list-campaigns": "ts-node prisma/seed-list-campaigns.ts"
+    "seed:list-campaigns": "ts-node prisma/seed-list-campaigns.ts",
+    "backfill:coin-debit-on-status": "ts-node scripts/backfill-coin-debit-on-status.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.0",

@@ -14,6 +14,7 @@ import {
   isDedicatedBoundToTenant,
   upsertConversationThenMessage,
 } from './conversation-thread';
+import { CoinDebitOnStatusService } from './coin-debit-on-status.service';
 import { Contact, Message, Metadata, Status } from './interfaces';
 
 export type InboundCorrelation =
@@ -41,7 +42,10 @@ export type InboundHandleResult = {
 export class WebhookPersistenceService {
   private readonly logger = new Logger(WebhookPersistenceService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly coinDebitOnStatus: CoinDebitOnStatusService,
+  ) {}
 
   async handleInboundMessage(
     msg: Message,
@@ -135,6 +139,9 @@ export class WebhookPersistenceService {
 
     const listSend = await this.prisma.tenantListSend.findUnique({
       where: { wamid: status.id },
+      include: {
+        listLead: { include: { list: { select: { tenantId: true } } } },
+      },
     });
     const tenantLead = await this.prisma.tenantLead.findUnique({
       where: { messageId: status.id },
@@ -175,8 +182,35 @@ export class WebhookPersistenceService {
     if (tenantLead) {
       await this.prisma.tenantLead.update({
         where: { id: tenantLead.id },
-        data: { lastStatus: deliveryStatus },
+        data: {
+          lastStatus: deliveryStatus,
+          ...(deliveryStatus === WhatsappDeliveryStatus.failed
+            ? { contacted: false }
+            : {}),
+        },
       });
+    }
+
+    // Billing após append + lastStatus/unlock. try/log: falha de coin
+    // não reverte WhatsappSendStatus (Meta pode reenviar; idempotência cobre).
+    const billingTenantId =
+      listSend?.listLead.list.tenantId ?? tenantLead?.tenantId ?? null;
+    if (
+      billingTenantId != null &&
+      (listSend != null || tenantLead != null)
+    ) {
+      try {
+        await this.coinDebitOnStatus.applyAfterStatus({
+          tenantId: billingTenantId,
+          status: deliveryStatus,
+          listSendId: listSend?.id ?? null,
+          tenantLeadId: tenantLead?.id ?? null,
+        });
+      } catch (e) {
+        this.logger.error(
+          `[handleStatus] billing failed wamid=${status.id} status=${deliveryStatus}: ${e}`,
+        );
+      }
     }
   }
 

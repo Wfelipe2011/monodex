@@ -4,6 +4,7 @@ import { Contact, Message, Metadata, Status } from './interfaces';
 
 const LIST_TENANT_ID = 3;
 const DEDICATED_TENANT_ID = 11;
+const CITY_TENANT_ID = 7;
 const DEDICATED_ACCOUNT_ID = 2;
 const DEFAULT_ACCOUNT_ID = 1;
 const DEDICATED_PHONE_NUMBER_ID = '999000111222';
@@ -70,6 +71,7 @@ describe('WebhookPersistenceService', () => {
     } | null;
     existingConversation?: { id: number; displayName: string } | null;
     created?: { id: number };
+    billingError?: Error;
   }) {
     const createdAt = new Date('2026-08-18T12:00:00.000Z');
     const prisma = {
@@ -136,8 +138,16 @@ describe('WebhookPersistenceService', () => {
     prisma.$transaction.mockImplementation(async (fn: (tx: typeof prisma) => unknown) =>
       fn(prisma),
     );
-    const service = new WebhookPersistenceService(prisma as never);
-    return { service, prisma };
+    const coinDebitOnStatus = {
+      applyAfterStatus: options?.billingError
+        ? jest.fn().mockRejectedValue(options.billingError)
+        : jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new WebhookPersistenceService(
+      prisma as never,
+      coinDebitOnStatus as never,
+    );
+    return { service, prisma, coinDebitOnStatus };
   }
 
   it('dedicado frio + contacts nome persiste thread com displayName', async () => {
@@ -328,8 +338,8 @@ describe('WebhookPersistenceService', () => {
   });
 
   it('status só-cidade amarra tenantLeadId, atualiza lastStatus e não unlock de lista', async () => {
-    const { service, prisma } = build({
-      tenantLead: { id: 77 },
+    const { service, prisma, coinDebitOnStatus } = build({
+      tenantLead: { id: 77, tenantId: CITY_TENANT_ID },
     });
 
     await service.handleStatus(statusEvent({ id: CITY_WAMID, status: 'delivered' }));
@@ -353,10 +363,16 @@ describe('WebhookPersistenceService', () => {
     });
     expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
     expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
+    expect(coinDebitOnStatus.applyAfterStatus).toHaveBeenCalledWith({
+      tenantId: CITY_TENANT_ID,
+      status: WhatsappDeliveryStatus.delivered,
+      listSendId: null,
+      tenantLeadId: 77,
+    });
   });
 
   it('status só-lista amarra listSendId, atualiza send e unlock em failed', async () => {
-    const { service, prisma } = build({
+    const { service, prisma, coinDebitOnStatus } = build({
       listSend: {
         id: 9,
         listLeadId: 42,
@@ -387,11 +403,38 @@ describe('WebhookPersistenceService', () => {
       data: { sendLockCampaignId: null },
     });
     expect(prisma.tenantLead.update).not.toHaveBeenCalled();
+    expect(coinDebitOnStatus.applyAfterStatus).toHaveBeenCalledWith({
+      tenantId: LIST_TENANT_ID,
+      status: WhatsappDeliveryStatus.failed,
+      listSendId: 9,
+      tenantLeadId: null,
+    });
   });
 
-  it('failed de cidade não chama unlock de lista', async () => {
-    const { service, prisma } = build({
-      tenantLead: { id: 77 },
+  it('lista delivered chama billing com tenant da lista', async () => {
+    const { service, coinDebitOnStatus } = build({
+      listSend: {
+        id: 9,
+        listLeadId: 42,
+        listLead: { list: { tenantId: LIST_TENANT_ID } },
+      },
+    });
+
+    await service.handleStatus(
+      statusEvent({ id: LIST_SEND_WAMID, status: 'delivered' }),
+    );
+
+    expect(coinDebitOnStatus.applyAfterStatus).toHaveBeenCalledWith({
+      tenantId: LIST_TENANT_ID,
+      status: WhatsappDeliveryStatus.delivered,
+      listSendId: 9,
+      tenantLeadId: null,
+    });
+  });
+
+  it('failed de cidade seta contacted=false e chama billing (sem unlock de lista)', async () => {
+    const { service, prisma, coinDebitOnStatus } = build({
+      tenantLead: { id: 77, tenantId: CITY_TENANT_ID },
     });
 
     await service.handleStatus(statusEvent({ id: CITY_WAMID, status: 'failed' }));
@@ -399,14 +442,38 @@ describe('WebhookPersistenceService', () => {
     expect(prisma.whatsappSendStatus.create).toHaveBeenCalled();
     expect(prisma.tenantLead.update).toHaveBeenCalledWith({
       where: { id: 77 },
-      data: { lastStatus: WhatsappDeliveryStatus.failed },
+      data: {
+        lastStatus: WhatsappDeliveryStatus.failed,
+        contacted: false,
+      },
     });
     expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
     expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
+    expect(coinDebitOnStatus.applyAfterStatus).toHaveBeenCalledWith({
+      tenantId: CITY_TENANT_ID,
+      status: WhatsappDeliveryStatus.failed,
+      listSendId: null,
+      tenantLeadId: 77,
+    });
   });
 
-  it('status sem match persiste row órfã sem update de lead/send', async () => {
-    const { service, prisma } = build();
+  it('erro de billing não impede append do status', async () => {
+    const { service, prisma, coinDebitOnStatus } = build({
+      tenantLead: { id: 77, tenantId: CITY_TENANT_ID },
+      billingError: new Error('wallet down'),
+    });
+
+    await expect(
+      service.handleStatus(statusEvent({ id: CITY_WAMID, status: 'delivered' })),
+    ).resolves.toBeUndefined();
+
+    expect(prisma.whatsappSendStatus.create).toHaveBeenCalled();
+    expect(prisma.tenantLead.update).toHaveBeenCalled();
+    expect(coinDebitOnStatus.applyAfterStatus).toHaveBeenCalled();
+  });
+
+  it('status sem match persiste row órfã sem update de lead/send nem billing', async () => {
+    const { service, prisma, coinDebitOnStatus } = build();
 
     await service.handleStatus(
       statusEvent({ id: ORPHAN_WAMID, status: 'sent' }),
@@ -425,11 +492,12 @@ describe('WebhookPersistenceService', () => {
     expect(prisma.tenantLead.update).not.toHaveBeenCalled();
     expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
     expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
+    expect(coinDebitOnStatus.applyAfterStatus).not.toHaveBeenCalled();
   });
 
   it('status desconhecido não insere nem atualiza', async () => {
-    const { service, prisma } = build({
-      tenantLead: { id: 77 },
+    const { service, prisma, coinDebitOnStatus } = build({
+      tenantLead: { id: 77, tenantId: CITY_TENANT_ID },
     });
 
     await service.handleStatus(
@@ -440,5 +508,6 @@ describe('WebhookPersistenceService', () => {
     expect(prisma.tenantLead.update).not.toHaveBeenCalled();
     expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
     expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
+    expect(coinDebitOnStatus.applyAfterStatus).not.toHaveBeenCalled();
   });
 });

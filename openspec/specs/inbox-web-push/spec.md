@@ -3,9 +3,7 @@
 ## Purpose
 
 Deliver Web Push notifications (VAPID) to authenticated users when a list lead sends an inbound WhatsApp message and the user does not have an active WebSocket connection, with WhatsApp-style conversation grouping and lead-aware title/body.
-
 ## Requirements
-
 ### Requirement: Users can register push subscriptions
 
 The system SHALL allow authenticated users to register a Web Push subscription via `PUT /tenant/push-subscriptions` with body `{ endpoint, keys: { p256dh, auth } }`. Subscriptions MUST be stored linked to the authenticated `userId`. The same `endpoint` MUST upsert (update keys/user) rather than duplicate. When `Tenant.active` is false for the user's tenant, PUT and DELETE MUST be rejected with HTTP 403 (consultative lock); GET of other tenant resources remains specified elsewhere.
@@ -27,8 +25,7 @@ gym-ctrl MUST use a single global VAPID key pair (`VAPID_PRIVATE_KEY`, `VAPID_SU
 - **THEN** the same VAPID credentials are used as for tenant 99
 
 ### Requirement: Inbound list-lead messages trigger web push for eligible offline users
-
-When `publishInbound` runs for a `message.inbound` event with `leadName`, the system MUST send Web Push to all users where `user.tenantId` equals event `tenantId` OR `SUPER_ADMIN` is in `user.roles`, excluding users with at least one OPEN inbox WebSocket connection at dispatch time.
+When `publishInbound` runs for a `message.inbound` event with `displayName` and `conversationId`, the system MUST send Web Push to all users where `user.tenantId` equals event `tenantId` OR `SUPER_ADMIN` is in `user.roles`, excluding users with at least one OPEN inbox WebSocket connection at dispatch time.
 
 #### Scenario: Tenant user offline receives push
 - **WHEN** inbound is published for tenant 4 and user A (tenant 4) has subscription and no OPEN WS
@@ -42,29 +39,27 @@ When `publishInbound` runs for a `message.inbound` event with `leadName`, the sy
 - **WHEN** user A has OPEN inbox WebSocket during publishInbound
 - **THEN** no Web Push is sent to user A's subscriptions
 
-#### Scenario: No list lead context
-- **WHEN** event lacks list-lead context (not applicable to current internal notify path)
+#### Scenario: No conversation context
+- **WHEN** inbound is not persisted onto a conversation thread
 - **THEN** no web push is sent
 
 ### Requirement: Notification title and body include lead context and message preview
-
-Push payload MUST use title `Nova mensagem de {leadName}` (fallback to normalized phone if name empty). Body MUST contain a preview of the inbound message: text/body truncated to a reasonable length for text and button types; non-text types MAY use a short generic preview.
+Push payload MUST use title `Nova mensagem de {displayName}` (fallback to normalized phone if name empty). Body MUST contain a preview of the inbound message: text/body truncated to a reasonable length for text and button types; non-text types MAY use a short generic preview.
 
 #### Scenario: Text inbound preview
-- **WHEN** inbound body is "Olá, tenho interesse!" and leadName is "João"
+- **WHEN** inbound body is "Olá, tenho interesse!" and displayName is "João"
 - **THEN** title is "Nova mensagem de João" and body contains message preview
 
 #### Scenario: WhatsApp-style thread tag
-- **WHEN** multiple inbound messages arrive for the same leadId
-- **THEN** push notifications MUST use the same `tag` value `inbox-lead-{leadId}` so the OS replaces the prior notification for that conversation
+- **WHEN** multiple inbound messages arrive for the same conversationId
+- **THEN** push notifications MUST use the same `tag` value `inbox-conversation-{conversationId}` so the OS replaces the prior notification for that conversation
 
 ### Requirement: Push payload includes deep-link data
-
-Each push MUST include `data.url` pointing to the list lead conversation path `/tenant/{tenantId}/lead-lists/{listId}/leads/{leadId}` plus `tenantId`, `listId`, `leadId`, and `messageId`.
+Each push MUST include `data.url` pointing to `/tenant/{tenantId}/conversations/{conversationId}` plus `tenantId`, `conversationId`, and `messageId`. The payload MUST NOT require `listId` or `leadId`.
 
 #### Scenario: Click opens conversation
 - **WHEN** user activates the notification in the Service Worker
-- **THEN** documented URL in `data.url` identifies the correct lead thread
+- **THEN** documented URL in `data.url` identifies the correct conversation thread
 
 ### Requirement: Expired subscriptions are removed
 
@@ -73,3 +68,4 @@ When the push service returns HTTP 410 Gone for a subscription, the system MUST 
 #### Scenario: Gone subscription cleanup
 - **WHEN** web-push returns 410 for an endpoint
 - **THEN** subscription is deleted from database
+

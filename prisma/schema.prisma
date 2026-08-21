@@ -161,11 +161,13 @@ model TenantLead {
   userLeads UserLead[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
-  uuid         String                   @unique @default(uuid())
-  lastStatus   WhatsappDeliveryStatus?  @map("last_status")
-  templateName String?                  @map("template_name")
-  messageId    String?                  @unique @map("message_id")
-  sendStatuses WhatsappSendStatus[]
+  uuid           String                   @unique @default(uuid())
+  lastStatus     WhatsappDeliveryStatus?  @map("last_status")
+  templateName   String?                  @map("template_name")
+  messageId      String?                  @unique @map("message_id")
+  coinDebitedAt  DateTime?                @map("coin_debited_at")
+  coinRefundedAt DateTime?                @map("coin_refunded_at")
+  sendStatuses   WhatsappSendStatus[]
 
   @@map("tenant_leads")
 }
@@ -371,6 +373,7 @@ model TenantOutreachConfig {
   enabled             Boolean                  @default(false)
   costPerLead         Float                    @map("cost_per_lead")
   cashbackOnReply     Float                    @default(0) @map("cashback_on_reply")
+  coinDebitOnStatus   CoinDebitOnStatus        @default(delivered) @map("coin_debit_on_status")
   outreachTemplateId  Int?                     @map("outreach_template_id")
   notifyTemplateId    Int?                     @map("notify_template_id")
   outreachTemplate    WhatsappMessageTemplate? @relation("OutreachTemplate", fields: [outreachTemplateId], references: [id])
@@ -493,6 +496,12 @@ enum WhatsappDeliveryStatus {
   failed
 }
 
+enum CoinDebitOnStatus {
+  sent
+  delivered
+  read
+}
+
 enum ListCampaignButtonAction {
   NOTIFY
   NOOP
@@ -565,6 +574,8 @@ model TenantListSend {
   wamid                String                        @unique
   sentAt               DateTime                      @default(now()) @map("sent_at")
   lastStatus           WhatsappDeliveryStatus?       @map("last_status")
+  coinDebitedAt        DateTime?                     @map("coin_debited_at")
+  coinRefundedAt       DateTime?                     @map("coin_refunded_at")
   statuses             WhatsappSendStatus[]
   conversationMessages WhatsappConversationMessage[]
 

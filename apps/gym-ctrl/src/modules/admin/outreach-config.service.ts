@@ -34,6 +34,7 @@ const TENANT_OWNED_OUTREACH_KEYS = [
 const PLATFORM_OUTREACH_KEYS = [
   'costPerLead',
   'cashbackOnReply',
+  'coinDebitOnStatus',
   'whatsappAccountId',
 ] as const;
 
@@ -185,6 +186,9 @@ export class OutreachConfigService {
             : {}),
           ...(dto.cashbackOnReply !== undefined
             ? { cashbackOnReply: dto.cashbackOnReply }
+            : {}),
+          ...(dto.coinDebitOnStatus !== undefined
+            ? { coinDebitOnStatus: dto.coinDebitOnStatus }
             : {}),
           ...(dto.whatsappAccountId !== undefined
             ? { whatsappAccountId: dto.whatsappAccountId }

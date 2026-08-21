@@ -3,11 +3,9 @@
 ## Purpose
 
 Super-admin API to manage `TenantOutreachConfig` and platform `WhatsappAccount` (no Meta token storage).
-
 ## Requirements
-
 ### Requirement: Super admin manages tenant outreach config
-The system SHALL allow a `SUPER_ADMIN` to GET `TenantOutreachConfig` and to PATCH platform-owned fields `costPerLead` and `cashbackOnReply` at any time under `/platform/tenants/:tenantId/outreach-config`. Super Admin MUST NOT persist tenant-owned fields (`enabled`, `schedule`, `categories`, `leadsPerRun`, `sendIntervalSeconds`, `slotBindings`, `outreachTemplateId`, `notifyTemplateId`) except when creating a missing config or within 30 minutes of that config's `createdAt`. PUT of a missing config MAY include tenant-owned fields (bootstrap). The API MUST reject bodies that include `outreachTemplateName`, `notifyTenantTemplateName`, `outreachContactText`, or `headerImageUrl`.
+The system SHALL allow a `SUPER_ADMIN` to GET `TenantOutreachConfig` and to PATCH platform-owned fields `costPerLead`, `cashbackOnReply`, and `whatsappAccountId` at any time under `/platform/tenants/:tenantId/outreach-config`. Super Admin MUST NOT persist tenant-owned fields (`enabled`, `schedule`, `categories`, `leadsPerRun`, `sendIntervalSeconds`, `slotBindings`, `outreachTemplateId`, `notifyTemplateId`) except when creating a missing config or within 30 minutes of that config's `createdAt`. PUT of a missing config MAY include tenant-owned fields (bootstrap) and MAY include `whatsappAccountId`. The API MUST reject bodies that include `outreachTemplateName`, `notifyTenantTemplateName`, `outreachContactText`, or `headerImageUrl`.
 
 #### Scenario: Super admin patches price after window
 - **WHEN** outreach config `createdAt` is older than 30 minutes and `SUPER_ADMIN` patches `{ costPerLead: 0.5 }`
@@ -41,11 +39,11 @@ The system SHALL reject enabling outreach (`enabled=true`) when the tenant has n
 - **THEN** the API responds with HTTP 400
 
 ### Requirement: Super admin manages platform WhatsApp accounts
-The system SHALL allow a `SUPER_ADMIN` to list, create, and update WhatsApp accounts belonging to the platform (`tenantId` null) under `/platform/whatsapp-accounts`. Create and update MUST accept `wabaId`. The API MUST NOT accept or return the Meta access token value—only `tokenEnvKey` and non-secret fields (`phoneNumberId`, `wabaId`, `displayPhone`, `enabled`, `provider`).
+The system SHALL allow a `SUPER_ADMIN` to list, create, and update WhatsApp accounts belonging to the platform (`tenantId` null) under `/platform/whatsapp-accounts`. Create and update MUST accept `wabaId` and MAY accept `isDefault`. Listed accounts MUST include every platform row, not only the default. Create and update MUST reject a `wabaId` that differs from the existing default account's `wabaId` when a default already exists. The API MUST NOT accept or return the Meta access token value—only `tokenEnvKey` and non-secret fields (`phoneNumberId`, `wabaId`, `displayPhone`, `enabled`, `provider`, `isDefault`). Promoting `isDefault` true MUST unset the previous default in the same transaction. Disabling the current default account MUST be rejected.
 
 #### Scenario: Create platform account
-- **WHEN** `SUPER_ADMIN` posts `{ phoneNumberId, wabaId, tokenEnvKey, displayPhone }` to `POST /platform/whatsapp-accounts`
-- **THEN** a `WhatsappAccount` is stored with `tenantId` null, `provider` Cloud API (or default), persisted `wabaId`, and the response does not include any access token secret
+- **WHEN** `SUPER_ADMIN` posts `{ phoneNumberId, wabaId, tokenEnvKey, displayPhone }` to `POST /platform/whatsapp-accounts` and a default already exists with the same `wabaId`
+- **THEN** a `WhatsappAccount` is stored with `tenantId` null, `provider` Cloud API (or default), persisted `wabaId`, `isDefault` false unless it is the first platform account, and the response does not include any access token secret
 
 #### Scenario: Reject tenant-scoped account in MVP
 - **WHEN** a create/update request attempts to set a non-null commercial `tenantId` on a WhatsApp account via platform API
@@ -53,11 +51,19 @@ The system SHALL allow a `SUPER_ADMIN` to list, create, and update WhatsApp acco
 
 #### Scenario: Update phone number id
 - **WHEN** `SUPER_ADMIN` patches `phoneNumberId` on `PATCH /platform/whatsapp-accounts/:id`
-- **THEN** subsequent platform sends by notifly resolving credentials use the updated id from the database (no code deploy)
+- **THEN** subsequent sends that resolve to that account MUST use the updated id from the database (no code deploy)
 
 #### Scenario: Update waba id
-- **WHEN** `SUPER_ADMIN` patches `wabaId` on the platform account
-- **THEN** the next template sync MUST call Graph using that WABA id
+- **WHEN** `SUPER_ADMIN` patches `wabaId` on the platform account to a value equal to the fleet `wabaId`
+- **THEN** the next template sync MUST call Graph using the default account's `wabaId`
+
+#### Scenario: Promote default
+- **WHEN** account B is enabled, unassigned, and Super Admin patches `{ isDefault: true }` on B while account A was default
+- **THEN** B is default and A has `isDefault` false
+
+#### Scenario: Disable default rejected
+- **WHEN** Super Admin patches `{ enabled: false }` on the current default account
+- **THEN** the API responds with HTTP 400 and the account remains enabled
 
 ### Requirement: Super admin manages scrape targets
 The system SHALL allow a `SUPER_ADMIN` to list, create, update, and disable/delete scrape targets under `/platform/scrape-targets`. Creating a target MUST accept a city name (creating the `City` if needed) and a category string, and MUST upsert on `(cityId, category)`. The API MUST NOT launch Puppeteer as a synchronous side effect of the write. Super Admin list MUST include all targets, not only tenant-linked ones.
@@ -82,7 +88,7 @@ The system SHALL allow a `SUPER_ADMIN` to list scrape coverage rows (city, categ
 - **THEN** the response MUST include persisted coverage rows without requiring a code deploy
 
 ### Requirement: Tenant admin patches operational outreach fields
-The system SHALL allow an active tenant `ADMIN` to GET and PATCH tenant-owned outreach fields on `/tenant/:tenantId/outreach-config`. Bodies that include `costPerLead` or `cashbackOnReply` MUST be rejected with HTTP 403. Admin MAY PUT a missing config with tenant-owned fields; omitted platform prices MUST default so sends do not run until Super Admin sets a positive `costPerLead`.
+The system SHALL allow an active tenant `ADMIN` to GET and PATCH tenant-owned outreach fields on `/tenant/:tenantId/outreach-config`. Bodies that include `costPerLead`, `cashbackOnReply`, or `whatsappAccountId` MUST be rejected with HTTP 403. Admin MAY PUT a missing config with tenant-owned fields; omitted platform prices MUST default so sends do not run until Super Admin sets a positive `costPerLead`; omitted `whatsappAccountId` MUST be stored as null (default sender). GET MUST include `whatsappAccountId` and the resolved WhatsApp account summary as read-only.
 
 #### Scenario: Admin patches knobs
 - **WHEN** `ADMIN` of tenant 4 patches `{ leadsPerRun: 10, sendIntervalSeconds: 5 }`
@@ -95,3 +101,19 @@ The system SHALL allow an active tenant `ADMIN` to GET and PATCH tenant-owned ou
 #### Scenario: Admin GET includes read-only price
 - **WHEN** `ADMIN` GETs outreach config that has `costPerLead` 0.35
 - **THEN** the response includes `costPerLead` 0.35
+
+#### Scenario: Admin cannot patch WhatsApp assignment
+- **WHEN** `ADMIN` patches `{ whatsappAccountId: 2 }`
+- **THEN** the API responds with HTTP 403
+
+### Requirement: Super admin assigns WhatsApp phone to tenant outreach config
+The system SHALL treat `whatsappAccountId` as a platform-owned field of `TenantOutreachConfig`. `SUPER_ADMIN` MUST be able to PATCH it at any time under `/platform/tenants/:tenantId/outreach-config` together with price fields. The value MUST be null (default sender) or the id of an enabled non-default platform `WhatsappAccount` not assigned to another tenant. Tenant-owned field rules are otherwise unchanged.
+
+#### Scenario: Super admin patches assignment after window
+- **WHEN** outreach config `createdAt` is older than 30 minutes and `SUPER_ADMIN` patches `{ whatsappAccountId: 2 }` with a valid dedicated account
+- **THEN** `whatsappAccountId` is persisted
+
+#### Scenario: Super admin patches assignment together with price
+- **WHEN** `SUPER_ADMIN` patches `{ costPerLead: 0.5, whatsappAccountId: null }`
+- **THEN** both fields are persisted
+

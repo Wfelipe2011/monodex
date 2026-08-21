@@ -32,6 +32,11 @@ import {
 } from './conversation-thread';
 import { normalizeListPhone } from '@core/shared/list-campaign-helpers';
 import {
+  cityUsedPhonesWhere,
+  computeAffordableSends,
+  pendingUnchargedCityWhere,
+} from './coin-reservation';
+import {
   buildCategoryAverages,
   computeY,
   excludeUsedPhones,
@@ -280,18 +285,23 @@ export class LeadsService implements OnModuleInit {
       },
     });
     const balance = coin?.balance ?? 0;
-    const affordable = Math.floor(balance / config.costPerLead);
+    const pendingUncharged = await this.prisma.tenantLead.count({
+      where: pendingUnchargedCityWhere(tenant.id),
+    });
+    const affordable = computeAffordableSends(
+      balance,
+      pendingUncharged,
+      config.costPerLead,
+    );
     if (affordable <= 0) {
       this.logger.warn(
-        `[contactLeads] Tenant ${tenant.id} sem saldo para um lead. Saldo: ${balance}, costPerLead: ${config.costPerLead}`,
+        `[contactLeads] Tenant ${tenant.id} sem saldo disponível para um lead. Saldo: ${balance}, pending=${pendingUncharged}, costPerLead: ${config.costPerLead}`,
       );
       return;
     }
 
     const used = await this.prisma.tenantLead.findMany({
-      where: {
-        tenantId: tenant.id,
-      },
+      where: cityUsedPhonesWhere(tenant.id),
       select: {
         lead: { select: { phone: true } },
       },
@@ -452,35 +462,6 @@ export class LeadsService implements OnModuleInit {
             });
           }
 
-          const user = await tsx.user.findFirst({
-            where: {
-              tenantId: tenant.id,
-            },
-          });
-
-          await tsx.coin.update({
-            where: {
-              userId_tenantId: {
-                tenantId: tenant.id,
-                userId: user.id,
-              },
-            },
-            data: {
-              balance: {
-                decrement: config.costPerLead,
-              },
-            },
-          });
-          await tsx.coinTransaction.create({
-            data: {
-              userId: user.id,
-              tenantId: tenant.id,
-              leadId: lead.id,
-              type: 'DEBITO',
-              amount: -config.costPerLead,
-              description: `Lead ${lead.id} (${lead.phone}) contatado`,
-            },
-          });
           this.logger.log(`[contactLeads] Lead ${lead.id} (${lead.phone}) marcado como contatado.`);
         });
         }

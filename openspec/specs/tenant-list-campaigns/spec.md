@@ -19,14 +19,18 @@ The system SHALL persist a campaign on a lead list with at least: `name`, `enabl
 - **THEN** the write MUST be rejected with HTTP 400
 
 ### Requirement: Campaign send debits list cost per send
-When a list campaign successfully sends a template via Cloud API (HTTP 200 with `wamid`), the system MUST decrement the tenant coin balance by that list's `costPerSend` and record a `CoinTransaction` of type `DEBITO`. The system MUST NOT apply cashback on reply for list campaigns. The cron MUST skip the tenant when `Tenant.active` is false or `costPerSend` is less than or equal to 0.
+When a list campaign outbound send reaches the tenant's effective `coinDebitOnStatus` (per `coin-debit-on-status`), the system MUST decrement the tenant coin balance by that list's `costPerSend` and record a `CoinTransaction` of type `DEBITO`. Graph HTTP 200 with `wamid` alone MUST NOT debit. The system MUST NOT apply cashback on reply for list campaigns. The cron MUST skip the tenant when `Tenant.active` is false or `costPerSend` is less than or equal to 0.
 
-#### Scenario: Successful send debits coins
-- **WHEN** a campaign send completes with Graph acceptance
+#### Scenario: Status trigger debits coins
+- **WHEN** a list send's Meta status meets the tenant trigger and the send is uncharged
 - **THEN** balance decreases by `costPerSend` and a debit transaction is recorded
 
-#### Scenario: Insufficient balance skips send
-- **WHEN** tenant balance is less than `costPerSend`
+#### Scenario: Graph acceptance alone does not debit
+- **WHEN** a campaign send completes with Graph acceptance and no billable status has been applied
+- **THEN** coin balance MUST remain unchanged for that send
+
+#### Scenario: Insufficient available balance skips send
+- **WHEN** tenant available balance (raw balance minus pending uncharged reservations for that list's unit cost) is less than `costPerSend`
 - **THEN** the cron MUST NOT attempt sends for that list's campaigns
 
 #### Scenario: Zero cost skips send
@@ -34,7 +38,7 @@ When a list campaign successfully sends a template via Cloud API (HTTP 200 with 
 - **THEN** the cron MUST NOT attempt sends for that list's campaigns
 
 ### Requirement: Lead locks after successful send until delivery failure
-After a campaign obtains Graph HTTP 200 for a list lead, that lead MUST be unavailable for sends from other campaigns on the same list. If a webhook status `failed` is recorded for that outbound `wamid`, the lead MUST become eligible again for other campaigns. While locked with non-failed status, other campaigns MUST NOT select that lead.
+After a campaign obtains Graph HTTP 200 for a list lead, that lead MUST be unavailable for sends from other campaigns on the same list. If a webhook status `failed` is recorded for that outbound `wamid`, the lead MUST become eligible again for other campaigns and any coin debit for that send MUST be refunded per `coin-debit-on-status`. While locked with non-failed status, other campaigns MUST NOT select that lead.
 
 #### Scenario: Second campaign skips locked lead
 - **WHEN** lead X received a successful send from campaign A and no `failed` status exists
@@ -44,19 +48,27 @@ After a campaign obtains Graph HTTP 200 for a list lead, that lead MUST be unava
 - **WHEN** outbound `wamid` for lead X receives status `failed`
 - **THEN** lead X MUST be eligible for other campaigns
 
+#### Scenario: Failed refunds prior debit
+- **WHEN** outbound `wamid` was debited under trigger `sent` and later receives `failed`
+- **THEN** the tenant MUST receive a matching credit once
+
 ### Requirement: Batch size respects sendsPerRun and balance
-Each cron tick for a campaign SHALL send at most `sendsPerRun` list leads, further capped by `floor(coin balance / costPerSend)` and eligible unlocked leads. Sends MUST be spaced by `sendIntervalSeconds` between Cloud API requests for that campaign run.
+Each cron tick for a campaign SHALL send at most `sendsPerRun` list leads, further capped by `floor(availableBalance / costPerSend)` (available = balance minus pending uncharged sends for that list × `costPerSend`) and eligible unlocked leads. Sends MUST be spaced by `sendIntervalSeconds` between Cloud API requests for that campaign run.
 
 #### Scenario: Balance caps batch
-- **WHEN** `sendsPerRun` is 10 and balance covers only 3 sends
-- **THEN** at most 3 sends MUST be attempted
+- **WHEN** available balance covers 2 sends and `sendsPerRun` is 5
+- **THEN** at most 2 leads are sent in that tick
+
+#### Scenario: Pending reservation reduces batch
+- **WHEN** raw balance covers 3 sends but 1 pending uncharged send exists on the list
+- **THEN** at most 2 new sends are attempted in that tick
 
 ### Requirement: Button actions drive notify or noop
-When an inbound webhook message has `type=button` and `context.id` matches a list campaign outbound `wamid`, the system MUST look up the configured action for that button label. `NOTIFY` MUST send the campaign's notify template to the tenant's phone using notify bindings and `recipient.*` / `tenant.phone` / literals. `NOOP` MUST persist the message only. Inbound text messages without a mapped button MUST NOT trigger notify.
+When an inbound webhook message has `type=button` and `context.id` matches a list campaign outbound `wamid`, the system MUST look up the configured action for that button label. `NOTIFY` MUST send the campaign's notify template to the tenant's phone using notify bindings and `recipient.*` / `tenant.phone` / literals, via the tenant's resolved platform Cloud API account. `NOOP` MUST persist the message only. Inbound text messages without a mapped button MUST NOT trigger notify.
 
 #### Scenario: Notify on mapped button
 - **WHEN** lead taps QUICK_REPLY whose label is configured as `NOTIFY`
-- **THEN** the notify template is sent to `Tenant.phone` via platform Cloud API
+- **THEN** the notify template is sent to `Tenant.phone` via the tenant's resolved platform Cloud API account
 
 #### Scenario: Noop button
 - **WHEN** lead taps QUICK_REPLY configured as `NOOP`
@@ -76,4 +88,11 @@ The system SHALL execute list campaigns in notifly via a dedicated scheduler tha
 #### Scenario: List campaign ignores exclusivity
 - **WHEN** tenant X respects tenant Y and a list lead phone was contacted by Y on city outreach
 - **THEN** the list campaign for X MAY still send to that phone on the list
+
+### Requirement: List campaign sends use the tenant resolved phone number
+List campaign template sends and notify-tenant sends SHALL use Cloud API credentials resolved for the campaign's tenant (dedicated assignment or default). They MUST NOT send from an arbitrary platform `findFirst` account.
+
+#### Scenario: Campaign send on dedicated number
+- **WHEN** the list campaign cron sends a template for a tenant assigned to platform account A
+- **THEN** the Graph request MUST use account A's `phoneNumberId`
 

@@ -28,6 +28,10 @@ import { TemplateSlot } from '@core/shared/whatsapp-template-slots';
 import { buildTemplateSendBody } from '@core/shared/whatsapp-template-payload';
 import { PlatformWhatsappService } from './platform-whatsapp.service';
 import { WhatsAppSendMessageResponse } from './WhatsAppSendMessageResponse';
+import {
+  computeAffordableSends,
+  pendingUnchargedListSendsWhere,
+} from './coin-reservation';
 
 type CampaignWithRelations = TenantListCampaign & {
   list: TenantLeadList & { tenant: Tenant };
@@ -104,12 +108,20 @@ export class ListCampaignsService {
 
     const coin = await this.prisma.coin.findFirst({
       where: { tenantId: tenant.id },
-      select: { balance: true, userId: true },
+      select: { balance: true },
     });
     const balance = coin?.balance ?? 0;
-    if (balance < costPerSend) {
+    const pendingUncharged = await this.prisma.tenantListSend.count({
+      where: pendingUnchargedListSendsWhere(campaign.listId),
+    });
+    const affordable = computeAffordableSends(
+      balance,
+      pendingUncharged,
+      costPerSend,
+    );
+    if (affordable <= 0) {
       this.logger.warn(
-        `[runCampaign] Tenant ${tenant.id} saldo insuficiente (${balance} < ${costPerSend})`,
+        `[runCampaign] Tenant ${tenant.id} saldo disponível insuficiente (balance=${balance}, pending=${pendingUncharged}, costPerSend=${costPerSend})`,
       );
       return;
     }
@@ -123,7 +135,6 @@ export class ListCampaignsService {
     }
 
     const eligible = await this.findEligibleLeads(campaign.listId);
-    const affordable = Math.floor(balance / costPerSend);
     const batchSize = Math.min(
       campaign.sendsPerRun,
       affordable,
@@ -159,8 +170,6 @@ export class ListCampaignsService {
           campaign,
           tenant,
           listLead,
-          costPerSend,
-          coinUserId: coin!.userId,
           messagesUrl,
           token,
           slots,
@@ -186,8 +195,6 @@ export class ListCampaignsService {
     campaign: CampaignWithRelations;
     tenant: Tenant;
     listLead: TenantListLead;
-    costPerSend: number;
-    coinUserId: number;
     messagesUrl: string;
     token: string;
     slots: TemplateSlot[];
@@ -199,8 +206,6 @@ export class ListCampaignsService {
       campaign,
       tenant,
       listLead,
-      costPerSend,
-      coinUserId,
       messagesUrl,
       token,
       slots,
@@ -276,28 +281,6 @@ export class ListCampaignsService {
           listSendId: send.id,
         });
       }
-
-      await tsx.coin.update({
-        where: {
-          userId_tenantId: {
-            tenantId: tenant.id,
-            userId: coinUserId,
-          },
-        },
-        data: {
-          balance: { decrement: costPerSend },
-        },
-      });
-
-      await tsx.coinTransaction.create({
-        data: {
-          userId: coinUserId,
-          tenantId: tenant.id,
-          type: 'DEBITO',
-          amount: -costPerSend,
-          description: `Campanha de lista ${campaign.id} — lead ${listLead.id}`,
-        },
-      });
     });
 
     this.logger.log(

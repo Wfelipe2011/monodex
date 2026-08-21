@@ -38,7 +38,8 @@ export class OutreachConfigController {
     summary: 'Obter outreach config do tenant (404 se não houver)',
     description:
       'Devolve ids de catálogo, slotBindings, knobs de envio, relações mínimas dos templates (id, name, language, status), ' +
-      'whatsappAccountId e resolvedWhatsappAccount (default da plataforma se a FK for null).',
+      'coinDebitOnStatus (sent|delivered|read, default delivered), whatsappAccountId e resolvedWhatsappAccount ' +
+      '(default da plataforma se a FK for null).',
   })
   get(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.outreachConfigService.get(tenantId);
@@ -48,8 +49,9 @@ export class OutreachConfigController {
   @ApiOperation({
     summary: 'Bootstrap de outreach config (somente se ainda não existir)',
     description:
-      'Cria a config se não houver row. Se já existir, 403 — use PATCH para preço e número. ' +
+      'Cria a config se não houver row. Se já existir, 403 — use PATCH para preço, gatilho de débito e número. ' +
       'Body completo permitido no pontapé (inclui campos tenant-owned e whatsappAccountId opcional). ' +
+      'coinDebitOnStatus omisso → delivered no schema. ' +
       'Campos legado (outreachTemplateName, notifyTenantTemplateName, outreachContactText, headerImageUrl) retornam 400. ' +
       'enabled=true exige tenant ativo com phone, templates APPROVED e cobertura de slots.',
   })
@@ -69,9 +71,11 @@ export class OutreachConfigController {
 
   @Patch()
   @ApiOperation({
-    summary: 'Patch de preço e número WhatsApp (costPerLead / cashbackOnReply / whatsappAccountId)',
+    summary:
+      'Patch de preço, gatilho de débito e número WhatsApp (costPerLead / cashbackOnReply / coinDebitOnStatus / whatsappAccountId)',
     description:
-      'Somente campos de plataforma (preço e número). Campos tenant-owned (enabled, schedule, categories, leadsPerRun, etc.) no body → 403. ' +
+      'Somente campos de plataforma (preço, coinDebitOnStatus, número). Campos tenant-owned (enabled, schedule, categories, leadsPerRun, etc.) no body → 403. ' +
+      'coinDebitOnStatus: sent | delivered | read (failed → 400). ' +
       'whatsappAccountId null volta ao remetente default. Id da default ou número já de outro tenant → 400. ' +
       'Campos legado retornam 400.',
   })
@@ -102,10 +106,10 @@ export class TenantOutreachConfigController {
 
   @Get()
   @ApiOperation({
-    summary: 'Obter outreach config do tenant (inclui preço e número read-only)',
+    summary: 'Obter outreach config do tenant (inclui preço, gatilho e número read-only)',
     description:
-      'Devolve a row completa, inclusive costPerLead/cashbackOnReply, whatsappAccountId e resolvedWhatsappAccount. ' +
-      'Admin não altera preço nem número neste path.',
+      'Devolve a row completa, inclusive costPerLead/cashbackOnReply, coinDebitOnStatus, whatsappAccountId e resolvedWhatsappAccount. ' +
+      'Admin não altera preço, gatilho de débito nem número neste path.',
   })
   get(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.outreachConfigService.get(tenantId);
@@ -115,8 +119,8 @@ export class TenantOutreachConfigController {
   @ApiOperation({
     summary: 'Criar outreach config se ainda não existir',
     description:
-      'Cria com costPerLead=0, cashbackOnReply=0 e whatsappAccountId null. Se já existir, 403 — use PATCH. ' +
-      'costPerLead/cashbackOnReply/whatsappAccountId no body → 403. Super Admin só no pontapé (recurso ausente).',
+      'Cria com costPerLead=0, cashbackOnReply=0, coinDebitOnStatus=delivered (schema) e whatsappAccountId null. Se já existir, 403 — use PATCH. ' +
+      'costPerLead/cashbackOnReply/coinDebitOnStatus/whatsappAccountId no body → 403. Super Admin só no pontapé (recurso ausente).',
   })
   create(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -137,7 +141,7 @@ export class TenantOutreachConfigController {
   @ApiOperation({
     summary: 'Patch operacional (knobs, schedule, templates, enabled)',
     description:
-      'Não aceita costPerLead/cashbackOnReply/whatsappAccountId (403). Super Admin só dentro da janela de 30 min. ' +
+      'Não aceita costPerLead/cashbackOnReply/coinDebitOnStatus/whatsappAccountId (403). Super Admin só dentro da janela de 30 min. ' +
       'enabled=true exige phone, tenant ativo, templates APPROVED, grants e bindings.',
   })
   patch(

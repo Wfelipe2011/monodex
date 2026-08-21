@@ -3,18 +3,16 @@
 ## Purpose
 
 Run multi-tenant Cloud API outreach from database config: eligible tenants, global lead pool with per-tenant usage, and Meta message-id correlation.
-
 ## Requirements
-
 ### Requirement: Cron selects eligible tenants from database
-The Cloud API outreach scheduler SHALL select tenants that have `Tenant.active` true, outreach enabled, a non-empty phone, positive sufficient coin balance relative to configured cost, and a matching schedule window. It MUST NOT hardcode a single tenant id as the sole eligible tenant. Tenants with `active=false` MUST be skipped even if outreach is enabled.
+The Cloud API outreach scheduler SHALL select tenants that have `Tenant.active` true, outreach enabled, a non-empty phone, positive sufficient **available** coin balance relative to configured cost (balance minus reserved pending uncharged city sends × `costPerLead`), and a matching schedule window. It MUST NOT hardcode a single tenant id as the sole eligible tenant. Tenants with `active=false` MUST be skipped even if outreach is enabled.
 
 #### Scenario: Previously hardcoded tenant still works via config
 - **WHEN** the tenant that previously was hardcoded (id 8) has outreach config enabled with schedule matching now and `active` true
 - **THEN** that tenant MUST still be processed by the scheduler
 
 #### Scenario: Second enabled tenant is also processed
-- **WHEN** another tenant also has outreach enabled, phone, balance, matching schedule, and `active` true
+- **WHEN** another tenant also has outreach enabled, phone, available balance, matching schedule, and `active` true
 - **THEN** the scheduler MUST process that tenant without code changes to tenant ids
 
 #### Scenario: Disabled tenant skipped
@@ -25,12 +23,24 @@ The Cloud API outreach scheduler SHALL select tenants that have `Tenant.active` 
 - **WHEN** a tenant has `active=false` and outreach enabled with a matching schedule
 - **THEN** the scheduler MUST NOT contact leads for that tenant
 
+#### Scenario: Pending reservation blocks overspend
+- **WHEN** raw balance covers one lead but one pending uncharged city send already exists
+- **THEN** the scheduler MUST NOT contact an additional lead for that tenant
+
 ### Requirement: Lead pool remains global with per-tenant usage
-The system SHALL continue to treat `Lead` as a shared pool and MUST record per-tenant usage through `TenantLead` (and related coin transactions) when contacting leads. Selection MUST also apply `TenantSendPolicy` city filters and exclusivity phone exclusions. List campaign selection MUST NOT use those send policies.
+The system SHALL continue to treat `Lead` as a shared pool and MUST record per-tenant usage through `TenantLead` when contacting leads. Coin debit for city outreach MUST follow `coin-debit-on-status` (not Graph acceptance alone). Selection MUST also apply `TenantSendPolicy` city filters and exclusivity phone exclusions. List campaign selection MUST NOT use those send policies. Phones whose only city sends for the tenant ended in `failed` MUST remain eligible for new city outreach for that tenant.
 
 #### Scenario: Contact creates tenant-scoped funnel row
-- **WHEN** outreach successfully contacts a lead for tenant T
-- **THEN** a `TenantLead` for tenant T MUST exist/be updated and coin debit for tenant T MUST be recorded
+- **WHEN** outreach successfully contacts a lead for tenant T (Graph acceptance)
+- **THEN** a `TenantLead` for tenant T MUST exist/be updated with the outbound `messageId`
+
+#### Scenario: Coin debit deferred to status trigger
+- **WHEN** outreach obtains Graph acceptance for tenant T and the billable status has not yet arrived
+- **THEN** coin balance for tenant T MUST NOT yet decrease for that send
+
+#### Scenario: Failed city phone may be contacted again
+- **WHEN** lead L was contacted for tenant T and the outbound `wamid` later receives status `failed`
+- **THEN** tenant T MAY receive lead L again through city outreach selection
 
 #### Scenario: Same lead may be used by another tenant if not already bound by product rules
 - **WHEN** lead L exists globally and is not yet contacted for tenant U under the current selection rules including send policies
@@ -119,3 +129,41 @@ When selecting global leads for a tenant, `contactLeads` MUST apply `TenantSendP
 #### Scenario: Exclusive phone excluded
 - **WHEN** tenant Y is `exclusive` and contacted phone `P` and tenant X has an unused lead with phone `P`
 - **THEN** tenant X MUST NOT select that phone
+
+### Requirement: City outreach persists delivery snapshot fields on TenantLead
+When Cloud API accepts a city outreach template send, the system SHALL store the returned message id on `TenantLead.messageId` and SHALL store the sent catalog template name on `TenantLead.templateName`. The system MUST NOT treat Graph HTTP 200 as a Meta delivery status: `lastStatus` MUST stay unset until a webhook `statuses` event for that `wamid` is processed. Notify-tenant sends after an affirmative reply are unchanged by this requirement (no city-send row for the notify `wamid`).
+
+#### Scenario: Store wamid and template name after send
+- **WHEN** Cloud API accepts an outbound city outreach message using template `hello_city`
+- **THEN** the corresponding `TenantLead` MUST have `messageId` equal to the returned message id and `templateName` equal to `hello_city`
+
+#### Scenario: Graph 200 does not set lastStatus
+- **WHEN** the send transaction commits after Graph HTTP 200
+- **THEN** `TenantLead.lastStatus` MUST be null until a later webhook status arrives
+
+#### Scenario: Notify tenant is not a city send snapshot
+- **WHEN** the system sends the notify template to `Tenant.phone` after “Tenho Interesse!”
+- **THEN** that notify POST MUST NOT create or overwrite a city-outreach send snapshot on the lead's `TenantLead.templateName` / `lastStatus` for the notify `wamid`
+
+### Requirement: Dedicated city outreach template appears on the conversation thread
+When city outreach (`contactLeads`) obtains Cloud API HTTP 200 with a message id and the tenant's resolved Cloud API account is a dedicated (`isDefault=false`) number assigned to that tenant, the system MUST upsert the conversation thread for the lead's phone and persist an outbound conversation message (`type=template`) with that `wamid`. This MUST NOT replace `TenantLead.messageId` / `templateName` persistence. When the tenant uses the platform default number, the system MUST NOT create a conversation thread for that send.
+
+#### Scenario: Dedicated city send writes conversation
+- **WHEN** `contactLeads` sends a template for tenant 4 on its dedicated number and Graph returns `wamid` W
+- **THEN** a conversation thread for tenant 4 and the lead phone MUST contain an outbound template message with `wamid` W
+
+#### Scenario: Default city send skips conversation
+- **WHEN** `contactLeads` sends on the platform default number
+- **THEN** no `WhatsappConversation` row MUST be created for that send
+
+### Requirement: City outreach sends via the tenant resolved phone number
+When contacting a global lead or notifying the tenant after an affirmative reply, the system SHALL POST Cloud API messages using credentials resolved for that tenant (dedicated platform `phoneNumberId` if `whatsappAccountId` is set, otherwise the default platform account). The system MUST NOT use `findFirst` of an arbitrary enabled platform account as the sender.
+
+#### Scenario: Dedicated tenant uses assigned phone
+- **WHEN** `contactLeads` runs for a tenant whose outreach config points at platform account A
+- **THEN** each template send MUST target `https://graph.facebook.com/v23.0/{A.phoneNumberId}/messages`
+
+#### Scenario: Unassigned tenant uses default phone
+- **WHEN** `contactLeads` runs for a tenant with `whatsappAccountId` null
+- **THEN** each template send MUST target the default platform account phone number id
+

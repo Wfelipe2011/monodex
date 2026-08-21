@@ -28,7 +28,10 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
 
   function configRow(
     tenantId: number,
-    overrides?: { whatsappAccountId?: number | null },
+    overrides?: {
+      whatsappAccountId?: number | null;
+      coinDebitOnStatus?: 'sent' | 'delivered' | 'read';
+    },
   ) {
     return {
       id: tenantId * 10,
@@ -36,6 +39,7 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
       enabled: false,
       costPerLead: 0.35,
       cashbackOnReply: 0,
+      coinDebitOnStatus: overrides?.coinDebitOnStatus ?? 'delivered',
       outreachTemplateId: 1,
       notifyTemplateId: 2,
       whatsappAccountId: overrides?.whatsappAccountId ?? null,
@@ -140,6 +144,60 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
         .map((key) => [key, (row as Record<string, unknown>)[key]]),
     );
   }
+
+  it('PATCH platform { coinDebitOnStatus: "sent" } persiste o gatilho', async () => {
+    const { service, prisma } = build();
+    const result = await service.patchPlatform(
+      10,
+      { coinDebitOnStatus: 'sent' },
+      [Roles.SUPER_ADMIN],
+      { coinDebitOnStatus: 'sent' },
+    );
+    expect(prisma.tenantOutreachConfig.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ coinDebitOnStatus: 'sent' }),
+      }),
+    );
+    expect(result.coinDebitOnStatus).toBe('sent');
+  });
+
+  it('PATCH { costPerLead, coinDebitOnStatus } juntos funciona', async () => {
+    const { service, prisma } = build();
+    const result = await service.patchPlatform(
+      10,
+      { costPerLead: 0.5, coinDebitOnStatus: 'read' },
+      [Roles.SUPER_ADMIN],
+      { costPerLead: 0.5, coinDebitOnStatus: 'read' },
+    );
+    expect(prisma.tenantOutreachConfig.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          costPerLead: 0.5,
+          coinDebitOnStatus: 'read',
+        }),
+      }),
+    );
+    expect(result.coinDebitOnStatus).toBe('read');
+  });
+
+  it('Admin PATCH { coinDebitOnStatus } → 403, row inalterada', async () => {
+    const { service, prisma } = build();
+    await expect(
+      service.patchTenant(
+        10,
+        { leadsPerRun: 10 },
+        [Roles.ADMIN],
+        { coinDebitOnStatus: 'sent' },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.tenantOutreachConfig.update).not.toHaveBeenCalled();
+  });
+
+  it('GET inclui coinDebitOnStatus (default delivered)', async () => {
+    const { service } = build();
+    const result = await service.get(10);
+    expect(result.coinDebitOnStatus).toBe('delivered');
+  });
 
   it('PATCH platform { whatsappAccountId: 2 } persiste conta válida não-default', async () => {
     const { service, prisma } = build();

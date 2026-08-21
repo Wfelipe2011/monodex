@@ -337,6 +337,7 @@ async function upsertOutreachConfig(
         enabled: true,
         costPerLead: 0.35,
         cashbackOnReply: 0,
+        coinDebitOnStatus: 'delivered',
         outreachTemplateId,
         notifyTemplateId,
         slotBindings: slotBindings as Prisma.InputJsonValue,

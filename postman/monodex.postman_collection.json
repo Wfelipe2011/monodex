@@ -670,7 +670,7 @@
             "method": "GET",
             "header": [],
             "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
-            "description": "Inclui `whatsappAccountId` e `resolvedWhatsappAccount` (id, phoneNumberId, displayPhone, isDefault)."
+            "description": "Inclui `coinDebitOnStatus` (sent|delivered|read, default delivered), `whatsappAccountId` e `resolvedWhatsappAccount` (id, phoneNumberId, displayPhone, isDefault)."
           }
         },
         {
@@ -684,7 +684,7 @@
               }
             ],
             "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
-            "description": "Cria se não existir. Se já existir → 403. Depois da janela de 30 min, knobs de Admin neste prefixo → 403.",
+            "description": "Cria se não existir. Se já existir → 403. Depois da janela de 30 min, knobs de Admin neste prefixo → 403. `coinDebitOnStatus` omisso → delivered no schema.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"enabled\": true,\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"slotBindings\": {\n  \"outreach\": {\n    \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" },\n    \"header.image\": { \"type\": \"header_image\", \"value\": \"\" }\n  },\n  \"notify\": {\n    \"body.customer_name\": { \"type\": \"lead.name\" },\n    \"body.customer_phone\": { \"type\": \"lead.phone\" },\n    \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n  }\n},\n  \"schedule\": { \"2\": [18], \"3\": [18], \"4\": [13, 18] },\n  \"categories\": [\"Construtoras\", \"Consultórios\"],\n  \"leadsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
@@ -702,10 +702,46 @@
               }
             ],
             "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
-            "description": "Somente `costPerLead` / `cashbackOnReply`. `leadsPerRun` no body após a janela → 403.",
+            "description": "Somente campos de plataforma: `costPerLead` / `cashbackOnReply` / `coinDebitOnStatus` / `whatsappAccountId`. `leadsPerRun` no body após a janela → 403.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"costPerLead\": 0.35,\n  \"cashbackOnReply\": 0\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch Coin Debit On Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
+            "description": "Super Admin define quando debitar coins: `sent` | `delivered` | `read`. Default do schema: `delivered`. `failed` → 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"coinDebitOnStatus\": \"delivered\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch Coin Debit On Status failed (expect 400)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/tenants/{{tenantId}}/outreach-config",
+            "description": "`failed` não é gatilho válido → 400 (ValidationPipe / @IsIn).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"coinDebitOnStatus\": \"failed\"\n}"
             }
           }
         },
@@ -1358,7 +1394,7 @@
             "method": "GET",
             "header": [],
             "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
-            "description": "Inclui preço e `resolvedWhatsappAccount` só leitura. ADMIN em outro tenantId → 403."
+            "description": "Inclui preço, `coinDebitOnStatus` e `resolvedWhatsappAccount` só leitura. ADMIN em outro tenantId → 403."
           }
         },
         {
@@ -1372,7 +1408,7 @@
               }
             ],
             "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
-            "description": "Cria se ausente (preço=0). Já existir → 403. `costPerLead` no body → 403.",
+            "description": "Cria se ausente (preço=0, coinDebitOnStatus=delivered no schema). Já existir → 403. `costPerLead` / `coinDebitOnStatus` no body → 403.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"enabled\": false,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"slotBindings\": {\n  \"outreach\": {\n    \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" },\n    \"header.image\": { \"type\": \"header_image\", \"value\": \"\" }\n  },\n  \"notify\": {\n    \"body.customer_name\": { \"type\": \"lead.name\" },\n    \"body.customer_phone\": { \"type\": \"lead.phone\" },\n    \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n  }\n},\n  \"schedule\": { \"2\": [18], \"3\": [18], \"4\": [13, 18] },\n  \"categories\": [\"Construtoras\"],\n  \"leadsPerRun\": 5,\n  \"sendIntervalSeconds\": 5\n}"
@@ -1390,10 +1426,28 @@
               }
             ],
             "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
-            "description": "Grant ausente em template id → 400. `costPerLead` no body → 403.",
+            "description": "Grant ausente em template id → 400. `costPerLead` / `coinDebitOnStatus` no body → 403.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"enabled\": true,\n  \"outreachTemplateId\": {{templateId}},\n  \"notifyTemplateId\": {{templateId}},\n  \"leadsPerRun\": 5,\n  \"slotBindings\": {\n  \"outreach\": {\n    \"body.1\": { \"type\": \"literal\", \"value\": \"Gladson Teixeira (contador em Pindamonhagaba)\" },\n    \"header.image\": { \"type\": \"header_image\", \"value\": \"\" }\n  },\n  \"notify\": {\n    \"body.customer_name\": { \"type\": \"lead.name\" },\n    \"body.customer_phone\": { \"type\": \"lead.phone\" },\n    \"body.customer_lead\": { \"type\": \"literal\", \"value\": \"customer_lead\" }\n  }\n}\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch Coin Debit On Status (expect 403)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
+            "description": "Admin não escreve `coinDebitOnStatus` → 403. GET inclui o campo só leitura.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"coinDebitOnStatus\": \"sent\"\n}"
             }
           }
         },

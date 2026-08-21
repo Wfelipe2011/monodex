@@ -1101,7 +1101,7 @@
     },
     "/platform/tenants/{tenantId}/outreach-config": {
       "get": {
-        "description": "Devolve ids de catálogo, slotBindings, knobs de envio, relações mínimas dos templates (id, name, language, status), whatsappAccountId e resolvedWhatsappAccount (default da plataforma se a FK for null).",
+        "description": "Devolve ids de catálogo, slotBindings, knobs de envio, relações mínimas dos templates (id, name, language, status), coinDebitOnStatus (sent|delivered|read, default delivered), whatsappAccountId e resolvedWhatsappAccount (default da plataforma se a FK for null).",
         "operationId": "OutreachConfigController_get",
         "parameters": [
           {
@@ -1136,7 +1136,7 @@
         ]
       },
       "put": {
-        "description": "Cria a config se não houver row. Se já existir, 403 — use PATCH para preço e número. Body completo permitido no pontapé (inclui campos tenant-owned e whatsappAccountId opcional). Campos legado (outreachTemplateName, notifyTenantTemplateName, outreachContactText, headerImageUrl) retornam 400. enabled=true exige tenant ativo com phone, templates APPROVED e cobertura de slots.",
+        "description": "Cria a config se não houver row. Se já existir, 403 — use PATCH para preço, gatilho de débito e número. Body completo permitido no pontapé (inclui campos tenant-owned e whatsappAccountId opcional). coinDebitOnStatus omisso → delivered no schema. Campos legado (outreachTemplateName, notifyTenantTemplateName, outreachContactText, headerImageUrl) retornam 400. enabled=true exige tenant ativo com phone, templates APPROVED e cobertura de slots.",
         "operationId": "OutreachConfigController_upsert",
         "parameters": [
           {
@@ -1181,7 +1181,7 @@
         ]
       },
       "patch": {
-        "description": "Somente campos de plataforma (preço e número). Campos tenant-owned (enabled, schedule, categories, leadsPerRun, etc.) no body → 403. whatsappAccountId null volta ao remetente default. Id da default ou número já de outro tenant → 400. Campos legado retornam 400.",
+        "description": "Somente campos de plataforma (preço, coinDebitOnStatus, número). Campos tenant-owned (enabled, schedule, categories, leadsPerRun, etc.) no body → 403. coinDebitOnStatus: sent | delivered | read (failed → 400). whatsappAccountId null volta ao remetente default. Id da default ou número já de outro tenant → 400. Campos legado retornam 400.",
         "operationId": "OutreachConfigController_patch",
         "parameters": [
           {
@@ -1220,7 +1220,7 @@
             "bearer": []
           }
         ],
-        "summary": "Patch de preço e número WhatsApp (costPerLead / cashbackOnReply / whatsappAccountId)",
+        "summary": "Patch de preço, gatilho de débito e número WhatsApp (costPerLead / cashbackOnReply / coinDebitOnStatus / whatsappAccountId)",
         "tags": [
           "Platform — Outreach Config"
         ]
@@ -1228,7 +1228,7 @@
     },
     "/tenant/{tenantId}/outreach-config": {
       "get": {
-        "description": "Devolve a row completa, inclusive costPerLead/cashbackOnReply, whatsappAccountId e resolvedWhatsappAccount. Admin não altera preço nem número neste path.",
+        "description": "Devolve a row completa, inclusive costPerLead/cashbackOnReply, coinDebitOnStatus, whatsappAccountId e resolvedWhatsappAccount. Admin não altera preço, gatilho de débito nem número neste path.",
         "operationId": "TenantOutreachConfigController_get",
         "parameters": [
           {
@@ -1257,13 +1257,13 @@
             "bearer": []
           }
         ],
-        "summary": "Obter outreach config do tenant (inclui preço e número read-only)",
+        "summary": "Obter outreach config do tenant (inclui preço, gatilho e número read-only)",
         "tags": [
           "Tenant — Outreach Config"
         ]
       },
       "put": {
-        "description": "Cria com costPerLead=0, cashbackOnReply=0 e whatsappAccountId null. Se já existir, 403 — use PATCH. costPerLead/cashbackOnReply/whatsappAccountId no body → 403. Super Admin só no pontapé (recurso ausente).",
+        "description": "Cria com costPerLead=0, cashbackOnReply=0, coinDebitOnStatus=delivered (schema) e whatsappAccountId null. Se já existir, 403 — use PATCH. costPerLead/cashbackOnReply/coinDebitOnStatus/whatsappAccountId no body → 403. Super Admin só no pontapé (recurso ausente).",
         "operationId": "TenantOutreachConfigController_create",
         "parameters": [
           {
@@ -1308,7 +1308,7 @@
         ]
       },
       "patch": {
-        "description": "Não aceita costPerLead/cashbackOnReply/whatsappAccountId (403). Super Admin só dentro da janela de 30 min. enabled=true exige phone, tenant ativo, templates APPROVED, grants e bindings.",
+        "description": "Não aceita costPerLead/cashbackOnReply/coinDebitOnStatus/whatsappAccountId (403). Super Admin só dentro da janela de 30 min. enabled=true exige phone, tenant ativo, templates APPROVED, grants e bindings.",
         "operationId": "TenantOutreachConfigController_patch",
         "parameters": [
           {
@@ -4659,6 +4659,16 @@
           "cashbackOnReply": {
             "type": "number",
             "description": "Cashback ao receber reply"
+          },
+          "coinDebitOnStatus": {
+            "type": "string",
+            "enum": [
+              "sent",
+              "delivered",
+              "read"
+            ],
+            "description": "Status Meta em que o coin é debitado (cidade e lista). Default no schema: delivered. failed não é permitido.",
+            "example": "delivered"
           },
           "whatsappAccountId": {
             "type": "number",

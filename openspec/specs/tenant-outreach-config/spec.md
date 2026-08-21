@@ -3,11 +3,9 @@
 ## Purpose
 
 Persist and apply per-tenant outreach settings (enabled, pricing, catalog templates, slot bindings, schedule, categories) for Cloud API outreach eligibility.
-
 ## Requirements
-
 ### Requirement: Outreach configuration exists per tenant
-The system SHALL persist outreach settings per tenant, including at least: enabled flag, cost per lead, cashback on reply, outreach catalog template id, notify-tenant catalog template id, slot bindings JSON, schedule, eligible categories, leads per run, and send interval seconds. The system MUST NOT persist `outreachTemplateName`, `notifyTenantTemplateName`, `outreachContactText`, or `headerImageUrl` as config columns.
+The system SHALL persist outreach settings per tenant, including at least: enabled flag, cost per lead, cashback on reply, optional platform `whatsappAccountId` (null means the default platform sender), outreach catalog template id, notify-tenant catalog template id, slot bindings JSON, schedule, eligible categories, leads per run, and send interval seconds. The system MUST NOT persist `outreachTemplateName`, `notifyTenantTemplateName`, `outreachContactText`, or `headerImageUrl` as config columns.
 
 #### Scenario: Config created for tenant
 - **WHEN** an outreach config is stored for a tenant
@@ -21,6 +19,10 @@ The system SHALL persist outreach settings per tenant, including at least: enabl
 - **WHEN** a new outreach config is created without `leadsPerRun` or `sendIntervalSeconds`
 - **THEN** `leadsPerRun` MUST be 5 and `sendIntervalSeconds` MUST be 5
 
+#### Scenario: WhatsApp assignment defaults to shared sender
+- **WHEN** a new outreach config is created without `whatsappAccountId`
+- **THEN** `whatsappAccountId` MUST be null and sends MUST use the default platform phone number
+
 ### Requirement: Enabled outreach requires tenant phone
 The system SHALL NOT treat a tenant as eligible for outreach when `Tenant.phone` is null or empty, even if the outreach config is enabled.
 
@@ -33,11 +35,15 @@ The system SHALL NOT treat a tenant as eligible for outreach when `Tenant.phone`
 - **THEN** the tenant MUST be eligible for outreach selection subject to balance, schedule, template, and binding rules
 
 ### Requirement: Pricing and templates come from config
-The system SHALL debit coins using the tenant's configured cost per lead and SHALL select Meta templates from the tenant's outreach catalog template id (lead contact) and notify catalog template id (tenant notification), applying that config's slot bindings.
+The system SHALL apply the tenant's configured cost per lead when a coin debit is due for city outreach (per `coin-debit-on-status`) and SHALL select Meta templates from the tenant's outreach catalog template id (lead contact) and notify catalog template id (tenant notification), applying that config's slot bindings. The system MUST NOT debit city outreach coins solely because Cloud API accepted the send.
 
-#### Scenario: Contact lead uses configured cost
-- **WHEN** a lead is successfully contacted for a tenant via Cloud API
+#### Scenario: Contact lead uses configured cost when status trigger met
+- **WHEN** a city outreach send for a tenant reaches the tenant's effective `coinDebitOnStatus`
 - **THEN** the system MUST decrement coin balance by that tenant's `costPerLead` and record a matching debit transaction
+
+#### Scenario: Graph accept alone does not debit
+- **WHEN** Cloud API accepts a city outreach send and no billable status webhook has been applied yet
+- **THEN** coin balance MUST remain unchanged for that send
 
 #### Scenario: Reply cashback uses configured amount
 - **WHEN** a lead reply is processed as affirmative and cashback is applied
@@ -70,7 +76,7 @@ The system SHALL reject `enabled=true` unless both catalog FKs are set, both tem
 - **THEN** the write MUST be rejected
 
 ### Requirement: Outreach field ownership is split by role
-The system SHALL treat `costPerLead` and `cashbackOnReply` as platform-owned and `enabled`, `schedule`, `categories`, `leadsPerRun`, `sendIntervalSeconds`, `slotBindings`, `outreachTemplateId`, and `notifyTemplateId` as tenant-owned. Template ids MUST reference granted catalog rows. City and exclusivity policies are stored on `TenantSendPolicy`, not as columns of `TenantOutreachConfig`.
+The system SHALL treat `costPerLead`, `cashbackOnReply`, and `whatsappAccountId` as platform-owned and `enabled`, `schedule`, `categories`, `leadsPerRun`, `sendIntervalSeconds`, `slotBindings`, `outreachTemplateId`, and `notifyTemplateId` as tenant-owned. Template ids MUST reference granted catalog rows. City and exclusivity policies are stored on `TenantSendPolicy`, not as columns of `TenantOutreachConfig`.
 
 #### Scenario: Admin writes schedule
 - **WHEN** `ADMIN` patches `{ schedule: { "2": [18] } }` on an existing outreach config
@@ -78,4 +84,5 @@ The system SHALL treat `costPerLead` and `cashbackOnReply` as platform-owned and
 
 #### Scenario: Admin omitted price on create
 - **WHEN** `ADMIN` PUTs a missing outreach config without `costPerLead`
-- **THEN** a config row exists and city outreach MUST NOT send until Super Admin sets `costPerLead` greater than 0
+- **THEN** a config row exists with `whatsappAccountId` null and city outreach MUST NOT send until Super Admin sets `costPerLead` greater than 0
+

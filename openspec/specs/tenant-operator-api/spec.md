@@ -3,9 +3,7 @@
 ## Purpose
 
 Split gym-ctrl operator APIs into `/platform/*` (Super Admin) and `/tenant/:tenantId/*` (tenant Admin), including scope, inactive-tenant consultative lock, bootstrap write window, and shared `Tenant.phone` updates.
-
 ## Requirements
-
 ### Requirement: Platform and tenant API prefixes are distinct
 The system SHALL expose platform operator APIs under `/platform/*` and tenant operator APIs under `/tenant/:tenantId/*`. Former `/admin/*` gym-ctrl routes for these resources MUST NOT remain the documented contract. Push subscription routes SHALL live at `/tenant/push-subscriptions` without a tenant id param (authenticated user from JWT).
 
@@ -83,3 +81,29 @@ The system SHALL allow `SUPER_ADMIN` to patch `Tenant.phone` via `/platform/tena
 #### Scenario: Super admin updates phone
 - **WHEN** `SUPER_ADMIN` patches `{ phone: "12911112222" }` on `PATCH /platform/tenants/:id`
 - **THEN** `Tenant.phone` is persisted
+
+### Requirement: First-admin invite is a platform action
+The system SHALL treat issuing, listing, and revoking `FIRST_ADMIN` invites as `/platform/tenants/:tenantId/invites` operations for `SUPER_ADMIN`. Super Admin MUST NOT create a second tenant user via invite; `FIRST_ADMIN` accept MUST fail when the tenant already has users.
+
+#### Scenario: Super admin issues first-admin invite on platform prefix
+- **WHEN** `SUPER_ADMIN` posts to `POST /platform/tenants/4/invites` for a tenant with zero users
+- **THEN** the request MUST succeed on the platform prefix and MUST NOT require `/tenant/4/invites`
+
+### Requirement: Tenant-user invite is tenant-owned
+The system SHALL reject `SUPER_ADMIN` writes that issue or revoke `TENANT_USER` invites on `/tenant/:tenantId/invites` with HTTP 403. Tenant `ADMIN` of that `tenantId` MUST be allowed to issue and revoke those invites when the tenant is active.
+
+#### Scenario: Super admin cannot issue tenant-user invite
+- **WHEN** `SUPER_ADMIN` posts to `POST /tenant/4/invites`
+- **THEN** the API responds with HTTP 403
+
+#### Scenario: Admin of another tenant cannot issue
+- **WHEN** an `ADMIN` with JWT `tenantId=9` posts to `POST /tenant/4/invites`
+- **THEN** the API responds with HTTP 403
+
+### Requirement: Public invite routes do not use tenant JWT
+The system SHALL allow `GET /public/invites/:token` and `POST /public/invites/:token/accept` without a Bearer token. These routes MUST NOT be documented as `/platform` or `/tenant` operator APIs.
+
+#### Scenario: Unauthenticated preview
+- **WHEN** a client GETs `/public/invites/:token` without Authorization
+- **THEN** the request is not rejected with HTTP 401 solely for missing JWT (it MAY still be 404 if the token is invalid)
+
