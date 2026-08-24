@@ -1,7 +1,8 @@
 # coin-debit-on-status Specification
 
 ## Purpose
-TBD - created by archiving change configurable-coin-debit-on-status. Update Purpose after archive.
+
+Debit tenant coins when a Meta webhook status meets the configured trigger for city, list, and on-demand sends—not on Graph accept—with failed refunds and pending-balance reservation across channels.
 ## Requirements
 ### Requirement: Coin debit trigger is configurable per tenant
 The system SHALL persist a per-tenant coin debit trigger `coinDebitOnStatus` with allowed values `sent`, `delivered`, and `read`. When unset or missing config, the effective trigger MUST be `delivered`. Only platform Super Admin MAY write this field. `failed` MUST NOT be a valid trigger value.
@@ -19,7 +20,7 @@ The system SHALL persist a per-tenant coin debit trigger `coinDebitOnStatus` wit
 - **THEN** the write MUST be rejected
 
 ### Requirement: Graph acceptance does not debit coins
-When Cloud API accepts an outbound template send (HTTP 200 with `wamid`) for city outreach or a list campaign, the system MUST create/update the send/funnel row and MUST NOT decrement coin balance and MUST NOT create a `DEBITO` for that send at that moment.
+When Cloud API accepts an outbound template send (HTTP 200 with `wamid`) for city outreach, a list campaign, or an on-demand send, the system MUST create/update the send/funnel row and MUST NOT decrement coin balance and MUST NOT create a `DEBITO` for that send at that moment.
 
 #### Scenario: City Graph 200 without debit
 - **WHEN** city outreach obtains Graph 200 for a lead
@@ -29,8 +30,12 @@ When Cloud API accepts an outbound template send (HTTP 200 with `wamid`) for cit
 - **WHEN** a list campaign obtains Graph 200 for a list lead
 - **THEN** `TenantListSend` is persisted and `coinDebitedAt` remains null and coin balance is unchanged
 
+#### Scenario: On-demand Graph 200 without debit
+- **WHEN** an on-demand send obtains Graph 200
+- **THEN** `TenantOnDemandSend` is persisted with `coinDebitedAt` null and coin balance is unchanged
+
 ### Requirement: Debit when webhook status meets the tenant trigger
-When a Meta status webhook is persisted for an outbound `wamid` tied to a city `TenantLead` or list `TenantListSend`, and the status is a success status whose rank is greater than or equal to the tenant's effective trigger (`sent` < `delivered` < `read`), and `coinDebitedAt` is null, the system MUST debit the configured cost (`costPerLead` or list `costPerSend`), create a `DEBITO` `CoinTransaction`, and set `coinDebitedAt`.
+When a Meta status webhook is persisted for an outbound `wamid` tied to a city `TenantLead`, list `TenantListSend`, or `TenantOnDemandSend`, and the status is a success status whose rank is greater than or equal to the tenant's effective trigger (`sent` < `delivered` < `read`), and `coinDebitedAt` is null, the system MUST debit the configured cost (`costPerLead`, list `costPerSend`, or `costPerOnDemandSend`), create a `DEBITO` `CoinTransaction`, and set `coinDebitedAt`.
 
 #### Scenario: Delivered debits under default trigger
 - **WHEN** effective trigger is `delivered` and status `delivered` arrives for an uncharged send
@@ -48,6 +53,10 @@ When a Meta status webhook is persisted for an outbound `wamid` tied to a city `
 - **WHEN** a second billable status arrives for a send with `coinDebitedAt` already set
 - **THEN** the system MUST NOT debit again
 
+#### Scenario: On-demand uses on-demand price
+- **WHEN** a billable status arrives for an uncharged `TenantOnDemandSend`
+- **THEN** the debit amount MUST be that tenant's `costPerOnDemandSend`
+
 ### Requirement: Failed never leaves a net charge
 When status `failed` is recorded for an outbound send, the system MUST NOT debit. If `coinDebitedAt` is set and `coinRefundedAt` is null, the system MUST credit the same cost amount, create a `CREDITO` transaction, and set `coinRefundedAt`. If the send was never debited, balance MUST stay unchanged.
 
@@ -64,11 +73,15 @@ When status `failed` is recorded for an outbound send, the system MUST NOT debit
 - **THEN** the system MUST NOT credit again
 
 ### Requirement: Schedulers reserve balance for pending uncharged sends
-City and list send schedulers MUST compute affordable sends using available balance equal to `balance - (pendingUnchargedCount * unitCost)`, where pending uncharged sends are outbound accepts for that billing scope with `coinDebitedAt` null and `lastStatus` not equal to `failed`.
+City, list, and on-demand send paths MUST compute available balance as `balance - pendingCity*costPerLead - pendingList*costPerSend - pendingOnDemand*costPerOnDemandSend`, where each pending count is outbound accepts for that channel with `coinDebitedAt` null and `lastStatus` not equal to `failed`. Affordable city/list batch size and on-demand preflight MUST use that available amount.
 
 #### Scenario: Pending reduces affordable batch
 - **WHEN** balance covers 3 units but 2 pending uncharged sends exist at the same unit cost
 - **THEN** the scheduler MUST treat affordable count as at most 1
+
+#### Scenario: On-demand pending reduces city affordable
+- **WHEN** balance is 2.0, `costPerLead` is 1.0, `costPerOnDemandSend` is 1.0, and one on-demand send is pending uncharged with no city pending
+- **THEN** city outreach MUST treat affordable city sends as at most 1
 
 ### Requirement: City failed reopens the phone for that tenant
 When a city outreach `TenantLead` receives status `failed`, the system MUST set `contacted` to false and MUST ensure subsequent city outreach selection for that tenant MAY select the same lead phone again (failed rows MUST NOT exclude the phone). List unlock behavior for `TenantListLead.sendLockCampaignId` remains required on list `failed`.

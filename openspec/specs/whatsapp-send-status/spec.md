@@ -1,10 +1,11 @@
 # whatsapp-send-status Specification
 
 ## Purpose
-TBD - created by archiving change tenant-list-campaigns-inbox. Update Purpose after archive.
+
+Persist Meta webhook delivery statuses as append-only events, linking each `wamid` to exactly one of city, list, or on-demand send without mixing conversation inbox content.
 ## Requirements
 ### Requirement: Send statuses are append-only events
-The system SHALL persist each Meta webhook `statuses` event as its own row with at least: outbound `wamid`, `status` (`sent`, `delivered`, `read`, `failed`), Meta timestamp, optional `recipientId`, optional error JSON for `failed`, optional link to `TenantListSend`, and optional link to `TenantLead`. Multiple status rows MAY exist for the same `wamid` over time. A city-outreach `wamid` MUST set `tenantLeadId` and MUST NOT set `listSendId` solely because of that match. A list-campaign `wamid` MUST set `listSendId` and MUST NOT set `tenantLeadId` solely because of that match.
+The system SHALL persist each Meta webhook `statuses` event as its own row with at least: outbound `wamid`, `status` (`sent`, `delivered`, `read`, `failed`), Meta timestamp, optional `recipientId`, optional error JSON for `failed`, optional link to `TenantListSend`, optional link to `TenantLead`, and optional link to `TenantOnDemandSend`. Multiple status rows MAY exist for the same `wamid` over time. A city-outreach `wamid` MUST set `tenantLeadId` and MUST NOT set `listSendId` or `onDemandSendId` solely because of that match. A list-campaign `wamid` MUST set `listSendId` and MUST NOT set `tenantLeadId` or `onDemandSendId` solely because of that match. An on-demand `wamid` MUST set `onDemandSendId` and MUST NOT set `tenantLeadId` or `listSendId` solely because of that match.
 
 #### Scenario: Delivered status recorded
 - **WHEN** webhook posts `statuses` with `status=delivered` for `wamid` W
@@ -15,12 +16,16 @@ The system SHALL persist each Meta webhook `statuses` event as its own row with 
 - **THEN** the status row MUST store error payload JSON
 
 #### Scenario: City wamid links TenantLead only
-- **WHEN** webhook posts a status for `wamid` W that matches `TenantLead.messageId` and no `TenantListSend`
-- **THEN** the status row MUST have `tenantLeadId` set and `listSendId` null
+- **WHEN** webhook posts a status for `wamid` W that matches `TenantLead.messageId` and no `TenantListSend` and no `TenantOnDemandSend`
+- **THEN** the status row MUST have `tenantLeadId` set and `listSendId` null and `onDemandSendId` null
 
 #### Scenario: List wamid links TenantListSend only
-- **WHEN** webhook posts a status for `wamid` W that matches `TenantListSend.wamid` and no `TenantLead.messageId`
-- **THEN** the status row MUST have `listSendId` set and `tenantLeadId` null
+- **WHEN** webhook posts a status for `wamid` W that matches `TenantListSend.wamid` and no `TenantLead.messageId` and no `TenantOnDemandSend`
+- **THEN** the status row MUST have `listSendId` set and `tenantLeadId` null and `onDemandSendId` null
+
+#### Scenario: On-demand wamid links TenantOnDemandSend only
+- **WHEN** webhook posts a status for `wamid` W that matches `TenantOnDemandSend.wamid` and no city or list send
+- **THEN** the status row MUST have `onDemandSendId` set and `tenantLeadId` null and `listSendId` null
 
 ### Requirement: Failed status unlocks list lead for other campaigns
 When a `failed` status is recorded for a list campaign outbound `wamid`, the system MUST clear the list lead send lock so other campaigns on the same list MAY target that lead again. Coin refund for that send MUST follow `coin-debit-on-status`.

@@ -1,6 +1,8 @@
 # Integração front — API keys e envio on-demand
 
-Handoff para o PWA/Next e para o integrador externo. Use **este arquivo + Swagger** (`swagger-spec.json` ou `GET /api` no gym-ctrl).
+Handoff para o PWA/Next e Super Admin. Use **este arquivo + Swagger** (`swagger-spec.json` ou `GET /api` no gym-ctrl).
+
+**Integrador só com `X-API-KEY`:** ver [API-KEY-INTEGRATION.md](./API-KEY-INTEGRATION.md) (allowlist, send, status, conversas, mídia, agenda — sem painel).
 
 | | |
 |--|--|
