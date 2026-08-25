@@ -132,6 +132,10 @@
       "key": "onDemandTemplateId",
       "value": "{{templateId}}",
       "description": "template granted para send"
+    },
+    {
+      "key": "metaMediaHandle",
+      "value": ""
     }
   ],
   "auth": {
@@ -980,6 +984,33 @@
           }
         },
         {
+          "name": "Get Business Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-accounts/{{whatsappAccountId}}/business-profile",
+            "description": "SUPER_ADMIN. Proxy Graph live. Sem token na resposta. Não cadastra telefone."
+          }
+        },
+        {
+          "name": "Patch Business Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-accounts/{{whatsappAccountId}}/business-profile",
+            "description": "SUPER_ADMIN. Whitelist about/address/description/email/websites/vertical/profile_picture_handle. Foto: handle via Upload Meta Media Handle.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"about\": \"Atendimento WhatsApp da plataforma\",\n  \"email\": \"contato@example.com\",\n  \"websites\": [\n    \"https://example.com\"\n  ]\n}"
+            }
+          }
+        },
+        {
           "name": "Patch WhatsApp Account",
           "request": {
             "method": "PATCH",
@@ -1182,7 +1213,7 @@
             "method": "GET",
             "header": [],
             "url": "{{gymBaseUrl}}/platform/whatsapp-templates",
-            "description": "Catálogo completo. Query opcional: status, name."
+            "description": "Catálogo completo com preview (components + slots). Query opcional: status, name."
           },
           "event": [
             {
@@ -1199,6 +1230,108 @@
               }
             }
           ]
+        },
+        {
+          "name": "Get WhatsApp Template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-templates/{{templateId}}",
+            "description": "SUPER_ADMIN. Preview (components + slots). 404 se id inexistente."
+          }
+        },
+        {
+          "name": "Upload Meta Media Handle",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-templates/media",
+            "description": "SUPER_ADMIN. multipart `file` jpeg/png máx 5MB. Requer META_APP_ID. Retorna { handle }. Use em HEADER IMAGE ou profile_picture_handle.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "image/jpeg ou image/png"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.handle) pm.collectionVariables.set('metaMediaHandle', json.handle);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create WhatsApp Template MARKETING",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-templates",
+            "description": "SUPER_ADMIN. category=MARKETING only. Upsert catálogo; status típico PENDING. Não cria grants.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"lembrete_pagamento_vencido\",\n  \"language\": \"pt_BR\",\n  \"category\": \"MARKETING\",\n  \"parameterFormat\": \"POSITIONAL\",\n  \"components\": [\n    {\n      \"type\": \"HEADER\",\n      \"format\": \"TEXT\",\n      \"text\": \"Pagamento pendente\"\n    },\n    {\n      \"type\": \"BODY\",\n      \"text\": \"Olá, {{1}}! Seu pagamento vence em {{2}}. Regularize para manter o acesso.\",\n      \"example\": {\n        \"body_text\": [\n          [\n            \"João\",\n            \"30/08\"\n          ]\n        ]\n      }\n    },\n    {\n      \"type\": \"FOOTER\",\n      \"text\": \"Mensagem automática\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('templateId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Patch WhatsApp Template",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-templates/{{templateId}}",
+            "description": "SUPER_ADMIN. Full replace de components. Não envie name/language (400). Exige metaId.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"components\": [\n    {\n      \"type\": \"BODY\",\n      \"text\": \"Olá, {{1}}! Oferta atualizada até {{2}}.\",\n      \"example\": {\n        \"body_text\": [\n          [\n            \"João\",\n            \"31/08\"\n          ]\n        ]\n      }\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete WhatsApp Template",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{gymBaseUrl}}/platform/whatsapp-templates/{{templateId}}",
+            "description": "SUPER_ADMIN. 409 se grant/outreach/campanha/on-demand referencia o id. Sucesso: { deleted, id }."
+          }
         },
         {
           "name": "Test WhatsApp Template",
@@ -2382,7 +2515,7 @@
             "method": "GET",
             "header": [],
             "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/whatsapp-templates",
-            "description": "Só templates granted. Sem sync Graph."
+            "description": "Só templates granted. Preview client-side: components (BODY.text) + slots. Sem sync Graph. JWT ou X-API-KEY."
           },
           "event": [
             {
@@ -2399,6 +2532,15 @@
               }
             }
           ]
+        },
+        {
+          "name": "Get Granted Template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/whatsapp-templates/{{templateId}}",
+            "description": "Preview do template granted. Sem grant → 404. Mesmo shape da listagem."
+          }
         }
       ],
       "auth": {

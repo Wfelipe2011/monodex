@@ -1,8 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma, WhatsappProvider } from '@prisma/client';
+import axios from 'axios';
+import { GRAPH_API_VERSION } from './platform-whatsapp-admin.service';
 import { WhatsappAccountsService } from './whatsapp-accounts.service';
 
 const FLEET_WABA = 'waba-fleet';
+const DEDICATED_PHONE = 'phone-dedicated-3';
+const DEDICATED_TOKEN_KEY = 'WA_TOKEN_DEDICATED';
+const DEDICATED_TOKEN = 'secret-token-never-return';
 
 function accountRow(
   overrides: Partial<{
@@ -12,6 +17,7 @@ function accountRow(
     isDefault: boolean;
     enabled: boolean;
     tenantId: number | null;
+    tokenEnvKey: string;
   }> = {},
 ) {
   return {
@@ -20,7 +26,7 @@ function accountRow(
     phoneNumberId: overrides.phoneNumberId ?? '111',
     wabaId: overrides.wabaId ?? FLEET_WABA,
     displayPhone: '+5511999998888',
-    tokenEnvKey: 'WHATSAPP_TOKEN',
+    tokenEnvKey: overrides.tokenEnvKey ?? 'WHATSAPP_TOKEN',
     tenantId: overrides.tenantId ?? null,
     enabled: overrides.enabled ?? true,
     isDefault: overrides.isDefault ?? true,
@@ -77,8 +83,18 @@ describe('WhatsappAccountsService', () => {
       $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
     };
 
-    const service = new WhatsappAccountsService(prisma as never);
-    return { service, prisma };
+    const httpService = {
+      axiosRef: {
+        get: jest.fn(),
+        post: jest.fn(),
+      },
+    };
+
+    const service = new WhatsappAccountsService(
+      prisma as never,
+      httpService as never,
+    );
+    return { service, prisma, httpService };
   }
 
   it('lista todas as contas plataforma com isDefault e sem access token', async () => {
@@ -233,5 +249,174 @@ describe('WhatsappAccountsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(prisma.whatsappAccount.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsappAccountsService business-profile', () => {
+  const dedicatedAccount = accountRow({
+    id: 3,
+    phoneNumberId: DEDICATED_PHONE,
+    isDefault: false,
+    tokenEnvKey: DEDICATED_TOKEN_KEY,
+  });
+
+  const graphProfile = {
+    about: 'Atendimento 9h–18h',
+    address: 'Rua A, 1',
+    description: 'Suporte',
+    email: 'contato@example.com',
+    websites: ['https://example.com'],
+    vertical: 'OTHER',
+    profile_picture_url: 'https://cdn.example/pic.jpg',
+  };
+
+  function buildProfile(options?: {
+    getById?: ReturnType<typeof accountRow> | null;
+  }) {
+    const prisma = {
+      whatsappAccount: {
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(
+          options?.getById === undefined ? dedicatedAccount : options.getById,
+        ),
+        create: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      tenantOutreachConfig: { findUnique: jest.fn() },
+      $transaction: jest.fn(),
+    };
+    const httpService = {
+      axiosRef: {
+        get: jest.fn().mockResolvedValue({ data: { data: [graphProfile] } }),
+        post: jest.fn().mockResolvedValue({ data: { success: true } }),
+      },
+    };
+    const service = new WhatsappAccountsService(
+      prisma as never,
+      httpService as never,
+    );
+    return { service, prisma, httpService };
+  }
+
+  beforeEach(() => {
+    process.env[DEDICATED_TOKEN_KEY] = DEDICATED_TOKEN;
+  });
+
+  afterEach(() => {
+    delete process.env[DEDICATED_TOKEN_KEY];
+  });
+
+  it('GET dedicated number: usa phoneNumberId da conta e não devolve token', async () => {
+    const { service, httpService } = buildProfile();
+    const profile = await service.getBusinessProfile(3);
+
+    expect(profile).toEqual(graphProfile);
+    expect(JSON.stringify(profile)).not.toContain(DEDICATED_TOKEN);
+    expect(profile).not.toHaveProperty('token');
+    expect(profile).not.toHaveProperty('accessToken');
+    expect(httpService.axiosRef.get).toHaveBeenCalledWith(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${DEDICATED_PHONE}/whatsapp_business_profile`,
+      expect.objectContaining({
+        params: {
+          fields:
+            'about,address,description,email,profile_picture_url,websites,vertical',
+        },
+        headers: { Authorization: `Bearer ${DEDICATED_TOKEN}` },
+      }),
+    );
+  });
+
+  it('GET account missing → 404', async () => {
+    const { service, httpService } = buildProfile({ getById: null });
+    await expect(service.getBusinessProfile(99)).rejects.toMatchObject({
+      response: expect.objectContaining({ statusCode: 404 }),
+    });
+    expect(httpService.axiosRef.get).not.toHaveBeenCalled();
+  });
+
+  it('GET token ausente → 400', async () => {
+    delete process.env[DEDICATED_TOKEN_KEY];
+    const { service, httpService } = buildProfile();
+    await expect(service.getBusinessProfile(3)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(httpService.axiosRef.get).not.toHaveBeenCalled();
+  });
+
+  it('PATCH about-only chama Graph com messaging_product e re-GET', async () => {
+    const { service, httpService, prisma } = buildProfile();
+    const result = await service.patchBusinessProfile(3, {
+      about: 'Atendimento 9h–18h',
+    });
+
+    expect(httpService.axiosRef.post).toHaveBeenCalledWith(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${DEDICATED_PHONE}/whatsapp_business_profile`,
+      {
+        messaging_product: 'whatsapp',
+        about: 'Atendimento 9h–18h',
+      },
+      expect.objectContaining({
+        headers: { Authorization: `Bearer ${DEDICATED_TOKEN}` },
+      }),
+    );
+    expect(httpService.axiosRef.get).toHaveBeenCalled();
+    expect(result).toEqual(graphProfile);
+    expect(prisma.whatsappAccount.update).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain(DEDICATED_TOKEN);
+  });
+
+  it('PATCH profile_picture_handle envia handle à Graph', async () => {
+    const { service, httpService } = buildProfile();
+    const handle = '4:opaque-handle-from-upload';
+    await service.patchBusinessProfile(3, {
+      profile_picture_handle: handle,
+    });
+
+    expect(httpService.axiosRef.post).toHaveBeenCalledWith(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${DEDICATED_PHONE}/whatsapp_business_profile`,
+      {
+        messaging_product: 'whatsapp',
+        profile_picture_handle: handle,
+      },
+      expect.any(Object),
+    );
+  });
+
+  it('PATCH Graph 4xx → 400', async () => {
+    const { service, httpService } = buildProfile();
+    const graphError = new axios.AxiosError('Bad Request');
+    graphError.response = {
+      status: 400,
+      data: { error: { message: 'Invalid parameter' } },
+      statusText: 'Bad Request',
+      headers: {},
+      config: {} as never,
+    };
+    httpService.axiosRef.post.mockRejectedValueOnce(graphError);
+
+    await expect(
+      service.patchBusinessProfile(3, { about: 'x' }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ statusCode: 400 }),
+    });
+  });
+
+  it('GET Graph 4xx → 400', async () => {
+    const { service, httpService } = buildProfile();
+    const graphError = new axios.AxiosError('Bad Request');
+    graphError.response = {
+      status: 400,
+      data: { error: { message: 'Unsupported get request' } },
+      statusText: 'Bad Request',
+      headers: {},
+      config: {} as never,
+    };
+    httpService.axiosRef.get.mockRejectedValueOnce(graphError);
+
+    await expect(service.getBusinessProfile(3)).rejects.toMatchObject({
+      response: expect.objectContaining({ statusCode: 400 }),
+    });
   });
 });

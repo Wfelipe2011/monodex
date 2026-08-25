@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -20,10 +21,17 @@ import {
 } from '@core/shared/whatsapp-template-bindings';
 import { buildTemplateSendBody } from '@core/shared/whatsapp-template-payload';
 import {
+  resolveTemplateSlots,
+  toTemplatePreviewDto,
+} from '@core/shared/whatsapp-template-preview';
+import {
   parseTemplateSlots,
   TemplateSlot,
 } from '@core/shared/whatsapp-template-slots';
+import { CreateWhatsappTemplateDto } from './dto/create-whatsapp-template.dto';
+import { PatchWhatsappTemplateDto } from './dto/patch-whatsapp-template.dto';
 import { TestWhatsappTemplateDto } from './dto/test-whatsapp-template.dto';
+import { assertValidMarketingTemplateComponents } from './whatsapp-template-components.validation';
 import {
   GRAPH_API_VERSION,
   PlatformWhatsappAdminService,
@@ -51,6 +59,19 @@ type GraphSendResponse = {
   contacts?: { input?: string; wa_id?: string }[];
   messages?: { id?: string; message_status?: string }[];
 };
+
+type GraphTemplateWriteResponse = {
+  id?: string;
+  status?: string;
+  category?: string;
+};
+
+type TemplateReferenceKind =
+  | 'tenant_template_grant'
+  | 'tenant_outreach_config'
+  | 'tenant_list_campaign'
+  | 'tenant_on_demand_send'
+  | 'tenant_on_demand_schedule';
 
 @Injectable()
 export class WhatsappTemplatesService {
@@ -134,17 +155,272 @@ export class WhatsappTemplatesService {
       orderBy: [{ name: 'asc' }, { language: 'asc' }],
     });
 
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      language: row.language,
-      status: row.status,
-      category: row.category,
-      parameterFormat: row.parameterFormat,
-      slots: this.asSlots(row.slots, row.components),
-      lastSyncedAt: row.lastSyncedAt,
-      components: row.components,
-    }));
+    return rows.map((row) => toTemplatePreviewDto(row));
+  }
+
+  async getById(id: number) {
+    const row = await this.prisma.whatsappMessageTemplate.findUnique({
+      where: { id },
+    });
+    if (!row) {
+      throw new NotFoundException(
+        `WhatsappMessageTemplate id=${id} não encontrado`,
+      );
+    }
+    return toTemplatePreviewDto(row);
+  }
+
+  async create(dto: CreateWhatsappTemplateDto) {
+    if (dto.category !== 'MARKETING') {
+      throw new BadRequestException('category deve ser MARKETING no MVP');
+    }
+    assertValidMarketingTemplateComponents(dto.components);
+
+    const creds = await this.platformWhatsapp.resolveCredentials();
+    if (!creds.wabaId?.trim()) {
+      throw new BadRequestException(
+        'wabaId da conta WhatsApp da plataforma está vazio',
+      );
+    }
+
+    const graphBody: Record<string, unknown> = {
+      name: dto.name,
+      language: dto.language,
+      category: 'MARKETING',
+      components: dto.components,
+    };
+    if (dto.parameterFormat) {
+      graphBody.parameter_format = dto.parameterFormat;
+    }
+
+    let graphData: GraphTemplateWriteResponse;
+    try {
+      const res =
+        await this.httpService.axiosRef.post<GraphTemplateWriteResponse>(
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${creds.wabaId}/message_templates`,
+          graphBody,
+          {
+            headers: {
+              Authorization: `Bearer ${creds.token}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+      graphData = res.data ?? {};
+    } catch (error) {
+      this.rethrowGraphError(error);
+    }
+
+    const now = new Date();
+    const components = dto.components as unknown as Prisma.InputJsonValue;
+    const slots = parseTemplateSlots(
+      dto.components,
+    ) as unknown as Prisma.InputJsonValue;
+    const status = (graphData.status ?? 'PENDING').trim() || 'PENDING';
+    const metaId = graphData.id?.trim() || null;
+    const category = graphData.category?.trim() || 'MARKETING';
+
+    const row = await this.prisma.whatsappMessageTemplate.upsert({
+      where: {
+        whatsappAccountId_name_language: {
+          whatsappAccountId: creds.accountId,
+          name: dto.name,
+          language: dto.language,
+        },
+      },
+      create: {
+        whatsappAccountId: creds.accountId,
+        metaId,
+        name: dto.name,
+        language: dto.language,
+        status,
+        category,
+        parameterFormat: dto.parameterFormat ?? null,
+        components,
+        slots,
+        lastSyncedAt: now,
+      },
+      update: {
+        metaId,
+        status,
+        category,
+        parameterFormat: dto.parameterFormat ?? null,
+        components,
+        slots,
+        lastSyncedAt: now,
+      },
+    });
+
+    return toTemplatePreviewDto(row);
+  }
+
+  async patch(id: number, dto: PatchWhatsappTemplateDto) {
+    if (dto.category != null && dto.category !== 'MARKETING') {
+      throw new BadRequestException('category deve ser MARKETING no MVP');
+    }
+    assertValidMarketingTemplateComponents(dto.components);
+
+    const existing = await this.prisma.whatsappMessageTemplate.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        `WhatsappMessageTemplate id=${id} não encontrado`,
+      );
+    }
+    if (!existing.metaId?.trim()) {
+      throw new BadRequestException(
+        `Template id=${id} não possui metaId; sincronize o catálogo antes de editar`,
+      );
+    }
+
+    const creds = await this.platformWhatsapp.resolveCredentials();
+    const graphBody: Record<string, unknown> = {
+      components: dto.components,
+    };
+    if (dto.category) {
+      graphBody.category = dto.category;
+    }
+
+    let graphData: GraphTemplateWriteResponse;
+    try {
+      const res =
+        await this.httpService.axiosRef.post<GraphTemplateWriteResponse>(
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${existing.metaId}`,
+          graphBody,
+          {
+            headers: {
+              Authorization: `Bearer ${creds.token}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+      graphData = res.data ?? {};
+    } catch (error) {
+      this.rethrowGraphError(error);
+    }
+
+    const now = new Date();
+    const components = dto.components as unknown as Prisma.InputJsonValue;
+    const slots = parseTemplateSlots(
+      dto.components,
+    ) as unknown as Prisma.InputJsonValue;
+    const status =
+      (graphData.status ?? existing.status).trim() || existing.status;
+    const category =
+      (graphData.category ?? dto.category ?? existing.category)?.trim() ||
+      existing.category;
+
+    const row = await this.prisma.whatsappMessageTemplate.update({
+      where: { id },
+      data: {
+        components,
+        slots,
+        status,
+        category,
+        lastSyncedAt: now,
+      },
+    });
+
+    return toTemplatePreviewDto(row);
+  }
+
+  async delete(id: number) {
+    const existing = await this.prisma.whatsappMessageTemplate.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        `WhatsappMessageTemplate id=${id} não encontrado`,
+      );
+    }
+
+    const refs = await this.collectTemplateReferences(id);
+    if (refs.length > 0) {
+      throw new ConflictException(
+        `Não é possível excluir o template: ainda referenciado por ${refs.join(', ')}`,
+      );
+    }
+
+    const creds = await this.platformWhatsapp.resolveCredentials();
+    if (!creds.wabaId?.trim()) {
+      throw new BadRequestException(
+        'wabaId da conta WhatsApp da plataforma está vazio',
+      );
+    }
+
+    const params = new URLSearchParams({ name: existing.name });
+    if (existing.metaId?.trim()) {
+      params.set('hsm_id', existing.metaId);
+    }
+
+    try {
+      await this.httpService.axiosRef.delete(
+        `https://graph.facebook.com/${GRAPH_API_VERSION}/${creds.wabaId}/message_templates?${params.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${creds.token}` },
+        },
+      );
+    } catch (error) {
+      this.rethrowGraphError(error);
+    }
+
+    await this.prisma.whatsappMessageTemplate.delete({ where: { id } });
+    return { deleted: true, id };
+  }
+
+  private async collectTemplateReferences(
+    templateId: number,
+  ): Promise<TemplateReferenceKind[]> {
+    const [
+      grantCount,
+      outreachCount,
+      notifyOutreachCount,
+      campaignCount,
+      notifyCampaignCount,
+      sendCount,
+      scheduleCount,
+    ] = await Promise.all([
+      this.prisma.tenantTemplateGrant.count({
+        where: { templateId },
+      }),
+      this.prisma.tenantOutreachConfig.count({
+        where: { outreachTemplateId: templateId },
+      }),
+      this.prisma.tenantOutreachConfig.count({
+        where: { notifyTemplateId: templateId },
+      }),
+      this.prisma.tenantListCampaign.count({
+        where: { templateId },
+      }),
+      this.prisma.tenantListCampaign.count({
+        where: { notifyTemplateId: templateId },
+      }),
+      this.prisma.tenantOnDemandSend.count({
+        where: { templateId },
+      }),
+      this.prisma.tenantOnDemandSchedule.count({
+        where: { templateId },
+      }),
+    ]);
+
+    const refs: TemplateReferenceKind[] = [];
+    if (grantCount > 0) {
+      refs.push('tenant_template_grant');
+    }
+    if (outreachCount > 0 || notifyOutreachCount > 0) {
+      refs.push('tenant_outreach_config');
+    }
+    if (campaignCount > 0 || notifyCampaignCount > 0) {
+      refs.push('tenant_list_campaign');
+    }
+    if (sendCount > 0) {
+      refs.push('tenant_on_demand_send');
+    }
+    if (scheduleCount > 0) {
+      refs.push('tenant_on_demand_schedule');
+    }
+    return refs;
   }
 
   async testSend(
@@ -184,7 +460,7 @@ export class WhatsappTemplatesService {
       };
     }
 
-    const slots = this.asSlots(template.slots, template.components);
+    const slots = resolveTemplateSlots(template.slots, template.components);
     const variables = dto.variables ?? {};
     const values: Record<string, string> = {};
     const missing: string[] = [];
@@ -394,13 +670,6 @@ export class WhatsappTemplatesService {
       }
     }
     return null;
-  }
-
-  private asSlots(slotsJson: unknown, components: unknown): TemplateSlot[] {
-    if (Array.isArray(slotsJson) && slotsJson.length > 0) {
-      return slotsJson as TemplateSlot[];
-    }
-    return parseTemplateSlots(components);
   }
 
   private async fetchAllTemplates(

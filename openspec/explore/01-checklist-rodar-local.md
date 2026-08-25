@@ -66,6 +66,7 @@ JWT_SECRET=troque-isto
 NOTIFLY_PORT=3000
 NOTIFLY_JWT_SECRET=troque-isto   # presente no .env atual; confirmar se é usado
 WHATSAPP_TOKEN=                   # obrigatório para envio real
+META_APP_ID=                      # App ID Meta — upload Resumable (handles template/profile)
 
 # captura (opcional)
 CAPTURA_PORT=3200

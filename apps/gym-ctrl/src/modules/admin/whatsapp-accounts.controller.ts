@@ -10,13 +10,20 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { Roles } from '@prisma/client';
 import type { Request } from 'express';
 import { WhatsappAccountsService } from './whatsapp-accounts.service';
 import { CreateWhatsappAccountDto } from './dto/create-whatsapp-account.dto';
 import { PatchWhatsappAccountDto } from './dto/patch-whatsapp-account.dto';
+import { PatchWhatsappBusinessProfileDto } from './dto/patch-whatsapp-business-profile.dto';
+import { WhatsappBusinessProfileResponseDto } from './dto/swagger/whatsapp-business-profile.swagger.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
 
 @ApiTags('Platform — WhatsApp Accounts')
@@ -48,6 +55,33 @@ export class WhatsappAccountsController {
   create(@Body() dto: CreateWhatsappAccountDto, @Req() req: Request) {
     rejectSecretTokenFields(req.body);
     return this.whatsappAccountsService.create(dto);
+  }
+
+  @Get(':id/business-profile')
+  @ApiOperation({
+    summary: 'Ler WhatsApp Business Profile (proxy Graph live)',
+    description:
+      'GET Graph /{phone-number-id}/whatsapp_business_profile com o phoneNumberId e tokenEnvKey da conta `:id` (plataforma). Não exige isDefault. Nunca devolve access token. Não cadastra telefone.',
+  })
+  @ApiOkResponse({ type: WhatsappBusinessProfileResponseDto })
+  getBusinessProfile(@Param('id', ParseIntPipe) id: number) {
+    return this.whatsappAccountsService.getBusinessProfile(id);
+  }
+
+  @Patch(':id/business-profile')
+  @ApiOperation({
+    summary: 'Atualizar WhatsApp Business Profile (proxy Graph live)',
+    description:
+      'POST Graph com messaging_product=whatsapp e campos whitelist (about, address, description, email, websites, vertical, profile_picture_handle). Foto: obtenha handle via POST /platform/whatsapp-templates/media. Retorna profile atualizado (re-GET). Sem persistência Prisma; sem display name / register phone. Nunca envie token.',
+  })
+  @ApiOkResponse({ type: WhatsappBusinessProfileResponseDto })
+  patchBusinessProfile(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: PatchWhatsappBusinessProfileDto,
+    @Req() req: Request,
+  ) {
+    rejectSecretTokenFields(req.body);
+    return this.whatsappAccountsService.patchBusinessProfile(id, dto);
   }
 
   @Get(':id')

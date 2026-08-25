@@ -38,6 +38,11 @@ import { OrphanMediaCleanupCron } from './modules/admin/orphan-media-cleanup.cro
         TENANT_MEDIA_DIR: Joi.string()
           .default('uploads/tenant-media')
           .description('Diretório de arquivos de mídia dos tenants'),
+        META_APP_ID: Joi.string()
+          .optional()
+          .description(
+            'App ID do Meta Developer — Resumable Upload (handles de template/profile)',
+          ),
       }),
     })],
   controllers: [GymController],

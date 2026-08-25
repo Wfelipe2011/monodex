@@ -8,7 +8,10 @@ describe('TenantTemplatesController — on-demand send', () => {
       create: jest.fn(),
     };
     const controller = new TenantTemplatesController(
-      { listGrantedTemplates: jest.fn() } as never,
+      {
+        listGrantedTemplates: jest.fn(),
+        getGrantedTemplate: jest.fn(),
+      } as never,
       onDemandSendsService as never,
     );
 
@@ -22,5 +25,22 @@ describe('TenantTemplatesController — on-demand send', () => {
     ).toThrow(ForbiddenException);
 
     expect(onDemandSendsService.create).not.toHaveBeenCalled();
+  });
+
+  it('GET :templateId delega getGrantedTemplate', async () => {
+    const templateGrantsService = {
+      listGrantedTemplates: jest.fn(),
+      getGrantedTemplate: jest.fn().mockResolvedValue({ id: 10 }),
+    };
+    const controller = new TenantTemplatesController(
+      templateGrantsService as never,
+      { create: jest.fn() } as never,
+    );
+
+    await expect(controller.getById(4, 10)).resolves.toEqual({ id: 10 });
+    expect(templateGrantsService.getGrantedTemplate).toHaveBeenCalledWith(
+      4,
+      10,
+    );
   });
 });

@@ -39,9 +39,6 @@
                 }
               }
             }
-          },
-          "201": {
-            "description": ""
           }
         },
         "summary": "Autenticação de usuário",
@@ -1408,14 +1405,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1453,14 +1443,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1498,14 +1481,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1535,14 +1511,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1580,14 +1549,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1625,14 +1587,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1810,6 +1765,88 @@
         ]
       }
     },
+    "/platform/whatsapp-accounts/{id}/business-profile": {
+      "get": {
+        "description": "GET Graph /{phone-number-id}/whatsapp_business_profile com o phoneNumberId e tokenEnvKey da conta `:id` (plataforma). Não exige isDefault. Nunca devolve access token. Não cadastra telefone.",
+        "operationId": "WhatsappAccountsController_getBusinessProfile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsappBusinessProfileResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ler WhatsApp Business Profile (proxy Graph live)",
+        "tags": [
+          "Platform — WhatsApp Accounts"
+        ]
+      },
+      "patch": {
+        "description": "POST Graph com messaging_product=whatsapp e campos whitelist (about, address, description, email, websites, vertical, profile_picture_handle). Foto: obtenha handle via POST /platform/whatsapp-templates/media. Retorna profile atualizado (re-GET). Sem persistência Prisma; sem display name / register phone. Nunca envie token.",
+        "operationId": "WhatsappAccountsController_patchBusinessProfile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchWhatsappBusinessProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsappBusinessProfileResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Atualizar WhatsApp Business Profile (proxy Graph live)",
+        "tags": [
+          "Platform — WhatsApp Accounts"
+        ]
+      }
+    },
     "/platform/whatsapp-accounts/{id}": {
       "get": {
         "description": "Inclui isDefault. Nunca devolve access token.",
@@ -1898,8 +1935,98 @@
         ]
       }
     },
+    "/platform/whatsapp-templates/media": {
+      "post": {
+        "description": "Campo multipart `file` (jpeg/png, máx. 5 MB). Retorna handle opaco para header IMAGE de template ou profile_picture_handle. Requer META_APP_ID e token da conta default. Não persiste em TenantMedia.",
+        "operationId": "WhatsappTemplatesController_uploadMedia",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Handle Meta opaco (sem access token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaMediaHandleResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MIME inválido, arquivo vazio, META_APP_ID ausente ou erro Graph 4xx"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload de imagem na Meta (Resumable Upload) para obter handle",
+        "tags": [
+          "Platform — WhatsApp Templates"
+        ]
+      }
+    },
     "/platform/whatsapp-templates": {
+      "post": {
+        "description": "POST Graph message_templates + upsert no catálogo local (slots derivados). Somente category=MARKETING (MVP). Status típico inicial: PENDING. Não cria grants. Preview: resposta traz components + slots; interpolação de {{n}} é client-side.",
+        "operationId": "WhatsappTemplatesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWhatsappTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Preview do template criado/upsertado (components com BODY.text)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsappTemplatePreviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação, category ≠ MARKETING, IMAGE sem handle ou erro Graph 4xx"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Criar template MARKETING na WABA default",
+        "tags": [
+          "Platform — WhatsApp Templates"
+        ]
+      },
       "get": {
+        "description": "Retorna metadados, slots estáveis e components no shape Meta para preview client-side (substituir {{1}} com slots + variáveis no front). Sem sync Graph nesta chamada.",
         "operationId": "WhatsappTemplatesController_list",
         "parameters": [
           {
@@ -1921,7 +2048,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Catálogo com BODY.text e slots para preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WhatsappTemplatePreviewDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1929,7 +2066,139 @@
             "bearer": []
           }
         ],
-        "summary": "Listar templates do catálogo (inclui slots parseados)",
+        "summary": "Listar templates do catálogo (preview: components + slots)",
+        "tags": [
+          "Platform — WhatsApp Templates"
+        ]
+      }
+    },
+    "/platform/whatsapp-templates/{id}": {
+      "get": {
+        "description": "Mesmo shape da listagem (components + slots). Preview client-side. 404 se id inexistente. Sem sync Graph.",
+        "operationId": "WhatsappTemplatesController_getById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsappTemplatePreviewDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template id inexistente"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Obter template do catálogo por id (preview)",
+        "tags": [
+          "Platform — WhatsApp Templates"
+        ]
+      },
+      "patch": {
+        "description": "Exige metaId. name e language não podem ser alterados. Local só atualiza após Graph OK. MVP: category MARKETING. Resposta = preview (components + slots).",
+        "operationId": "WhatsappTemplatesController_patch",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchWhatsappTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsappTemplatePreviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "metaId null, name/language no body, validação ou erro Graph 4xx"
+          },
+          "404": {
+            "description": "Template id inexistente"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar template MARKETING (Graph full replace de components)",
+        "tags": [
+          "Platform — WhatsApp Templates"
+        ]
+      },
+      "delete": {
+        "description": "409 Conflict se houver grant, outreach, campanha ou on-demand referenciando o id. Sem cascade de grants — remova FKs antes. Sucesso: { deleted: true, id }.",
+        "operationId": "WhatsappTemplatesController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsappTemplateDeletedDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template id inexistente"
+          },
+          "409": {
+            "description": "Template ainda referenciado por FKs locais (HTTP 409)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Excluir template na Graph e no catálogo local",
         "tags": [
           "Platform — WhatsApp Templates"
         ]
@@ -2079,17 +2348,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2118,14 +2377,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2154,14 +2406,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2199,14 +2444,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2234,14 +2472,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2279,17 +2510,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2622,9 +2843,6 @@
                 }
               }
             }
-          },
-          "201": {
-            "description": ""
           },
           "400": {
             "description": "CSV inválido, file ausente ou phone duplicado"
@@ -4213,14 +4431,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -4258,14 +4469,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -4295,14 +4499,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -4477,7 +4674,7 @@
     },
     "/tenant/{tenantId}/whatsapp-templates": {
       "get": {
-        "description": "Join grant + catálogo: id, name, language, status, slots. Sem sync Graph. Templates do catálogo sem grant são omitidos.",
+        "description": "Join grant + catálogo com preview client-side: id, metaId, name, language, status, category, parameterFormat, slots, components (incl. BODY.text), lastSyncedAt. O front substitui {{n}} usando slots + variáveis — sem render no backend. Sem sync Graph. Templates do catálogo sem grant são omitidos. Auth: JWT ADMIN/SUPER_ADMIN ou X-API-KEY.",
         "operationId": "TenantTemplatesController_list",
         "parameters": [
           {
@@ -4491,7 +4688,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Templates granted com components para bubble preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WhatsappTemplatePreviewDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4503,6 +4710,57 @@
           }
         ],
         "summary": "Listar templates granted ao tenant",
+        "tags": [
+          "Tenant — WhatsApp Templates"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/whatsapp-templates/{templateId}": {
+      "get": {
+        "description": "Mesmo shape da listagem (preview client-side). Sem grant → 404 (não revela existência no catálogo global). Sem sync Graph.",
+        "operationId": "TenantTemplatesController_getById",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsappTemplatePreviewDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sem grant para o templateId neste tenant (ou id inexistente)"
+          }
+        },
+        "security": [
+          {
+            "X-API-KEY": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Obter template granted por id",
         "tags": [
           "Tenant — WhatsApp Templates"
         ]
@@ -4585,17 +4843,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -4633,14 +4881,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -4817,13 +5058,11 @@
         "properties": {
           "currentPassword": {
             "type": "string",
-            "minLength": 6,
             "description": "Senha atual em plaintext",
             "example": "antiga"
           },
           "newPassword": {
             "type": "string",
-            "minLength": 6,
             "description": "Nova senha em plaintext (será hasheada com bcrypt 10 rounds)",
             "example": "nova-senha"
           }
@@ -4850,7 +5089,6 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome do tenant",
             "example": "Academia Centro"
           },
@@ -4874,13 +5112,12 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome do tenant"
           },
           "phone": {
             "type": "string",
-            "nullable": true,
-            "description": "Telefone E.164 (único)"
+            "description": "Telefone E.164 (único)",
+            "nullable": true
           },
           "active": {
             "type": "boolean",
@@ -4897,7 +5134,6 @@
         "properties": {
           "phone": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone do tenant (não altera active)",
             "example": "12911112222"
           }
@@ -4911,27 +5147,22 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "example": "Maria Silva"
           },
           "username": {
             "type": "string",
-            "minLength": 1,
             "example": "maria.admin"
           },
           "email": {
             "type": "string",
-            "format": "email",
             "example": "maria@academia.com"
           },
           "password": {
             "type": "string",
-            "minLength": 6,
             "example": "senha-segura"
           },
           "roles": {
             "type": "array",
-            "uniqueItems": true,
             "description": "Roles do usuário do tenant (SUPER_ADMIN não permitido)",
             "default": [
               "ADMIN"
@@ -4958,12 +5189,10 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "example": "Maria Silva"
           },
           "roles": {
             "type": "array",
-            "uniqueItems": true,
             "description": "Roles do usuário do tenant (SUPER_ADMIN não permitido)",
             "items": {
               "type": "string",
@@ -4981,7 +5210,6 @@
         "properties": {
           "password": {
             "type": "string",
-            "minLength": 6,
             "description": "Nova senha em plaintext (será hasheada)",
             "example": "nova-senha"
           }
@@ -5066,19 +5294,19 @@
           "consumedAt": {
             "format": "date-time",
             "type": "string",
-            "nullable": true,
-            "example": null
+            "example": null,
+            "nullable": true
           },
           "revokedAt": {
             "format": "date-time",
             "type": "string",
-            "nullable": true,
-            "example": null
+            "example": null,
+            "nullable": true
           },
           "createdByUserId": {
             "type": "number",
-            "nullable": true,
-            "example": 1
+            "example": 1,
+            "nullable": true
           },
           "createdAt": {
             "format": "date-time",
@@ -5139,22 +5367,18 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "example": "Maria Silva"
           },
           "username": {
             "type": "string",
-            "minLength": 1,
             "example": "maria.admin"
           },
           "email": {
             "type": "string",
-            "format": "email",
             "example": "maria@academia.com"
           },
           "password": {
             "type": "string",
-            "minLength": 6,
             "example": "senha-segura"
           }
         },
@@ -5250,7 +5474,6 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da chave",
             "example": "crm-prod"
           }
@@ -5316,23 +5539,21 @@
           },
           "amount": {
             "type": "number",
-            "minimum": 1,
             "description": "Valor positivo a creditar",
             "example": 10
           },
           "description": {
             "type": "string",
-            "minLength": 1,
             "description": "Descrição livre (marcador do operador é anexado)",
             "example": "Credito inicial onboarding"
           },
           "type": {
             "type": "string",
+            "description": "Tipo da transaction (default CREDITO)",
             "enum": [
               "CREDITO",
               "BONUS"
             ],
-            "description": "Tipo da transaction (default CREDITO)",
             "default": "CREDITO"
           }
         },
@@ -5351,13 +5572,11 @@
           },
           "amount": {
             "type": "number",
-            "minimum": 1,
             "description": "Valor positivo a debitar",
             "example": 3
           },
           "description": {
             "type": "string",
-            "minLength": 1,
             "description": "Descrição livre (marcador do operador é anexado)",
             "example": "Ajuste operacional"
           }
@@ -5415,19 +5634,16 @@
           },
           "whatsappAccountId": {
             "type": "number",
-            "nullable": true,
-            "minimum": 1,
             "description": "Conta WhatsApp dedicada (não-default). Omitido ou null = remetente default da plataforma",
+            "nullable": true,
             "example": 2
           },
           "outreachTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de outreach no catálogo"
           },
           "notifyTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de notify no catálogo"
           },
           "slotBindings": {
@@ -5450,7 +5666,6 @@
             }
           },
           "categories": {
-            "minItems": 1,
             "description": "Categorias de leads",
             "example": [
               "Construtoras",
@@ -5463,14 +5678,12 @@
           },
           "leadsPerRun": {
             "type": "number",
-            "minimum": 1,
             "description": "Leads contactados por execução (default 5)",
             "example": 5,
             "default": 5
           },
           "sendIntervalSeconds": {
             "type": "number",
-            "minimum": 0,
             "description": "Intervalo em segundos entre envios (default 5)",
             "example": 5,
             "default": 5
@@ -5494,7 +5707,6 @@
           },
           "costPerOnDemandSend": {
             "type": "number",
-            "minimum": 0,
             "description": "Custo em coins por envio on-demand. 0 fecha o canal. Só Super Admin."
           },
           "cashbackOnReply": {
@@ -5503,19 +5715,18 @@
           },
           "coinDebitOnStatus": {
             "type": "string",
+            "description": "Status Meta em que o coin é debitado (cidade e lista). Default no schema: delivered. failed não é permitido.",
             "enum": [
               "sent",
               "delivered",
               "read"
             ],
-            "description": "Status Meta em que o coin é debitado (cidade e lista). Default no schema: delivered. failed não é permitido.",
             "example": "delivered"
           },
           "whatsappAccountId": {
             "type": "number",
-            "nullable": true,
-            "minimum": 1,
             "description": "Conta WhatsApp dedicada (não-default). null = remetente default da plataforma",
+            "nullable": true,
             "example": 2
           }
         }
@@ -5530,12 +5741,10 @@
           },
           "outreachTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de outreach no catálogo"
           },
           "notifyTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de notify no catálogo"
           },
           "slotBindings": {
@@ -5558,7 +5767,6 @@
             }
           },
           "categories": {
-            "minItems": 0,
             "type": "array",
             "items": {
               "type": "string"
@@ -5566,14 +5774,12 @@
           },
           "leadsPerRun": {
             "type": "number",
-            "minimum": 1,
             "description": "Leads contactados por execução (default 5)",
             "example": 5,
             "default": 5
           },
           "sendIntervalSeconds": {
             "type": "number",
-            "minimum": 0,
             "description": "Intervalo em segundos entre envios (default 5)",
             "example": 5,
             "default": 5
@@ -5589,12 +5795,10 @@
           },
           "outreachTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de outreach no catálogo"
           },
           "notifyTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de notify no catálogo"
           },
           "slotBindings": {
@@ -5617,7 +5821,6 @@
             }
           },
           "categories": {
-            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string"
@@ -5625,13 +5828,11 @@
           },
           "leadsPerRun": {
             "type": "number",
-            "minimum": 1,
             "description": "Leads contactados por execução",
             "example": 5
           },
           "sendIntervalSeconds": {
             "type": "number",
-            "minimum": 0,
             "description": "Intervalo em segundos entre envios",
             "example": 5
           }
@@ -5678,20 +5879,20 @@
           },
           "lastStatus": {
             "type": "string",
-            "nullable": true,
             "enum": [
               "sent",
               "delivered",
               "read",
               "failed"
             ],
-            "example": "delivered"
+            "example": "delivered",
+            "nullable": true
           },
           "templateName": {
             "type": "string",
-            "nullable": true,
             "description": "Nome do template no momento do disparo; null em histórico",
-            "example": "hello_city"
+            "example": "hello_city",
+            "nullable": true
           },
           "lead": {
             "$ref": "#/components/schemas/CityOutreachSendLeadRefDto"
@@ -5717,13 +5918,11 @@
         "properties": {
           "phoneNumberId": {
             "type": "string",
-            "minLength": 1,
             "description": "Meta Cloud API phone_number_id",
             "example": "688645744332614"
           },
           "wabaId": {
             "type": "string",
-            "minLength": 1,
             "description": "WhatsApp Business Account ID (WABA)",
             "example": "123456789012345"
           },
@@ -5734,7 +5933,6 @@
           },
           "tokenEnvKey": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da env var com o token Meta (nunca o token em si)",
             "default": "WHATSAPP_TOKEN"
           },
@@ -5749,8 +5947,8 @@
           },
           "tenantId": {
             "type": "number",
-            "nullable": true,
-            "description": "Deve ser null/omitido (somente contas de plataforma no MVP)"
+            "description": "Deve ser null/omitido (somente contas de plataforma no MVP)",
+            "nullable": true
           }
         },
         "required": [
@@ -5758,17 +5956,93 @@
           "wabaId"
         ]
       },
+      "WhatsappBusinessProfileResponseDto": {
+        "type": "object",
+        "properties": {
+          "about": {
+            "type": "string",
+            "example": "Atendimento WhatsApp da plataforma",
+            "description": "Texto About (máx. 139 chars na Meta)"
+          },
+          "address": {
+            "type": "string",
+            "example": "Av. Exemplo 100, São Paulo"
+          },
+          "description": {
+            "type": "string",
+            "example": "Canal oficial de comunicação com clientes do tenant"
+          },
+          "email": {
+            "type": "string",
+            "example": "contato@example.com"
+          },
+          "websites": {
+            "example": [
+              "https://example.com"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "vertical": {
+            "type": "string",
+            "example": "OTHER"
+          },
+          "profile_picture_url": {
+            "type": "string",
+            "description": "URL pública da foto quando a Graph a devolve",
+            "example": "https://lookaside.fbsbx.com/…"
+          }
+        }
+      },
+      "PatchWhatsappBusinessProfileDto": {
+        "type": "object",
+        "properties": {
+          "about": {
+            "type": "string",
+            "description": "Texto \"About\" do perfil (máx. 139 chars na Meta)",
+            "maxLength": 139
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "websites": {
+            "description": "Até 2 URLs de websites",
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "vertical": {
+            "type": "string",
+            "description": "Vertical Meta (ex.: OTHER, RETAIL, HEALTH). Ver docs WhatsApp Business Profile."
+          },
+          "profile_picture_handle": {
+            "type": "string",
+            "description": "Handle opaco de foto obtido via POST /platform/whatsapp-templates/media"
+          }
+        }
+      },
       "PatchWhatsappAccountDto": {
         "type": "object",
         "properties": {
           "phoneNumberId": {
             "type": "string",
-            "minLength": 1,
             "description": "Meta Cloud API phone_number_id"
           },
           "wabaId": {
             "type": "string",
-            "minLength": 1,
             "description": "WhatsApp Business Account ID (WABA)"
           },
           "displayPhone": {
@@ -5777,7 +6051,6 @@
           },
           "tokenEnvKey": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da env var com o token Meta (nunca o token em si)"
           },
           "enabled": {
@@ -5793,12 +6066,303 @@
           }
         }
       },
+      "MetaMediaHandleResponseDto": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string",
+            "description": "Handle opaco da Meta para header_handle de template ou profile_picture_handle",
+            "example": "4:aW1hZ2UvanBlZw==:ARZ9oTHzo9igJVD5QgwemUWSkOv3vl4dzdBovSFUy2yz5fFAgSqDZOI"
+          }
+        },
+        "required": [
+          "handle"
+        ]
+      },
+      "CreateWhatsappTemplateDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nome do template (somente minúsculas, números e underscore)",
+            "example": "promo_boas_vindas"
+          },
+          "language": {
+            "type": "string",
+            "description": "Código de idioma Meta (ex. pt_BR)",
+            "example": "pt_BR"
+          },
+          "category": {
+            "type": "string",
+            "description": "Categoria Meta — MVP aceita somente MARKETING",
+            "enum": [
+              "MARKETING"
+            ],
+            "example": "MARKETING"
+          },
+          "parameterFormat": {
+            "type": "string",
+            "description": "Formato de parâmetros Meta",
+            "enum": [
+              "POSITIONAL",
+              "NAMED"
+            ],
+            "example": "POSITIONAL"
+          },
+          "components": {
+            "type": "array",
+            "description": "Components no shape Meta (HEADER TEXT|IMAGE, BODY, FOOTER?, BUTTONS?). Variáveis exigem example; HEADER IMAGE exige header_handle.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "example": [
+              {
+                "type": "HEADER",
+                "format": "TEXT",
+                "text": "Pagamento pendente"
+              },
+              {
+                "type": "BODY",
+                "text": "Olá, {{1}}! Seu pagamento vence em {{2}}. Regularize para manter o acesso.",
+                "example": {
+                  "body_text": [
+                    [
+                      "João",
+                      "30/08"
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "FOOTER",
+                "text": "Mensagem automática"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "language",
+          "category",
+          "components"
+        ]
+      },
+      "WhatsappTemplateSlotDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "body.1"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "header",
+              "body",
+              "button"
+            ],
+            "example": "body"
+          },
+          "paramType": {
+            "type": "string",
+            "enum": [
+              "image",
+              "text"
+            ],
+            "example": "text"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "positional",
+              "named"
+            ],
+            "example": "positional"
+          },
+          "index": {
+            "type": "number",
+            "example": 1
+          },
+          "parameterName": {
+            "type": "string",
+            "example": "customer_name"
+          },
+          "subType": {
+            "type": "string",
+            "enum": [
+              "url"
+            ],
+            "example": "url"
+          }
+        },
+        "required": [
+          "key",
+          "component",
+          "paramType"
+        ]
+      },
+      "WhatsappTemplatePreviewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 12
+          },
+          "metaId": {
+            "type": "string",
+            "nullable": true,
+            "example": "4578906895724819",
+            "description": "ID Meta do template; null se ainda não sincronizado"
+          },
+          "name": {
+            "type": "string",
+            "example": "lembrete_pagamento_vencido"
+          },
+          "language": {
+            "type": "string",
+            "example": "pt_BR"
+          },
+          "status": {
+            "type": "string",
+            "example": "APPROVED",
+            "description": "Status Meta (ex. PENDING após create, APPROVED após sync)"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "example": "MARKETING"
+          },
+          "parameterFormat": {
+            "type": "string",
+            "nullable": true,
+            "example": "POSITIONAL"
+          },
+          "slots": {
+            "description": "Slots parseados; keys estáveis (body.1, header.image, …)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsappTemplateSlotDto"
+            }
+          },
+          "components": {
+            "type": "array",
+            "description": "Components no shape Meta (HEADER/BODY/FOOTER/BUTTONS). TEXT com placeholders {{1}}; preview é client-side.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "example": [
+              {
+                "type": "HEADER",
+                "format": "TEXT",
+                "text": "Pagamento pendente"
+              },
+              {
+                "type": "BODY",
+                "text": "Olá, {{1}}! Seu pagamento vence em {{2}}. Regularize para manter o acesso.",
+                "example": {
+                  "body_text": [
+                    [
+                      "João",
+                      "30/08"
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "FOOTER",
+                "text": "Mensagem automática"
+              },
+              {
+                "type": "BUTTONS",
+                "buttons": [
+                  {
+                    "type": "URL",
+                    "text": "Pagar agora",
+                    "url": "https://example.com/pay/{{1}}",
+                    "example": [
+                      "abc123"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "object",
+            "example": "2026-08-24T12:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "language",
+          "status",
+          "slots",
+          "components",
+          "lastSyncedAt"
+        ]
+      },
+      "PatchWhatsappTemplateDto": {
+        "type": "object",
+        "properties": {
+          "components": {
+            "type": "array",
+            "description": "Components completos (replace Meta). Mesmas regras de validação do create. Inclua BODY.text com placeholders.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "example": [
+              {
+                "type": "BODY",
+                "text": "Olá, {{1}}! Oferta atualizada até {{2}}.",
+                "example": {
+                  "body_text": [
+                    [
+                      "João",
+                      "31/08"
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "category": {
+            "type": "string",
+            "description": "Categoria — MVP somente MARKETING",
+            "enum": [
+              "MARKETING"
+            ]
+          }
+        },
+        "required": [
+          "components"
+        ]
+      },
+      "WhatsappTemplateDeletedDto": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "example": true
+          },
+          "id": {
+            "type": "number",
+            "example": 12
+          }
+        },
+        "required": [
+          "deleted",
+          "id"
+        ]
+      },
       "TestWhatsappTemplateDto": {
         "type": "object",
         "properties": {
           "to": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone de destino (dígitos; 55 será prefixado se faltar)",
             "example": "11999999999"
           },
@@ -5812,13 +6376,11 @@
           },
           "leadId": {
             "type": "number",
-            "minimum": 1,
             "description": "Lead opcional para resolver bindings lead.*",
             "example": 1
           },
           "whatsappAccountId": {
             "type": "number",
-            "minimum": 1,
             "description": "Conta plataforma para o envio (phoneNumberId). Omitido usa a default. O template continua no catálogo da default.",
             "example": 2
           }
@@ -5832,14 +6394,11 @@
         "properties": {
           "cronExpression": {
             "type": "string",
-            "minLength": 1,
-            "pattern": "FIVE_FIELD_CRON",
             "description": "Expressão cron de 5 campos",
             "example": "0 8 * * *"
           },
           "timeZone": {
             "type": "string",
-            "minLength": 1,
             "description": "Timezone IANA",
             "default": "America/Sao_Paulo",
             "example": "America/Sao_Paulo"
@@ -5858,19 +6417,16 @@
         "properties": {
           "cityName": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da cidade",
             "example": "Taubaté"
           },
           "state": {
             "type": "string",
-            "minLength": 1,
             "description": "UF da cidade",
             "example": "SP"
           },
           "category": {
             "type": "string",
-            "minLength": 1,
             "description": "Categoria a scrapar",
             "example": "Construtoras"
           },
@@ -5894,7 +6450,6 @@
           },
           "category": {
             "type": "string",
-            "minLength": 1,
             "description": "Nova categoria (respeita unique cityId+category)"
           }
         }
@@ -5944,7 +6499,6 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da lista",
             "example": "Construtoras SP"
           }
@@ -5958,7 +6512,6 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da lista",
             "example": "Construtoras SP — Q3"
           }
@@ -5999,22 +6552,18 @@
           },
           "website": {
             "type": "string",
-            "nullable": true,
             "example": "https://exemplo.com.br"
           },
           "category": {
             "type": "string",
-            "nullable": true,
             "example": "Construtoras"
           },
           "reviews": {
             "type": "number",
-            "nullable": true,
             "example": 42
           },
           "sendLockCampaignId": {
             "type": "number",
-            "nullable": true,
             "description": "Campanha que bloqueou o lead após envio aceito; null = elegível",
             "example": 3
           },
@@ -6043,13 +6592,11 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome do lead",
             "example": "Construtora ABC"
           },
           "phone": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone (normalizado para dígitos com prefixo 55)",
             "example": "(11) 98765-4321"
           },
@@ -6065,7 +6612,6 @@
           },
           "reviews": {
             "type": "number",
-            "minimum": 0,
             "description": "Quantidade de reviews (≥ 0)",
             "example": 42
           }
@@ -6079,7 +6625,6 @@
         "type": "object",
         "properties": {
           "leads": {
-            "minItems": 1,
             "example": {
               "leads": [
                 {
@@ -6111,13 +6656,11 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome do lead",
             "example": "Construtora ABC Ltda"
           },
           "phone": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone (será normalizado)",
             "example": "11987654321"
           },
@@ -6133,7 +6676,6 @@
           },
           "reviews": {
             "type": "number",
-            "minimum": 0,
             "description": "Quantidade de reviews (≥ 0)",
             "example": 50
           }
@@ -6144,9 +6686,9 @@
         "properties": {
           "costPerSend": {
             "type": "number",
-            "minimum": 0,
             "description": "Custo por envio (0 = campanha não envia)",
-            "example": 0.4
+            "example": 0.4,
+            "minimum": 0
           }
         },
         "required": [
@@ -6220,7 +6762,6 @@
           },
           "notifyTemplateId": {
             "type": "number",
-            "nullable": true,
             "example": 6
           },
           "notifySlotBindings": {
@@ -6276,12 +6817,7 @@
             "$ref": "#/components/schemas/CatalogTemplateRefDto"
           },
           "notifyTemplate": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CatalogTemplateRefDto"
-              }
-            ]
+            "$ref": "#/components/schemas/CatalogTemplateRefDto"
           },
           "createdAt": {
             "format": "date-time",
@@ -6354,7 +6890,6 @@
         "properties": {
           "buttonIndex": {
             "type": "number",
-            "minimum": 0,
             "example": 0
           },
           "label": {
@@ -6391,7 +6926,6 @@
           },
           "templateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de disparo no catálogo"
           },
           "slotBindings": {
@@ -6399,14 +6933,12 @@
           },
           "notifyTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de notify (obrigatório se NOTIFY)"
           },
           "notifySlotBindings": {
             "$ref": "#/components/schemas/NotifySlotBindingsDto"
           },
           "buttonActions": {
-            "minItems": 0,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ButtonActionDto"
@@ -6426,12 +6958,10 @@
           },
           "sendsPerRun": {
             "type": "number",
-            "minimum": 1,
             "default": 5
           },
           "sendIntervalSeconds": {
             "type": "number",
-            "minimum": 0,
             "default": 5
           }
         },
@@ -6454,16 +6984,13 @@
             "type": "boolean"
           },
           "templateId": {
-            "type": "number",
-            "minimum": 1
+            "type": "number"
           },
           "slotBindings": {
             "$ref": "#/components/schemas/SendSlotBindingsDto"
           },
           "notifyTemplateId": {
-            "type": "number",
-            "nullable": true,
-            "minimum": 1
+            "type": "number"
           },
           "notifySlotBindings": {
             "$ref": "#/components/schemas/NotifySlotBindingsDto"
@@ -6487,12 +7014,10 @@
             }
           },
           "sendsPerRun": {
-            "type": "number",
-            "minimum": 1
+            "type": "number"
           },
           "sendIntervalSeconds": {
-            "type": "number",
-            "minimum": 0
+            "type": "number"
           }
         }
       },
@@ -6554,7 +7079,6 @@
           },
           "lastStatus": {
             "type": "string",
-            "nullable": true,
             "enum": [
               "sent",
               "delivered",
@@ -6608,8 +7132,8 @@
           },
           "body": {
             "type": "string",
-            "nullable": true,
-            "example": "Tenho Interesse!"
+            "example": "Tenho Interesse!",
+            "nullable": true
           },
           "createdAt": {
             "format": "date-time",
@@ -6648,8 +7172,8 @@
           "lastInboundAt": {
             "format": "date-time",
             "type": "string",
-            "nullable": true,
-            "example": "2026-08-19T11:50:00.000Z"
+            "example": "2026-08-19T11:50:00.000Z",
+            "nullable": true
           },
           "windowOpen": {
             "type": "boolean",
@@ -6699,7 +7223,6 @@
           },
           "body": {
             "type": "string",
-            "nullable": true,
             "example": "Tenho Interesse!",
             "description": "Texto ou label do botão quando aplicável"
           },
@@ -6722,10 +7245,9 @@
         "properties": {
           "text": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 4096,
             "description": "Texto livre (janela Meta 24h após último inbound)",
-            "example": "Olá! Como posso ajudar?"
+            "example": "Olá! Como posso ajudar?",
+            "maxLength": 4096
           }
         },
         "required": [
@@ -6792,19 +7314,16 @@
         "properties": {
           "templateId": {
             "type": "number",
-            "minimum": 1,
             "description": "Template granted ao tenant",
             "example": 1
           },
           "to": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone de destino (dígitos; 55 será prefixado se faltar)",
             "example": "11999999999"
           },
           "scheduledFor": {
             "type": "string",
-            "minLength": 1,
             "description": "Data e hora local em America/Sao_Paulo no início da hora (minuto=0). Ex.: 2026-08-22T14:00:00",
             "example": "2026-08-22T14:00:00"
           },
@@ -6818,13 +7337,11 @@
           },
           "imageId": {
             "type": "string",
-            "minLength": 1,
             "description": "publicId da mídia do tenant para header.image (quando o template exige imagem)",
             "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
           },
           "leadId": {
             "type": "number",
-            "minimum": 1,
             "description": "Lead opcional para resolver bindings lead.*",
             "example": 1
           }
@@ -7119,25 +7636,21 @@
         "type": "object",
         "properties": {
           "allowedCityIds": {
-            "uniqueItems": true,
             "description": "Allowlist de city ids (XOR com deniedCityIds)",
             "example": [
               1
             ],
             "type": "array",
             "items": {
-              "type": "number",
-              "minimum": 1
+              "type": "number"
             }
           },
           "deniedCityIds": {
-            "uniqueItems": true,
             "description": "Denylist de city ids (XOR com allowedCityIds)",
             "example": [],
             "type": "array",
             "items": {
-              "type": "number",
-              "minimum": 1
+              "type": "number"
             }
           },
           "respectAllTenants": {
@@ -7151,7 +7664,6 @@
             "example": false
           },
           "respectTenantIds": {
-            "uniqueItems": true,
             "description": "Tenant ids respeitados (não pode incluir o próprio tenantId)",
             "example": [
               2,
@@ -7159,8 +7671,7 @@
             ],
             "type": "array",
             "items": {
-              "type": "number",
-              "minimum": 1
+              "type": "number"
             }
           }
         },
@@ -7177,7 +7688,6 @@
         "properties": {
           "templateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do WhatsappMessageTemplate no catálogo",
             "example": 10
           }
@@ -7191,7 +7701,6 @@
         "properties": {
           "to": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone de destino (dígitos; 55 será prefixado se faltar)",
             "example": "11999999999"
           },
@@ -7205,13 +7714,11 @@
           },
           "imageId": {
             "type": "string",
-            "minLength": 1,
             "description": "publicId da mídia do tenant para header.image (quando o template exige imagem)",
             "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
           },
           "leadId": {
             "type": "number",
-            "minimum": 1,
             "description": "Lead opcional para resolver bindings lead.*",
             "example": 1
           }
@@ -7257,19 +7764,16 @@
         "properties": {
           "cityName": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da cidade",
             "example": "Taubaté"
           },
           "state": {
             "type": "string",
-            "minLength": 1,
             "description": "UF da cidade",
             "example": "SP"
           },
           "category": {
             "type": "string",
-            "minLength": 1,
             "description": "Categoria a scrapar",
             "example": "Construtoras"
           }
@@ -7279,66 +7783,9 @@
           "category"
         ]
       },
-      "InboundMessageDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "number"
-          },
-          "wamid": {
-            "type": "string"
-          },
-          "direction": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          },
-          "body": {
-            "type": "string"
-          },
-          "phone": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "wamid",
-          "direction",
-          "type",
-          "phone",
-          "createdAt"
-        ]
-      },
       "InboxInboundEventDto": {
         "type": "object",
-        "properties": {
-          "type": {
-            "type": "string"
-          },
-          "tenantId": {
-            "type": "number"
-          },
-          "conversationId": {
-            "type": "number"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "message": {
-            "$ref": "#/components/schemas/InboundMessageDto"
-          }
-        },
-        "required": [
-          "type",
-          "tenantId",
-          "conversationId",
-          "displayName",
-          "message"
-        ]
+        "properties": {}
       },
       "PushSubscriptionKeysDto": {
         "type": "object",

@@ -36,6 +36,7 @@ import { ScrapeCoveragesController } from './scrape-coverages.controller';
 import { ScrapeCoveragesService } from './scrape-coverages.service';
 import { WhatsappTemplatesController } from './whatsapp-templates.controller';
 import { WhatsappTemplatesService } from './whatsapp-templates.service';
+import { MetaResumableUploadService } from './meta-resumable-upload.service';
 import {
   LeadListsController,
   PlatformLeadListsController,
@@ -124,6 +125,7 @@ import { OnDemandSchedulesService } from './on-demand-schedules.service';
     OutreachSendsService,
     WhatsappAccountsService,
     WhatsappTemplatesService,
+    MetaResumableUploadService,
     PlatformWhatsappAdminService,
     PlatformJobSchedulesService,
     ScrapeTargetsService,

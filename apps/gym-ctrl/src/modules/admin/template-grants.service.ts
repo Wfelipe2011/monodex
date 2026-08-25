@@ -1,9 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
-import {
-  parseTemplateSlots,
-  TemplateSlot,
-} from '@core/shared/whatsapp-template-slots';
+import { toTemplatePreviewDto } from '@core/shared/whatsapp-template-preview';
 import { CreateTemplateGrantDto } from './dto/create-template-grant.dto';
 
 @Injectable()
@@ -100,13 +97,23 @@ export class TemplateGrantsService {
       include: { template: true },
       orderBy: { templateId: 'asc' },
     });
-    return grants.map((grant) => ({
-      id: grant.template.id,
-      name: grant.template.name,
-      language: grant.template.language,
-      status: grant.template.status,
-      slots: asSlots(grant.template.slots, grant.template.components),
-    }));
+    return grants.map((grant) => toTemplatePreviewDto(grant.template));
+  }
+
+  async getGrantedTemplate(tenantId: number, templateId: number) {
+    await this.assertTenant(tenantId);
+    const grant = await this.prisma.tenantTemplateGrant.findUnique({
+      where: {
+        tenantId_templateId: { tenantId, templateId },
+      },
+      include: { template: true },
+    });
+    if (!grant) {
+      throw new NotFoundException(
+        `Template id=${templateId} não encontrado para o tenant ${tenantId}`,
+      );
+    }
+    return toTemplatePreviewDto(grant.template);
   }
 
   private async assertTenant(tenantId: number) {
@@ -118,11 +125,4 @@ export class TemplateGrantsService {
       throw new NotFoundException(`Tenant ${tenantId} não encontrado`);
     }
   }
-}
-
-function asSlots(slotsJson: unknown, components: unknown): TemplateSlot[] {
-  if (Array.isArray(slotsJson) && slotsJson.length > 0) {
-    return slotsJson as TemplateSlot[];
-  }
-  return parseTemplateSlots(components);
 }

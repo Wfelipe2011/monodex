@@ -17,6 +17,8 @@ import {
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiSecurity,
   ApiTags,
@@ -29,6 +31,7 @@ import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
 import { Roles } from '@prisma/client';
 import { CreateOnDemandSendDto } from './dto/create-on-demand-send.dto';
 import { OnDemandSendCreatedDto } from './dto/swagger/tenant-on-demand.swagger.dto';
+import { WhatsappTemplatePreviewDto } from './dto/swagger/whatsapp-template-preview.swagger.dto';
 import { OnDemandSendsService } from './on-demand-sends.service';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
 import { TemplateGrantsService } from './template-grants.service';
@@ -51,11 +54,35 @@ export class TenantTemplatesController {
   @ApiOperation({
     summary: 'Listar templates granted ao tenant',
     description:
-      'Join grant + catálogo: id, name, language, status, slots. Sem sync Graph. ' +
-      'Templates do catálogo sem grant são omitidos.',
+      'Join grant + catálogo com preview client-side: id, metaId, name, language, status, ' +
+      'category, parameterFormat, slots, components (incl. BODY.text), lastSyncedAt. ' +
+      'O front substitui {{n}} usando slots + variáveis — sem render no backend. Sem sync Graph. ' +
+      'Templates do catálogo sem grant são omitidos. Auth: JWT ADMIN/SUPER_ADMIN ou X-API-KEY.',
+  })
+  @ApiOkResponse({
+    type: WhatsappTemplatePreviewDto,
+    isArray: true,
+    description: 'Templates granted com components para bubble preview',
   })
   list(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.templateGrantsService.listGrantedTemplates(tenantId);
+  }
+
+  @Get(':templateId')
+  @ApiOperation({
+    summary: 'Obter template granted por id',
+    description:
+      'Mesmo shape da listagem (preview client-side). Sem grant → 404 (não revela existência no catálogo global). Sem sync Graph.',
+  })
+  @ApiOkResponse({ type: WhatsappTemplatePreviewDto })
+  @ApiNotFoundResponse({
+    description: 'Sem grant para o templateId neste tenant (ou id inexistente)',
+  })
+  getById(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Param('templateId', ParseIntPipe) templateId: number,
+  ) {
+    return this.templateGrantsService.getGrantedTemplate(tenantId, templateId);
   }
 
   @Post(':templateId/sends')
