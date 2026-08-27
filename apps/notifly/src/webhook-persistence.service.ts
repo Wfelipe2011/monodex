@@ -15,6 +15,7 @@ import {
   upsertConversationThenMessage,
 } from './conversation-thread';
 import { CoinDebitOnStatusService } from './coin-debit-on-status.service';
+import { OutreachQuotaRefillService } from './outreach-quota-refill.service';
 import { Contact, Message, Metadata, Status } from './interfaces';
 
 export type InboundCorrelation =
@@ -45,6 +46,7 @@ export class WebhookPersistenceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly coinDebitOnStatus: CoinDebitOnStatusService,
+    private readonly quotaRefill: OutreachQuotaRefillService,
   ) {}
 
   async handleInboundMessage(
@@ -146,6 +148,7 @@ export class WebhookPersistenceService {
       }),
       this.prisma.tenantLead.findUnique({
         where: { messageId: status.id },
+        include: { lead: { select: { phone: true } } },
       }),
       this.prisma.tenantOnDemandSend.findUnique({
         where: { wamid: status.id },
@@ -254,6 +257,84 @@ export class WebhookPersistenceService {
           `[handleStatus] billing failed wamid=${status.id} status=${deliveryStatus}: ${e}`,
         );
       }
+    }
+
+    // Refill após billing/refund — fire-and-forget (não bloqueia ACK Meta com sleep do intervalo).
+    if (deliveryStatus === WhatsappDeliveryStatus.failed) {
+      this.scheduleQuotaRefillAfterFailed({ listSend, tenantLead });
+    }
+  }
+
+  /**
+   * Agenda refill at-most-once para city/list com runId.
+   * Não await: `refillOne` dorme `sendIntervalSeconds` internamente.
+   * Idempotência via `refillTriggeredAt` (claim dentro de refillOne).
+   */
+  private scheduleQuotaRefillAfterFailed(args: {
+    listSend: {
+      id: number;
+      listLeadId: number;
+      runId: number | null;
+      refillTriggeredAt: Date | null;
+    } | null;
+    tenantLead: {
+      id: number;
+      runId: number | null;
+      refillTriggeredAt: Date | null;
+      wasPremium: boolean | null;
+      lead: { phone: string };
+    } | null;
+  }): void {
+    const { listSend, tenantLead } = args;
+
+    if (tenantLead?.runId != null) {
+      if (tenantLead.refillTriggeredAt != null) {
+        this.logger.debug(
+          `[handleStatus] refill skip city tenantLead=${tenantLead.id}: já disparado`,
+        );
+        return;
+      }
+      const runId = tenantLead.runId;
+      this.logger.log(
+        `[handleStatus] fire-and-forget refill city run=${runId} tenantLead=${tenantLead.id}`,
+      );
+      void this.quotaRefill
+        .refillOne({
+          runId,
+          failedPhone: tenantLead.lead.phone,
+          wasPremium: tenantLead.wasPremium === true,
+          sourceTenantLeadId: tenantLead.id,
+        })
+        .catch((e) =>
+          this.logger.error(
+            `[handleStatus] refill city run=${runId} erro: ${e}`,
+          ),
+        );
+      return;
+    }
+
+    if (listSend?.runId != null) {
+      if (listSend.refillTriggeredAt != null) {
+        this.logger.debug(
+          `[handleStatus] refill skip list listSend=${listSend.id}: já disparado`,
+        );
+        return;
+      }
+      const runId = listSend.runId;
+      this.logger.log(
+        `[handleStatus] fire-and-forget refill list run=${runId} listSend=${listSend.id}`,
+      );
+      void this.quotaRefill
+        .refillOne({
+          runId,
+          failedListLeadId: listSend.listLeadId,
+          sourceListSendId: listSend.id,
+        })
+        .catch((e) =>
+          this.logger.error(
+            `[handleStatus] refill list run=${runId} erro: ${e}`,
+          ),
+        );
     }
   }
 

@@ -10,6 +10,7 @@ const TENANT_LEAD_ID = 77;
 const LEAD_ID = 900;
 const LIST_SEND_ID = 9;
 const ON_DEMAND_SEND_ID = 55;
+const RUN_ID = 42;
 const COST = 2.5;
 const ON_DEMAND_COST = 4;
 const WAMID = 'wamid.test.1';
@@ -23,11 +24,13 @@ describe('CoinDebitOnStatusService', () => {
       coinDebitedAt?: Date | null;
       coinRefundedAt?: Date | null;
       messageId?: string | null;
+      runId?: number | null;
     } | null;
     listSend?: {
       coinDebitedAt?: Date | null;
       coinRefundedAt?: Date | null;
       costPerSend?: number;
+      runId?: number | null;
     } | null;
     onDemandSend?: {
       coinDebitedAt?: Date | null;
@@ -77,6 +80,7 @@ describe('CoinDebitOnStatusService', () => {
             messageId: options?.cityLead?.messageId ?? WAMID,
             coinDebitedAt: cityState.coinDebitedAt,
             coinRefundedAt: cityState.coinRefundedAt,
+            runId: options?.cityLead?.runId ?? null,
           };
         }),
         update: jest.fn().mockImplementation(async (args: {
@@ -99,6 +103,7 @@ describe('CoinDebitOnStatusService', () => {
             wamid: WAMID,
             coinDebitedAt: listState.coinDebitedAt,
             coinRefundedAt: listState.coinRefundedAt,
+            runId: options?.listSend?.runId ?? null,
             listLead: {
               id: 42,
               list: {
@@ -160,8 +165,16 @@ describe('CoinDebitOnStatusService', () => {
       async (fn: (tx: typeof prisma) => unknown) => fn(prisma),
     );
 
-    const service = new CoinDebitOnStatusService(prisma as never);
-    return { service, prisma, cityState, listState, onDemandState };
+    const runs = {
+      recordCharge: jest.fn().mockResolvedValue(undefined),
+      recordChargeReversal: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const service = new CoinDebitOnStatusService(
+      prisma as never,
+      runs as never,
+    );
+    return { service, prisma, runs, cityState, listState, onDemandState };
   }
 
   it('delivered debita com gatilho default delivered (cidade)', async () => {
@@ -230,8 +243,8 @@ describe('CoinDebitOnStatusService', () => {
   });
 
   it('segunda chamada não debita de novo (idempotência)', async () => {
-    const { service, prisma } = build({
-      cityLead: { coinDebitedAt: new Date('2026-01-01') },
+    const { service, prisma, runs } = build({
+      cityLead: { coinDebitedAt: new Date('2026-01-01'), runId: RUN_ID },
     });
 
     await service.applyAfterStatus({
@@ -242,6 +255,7 @@ describe('CoinDebitOnStatusService', () => {
 
     expect(prisma.coin.update).not.toHaveBeenCalled();
     expect(prisma.coinTransaction.create).not.toHaveBeenCalled();
+    expect(runs.recordCharge).not.toHaveBeenCalled();
   });
 
   it('lista delivered debita costPerSend', async () => {
@@ -278,8 +292,8 @@ describe('CoinDebitOnStatusService', () => {
   });
 
   it('failed sem débito prévio: no-op de coin', async () => {
-    const { service, prisma } = build({
-      cityLead: { coinDebitedAt: null },
+    const { service, prisma, runs } = build({
+      cityLead: { coinDebitedAt: null, runId: RUN_ID },
     });
 
     await service.applyAfterStatus({
@@ -290,6 +304,7 @@ describe('CoinDebitOnStatusService', () => {
 
     expect(prisma.coin.update).not.toHaveBeenCalled();
     expect(prisma.coinTransaction.create).not.toHaveBeenCalled();
+    expect(runs.recordChargeReversal).not.toHaveBeenCalled();
   });
 
   it('failed com débito: um CREDITO + coinRefundedAt', async () => {
@@ -325,10 +340,11 @@ describe('CoinDebitOnStatusService', () => {
   });
 
   it('failed refund é idempotente', async () => {
-    const { service, prisma } = build({
+    const { service, prisma, runs } = build({
       cityLead: {
         coinDebitedAt: new Date('2026-01-01'),
         coinRefundedAt: new Date('2026-01-02'),
+        runId: RUN_ID,
       },
     });
 
@@ -340,6 +356,7 @@ describe('CoinDebitOnStatusService', () => {
 
     expect(prisma.coin.update).not.toHaveBeenCalled();
     expect(prisma.coinTransaction.create).not.toHaveBeenCalled();
+    expect(runs.recordChargeReversal).not.toHaveBeenCalled();
   });
 
   it('sent debita quando gatilho é sent', async () => {
@@ -362,7 +379,7 @@ describe('CoinDebitOnStatusService', () => {
   });
 
   it('on-demand delivered debita costPerOnDemandSend uma vez', async () => {
-    const { service, prisma } = build({
+    const { service, prisma, runs } = build({
       trigger: CoinDebitOnStatus.delivered,
       costPerOnDemandSend: ON_DEMAND_COST,
     });
@@ -394,6 +411,7 @@ describe('CoinDebitOnStatusService', () => {
         data: expect.objectContaining({ coinDebitedAt: expect.any(Date) }),
       }),
     );
+    expect(runs.recordCharge).not.toHaveBeenCalled();
   });
 
   it('on-demand failed sem débito prévio: no-op', async () => {
@@ -412,7 +430,7 @@ describe('CoinDebitOnStatusService', () => {
   });
 
   it('on-demand failed com débito: CREDITO uma vez', async () => {
-    const { service, prisma } = build({
+    const { service, prisma, runs } = build({
       onDemandSend: { coinDebitedAt: new Date('2026-01-01') },
     });
 
@@ -441,6 +459,7 @@ describe('CoinDebitOnStatusService', () => {
         data: expect.objectContaining({ coinRefundedAt: expect.any(Date) }),
       }),
     );
+    expect(runs.recordChargeReversal).not.toHaveBeenCalled();
   });
 
   it('on-demand débito é idempotente', async () => {
@@ -470,5 +489,81 @@ describe('CoinDebitOnStatusService', () => {
 
     expect(prisma.coin.update).not.toHaveBeenCalled();
     expect(prisma.coinTransaction.create).not.toHaveBeenCalled();
+  });
+
+  it('debit city com runId chama recordCharge', async () => {
+    const { service, runs } = build({
+      cityLead: { runId: RUN_ID },
+    });
+
+    await service.applyAfterStatus({
+      tenantId: TENANT_ID,
+      status: WhatsappDeliveryStatus.delivered,
+      tenantLeadId: TENANT_LEAD_ID,
+    });
+
+    expect(runs.recordCharge).toHaveBeenCalledWith(RUN_ID);
+  });
+
+  it('debit city sem runId não toca runs', async () => {
+    const { service, runs } = build({
+      cityLead: { runId: null },
+    });
+
+    await service.applyAfterStatus({
+      tenantId: TENANT_ID,
+      status: WhatsappDeliveryStatus.delivered,
+      tenantLeadId: TENANT_LEAD_ID,
+    });
+
+    expect(runs.recordCharge).not.toHaveBeenCalled();
+  });
+
+  it('debit list com runId chama recordCharge', async () => {
+    const { service, runs } = build({
+      listSend: { runId: RUN_ID, costPerSend: 3 },
+    });
+
+    await service.applyAfterStatus({
+      tenantId: TENANT_ID,
+      status: WhatsappDeliveryStatus.delivered,
+      listSendId: LIST_SEND_ID,
+    });
+
+    expect(runs.recordCharge).toHaveBeenCalledWith(RUN_ID);
+  });
+
+  it('failed city com débito e runId chama recordChargeReversal', async () => {
+    const { service, runs } = build({
+      cityLead: {
+        coinDebitedAt: new Date('2026-01-01'),
+        runId: RUN_ID,
+      },
+    });
+
+    await service.applyAfterStatus({
+      tenantId: TENANT_ID,
+      status: WhatsappDeliveryStatus.failed,
+      tenantLeadId: TENANT_LEAD_ID,
+    });
+
+    expect(runs.recordChargeReversal).toHaveBeenCalledWith(RUN_ID);
+  });
+
+  it('failed list com débito e runId chama recordChargeReversal', async () => {
+    const { service, runs } = build({
+      listSend: {
+        coinDebitedAt: new Date('2026-01-01'),
+        runId: RUN_ID,
+      },
+    });
+
+    await service.applyAfterStatus({
+      tenantId: TENANT_ID,
+      status: WhatsappDeliveryStatus.failed,
+      listSendId: LIST_SEND_ID,
+    });
+
+    expect(runs.recordChargeReversal).toHaveBeenCalledWith(RUN_ID);
   });
 });

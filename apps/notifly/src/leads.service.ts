@@ -5,6 +5,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   Lead,
+  OutreachSendRunClosedReason,
   Prisma,
   Tenant,
   TenantOutreachConfig,
@@ -45,6 +46,8 @@ import {
   selectStratifiedBatch,
   uniqueByPhone,
 } from './premium-mix';
+import { OutreachSendRunService } from './outreach-send-run.service';
+import { OutreachQuotaRefillService } from './outreach-quota-refill.service';
 
 type OutreachConfigWithTemplates = TenantOutreachConfig & {
   outreachTemplate: WhatsappMessageTemplate | null;
@@ -70,6 +73,8 @@ export class LeadsService implements OnModuleInit {
     private prisma: PrismaService,
     private httpService: HttpService,
     private platformWhatsapp: PlatformWhatsappService,
+    private readonly runs: OutreachSendRunService,
+    private readonly quotaRefill: OutreachQuotaRefillService,
   ) { }
 
   onModuleInit() {
@@ -77,6 +82,8 @@ export class LeadsService implements OnModuleInit {
     // this.handleCron();
     const tokenPresent = Boolean(process.env.WHATSAPP_TOKEN);
     this.logger.log(`[onModuleInit] WHATSAPP_TOKEN present=${tokenPresent}`);
+    // Sender fino para refill (webhook / refillOne) sem DI circular.
+    this.quotaRefill.registerCitySender((args) => this.sendCityLead(args));
   }
 
   /** schedule Json: mapa dia-da-semana → horas UTC, ex. { "2": [18], "4": [13, 18] } */
@@ -308,6 +315,21 @@ export class LeadsService implements OnModuleInit {
       return;
     }
 
+    // openCityRun já fecha TTL expirados; null = OPEN não expirado → skip tick.
+    const run = await this.runs.openCityRun({
+      tenantId: tenant.id,
+      targetCount: config.leadsPerRun,
+    });
+    if (!run) {
+      this.logger.log(
+        `[contactLeads] Tenant ${tenant.id}: run CITY OPEN existente; skip batch inicial`,
+      );
+      return;
+    }
+    this.logger.log(
+      `[contactLeads] run CITY aberto id=${run.id} target=${run.targetCount}`,
+    );
+
     const used = await this.prisma.tenantLead.findMany({
       where: cityUsedPhonesWhere(tenant.id),
       select: {
@@ -377,14 +399,12 @@ export class LeadsService implements OnModuleInit {
 
     const P = premium.length;
     const R = regular.length;
-    const X = Math.min(config.leadsPerRun, affordable, P + R);
-    const Y = computeY(P, R, X);
-    const leadsToContact = selectStratifiedBatch(premium, regular, X, Y);
     this.logger.log(
-      `[contactLeads] Mix X=${X} P=${P} R=${R} Y=${Y} (leadsPerRun=${config.leadsPerRun}, affordable=${affordable}, uniquePhones=${uniquePool.length})`,
+      `[contactLeads] Pool P=${P} R=${R} (leadsPerRun=${config.leadsPerRun}, affordable=${affordable}, uniquePhones=${uniquePool.length}, run=${run.id})`,
     );
 
-    if (leadsToContact.length === 0) {
+    if (P + R === 0) {
+      await this.runs.close(run.id, OutreachSendRunClosedReason.EXHAUSTED);
       return;
     }
 
@@ -393,10 +413,12 @@ export class LeadsService implements OnModuleInit {
       this.logger.warn(
         `[contactLeads] outreachTemplate ausente ou status≠APPROVED (tenant=${tenant.id}, status=${outreachTemplate?.status ?? 'null'}); não enviando`,
       );
+      await this.runs.close(run.id, OutreachSendRunClosedReason.EXHAUSTED);
       return;
     }
 
-    const { messagesUrl, token, accountId } = await this.platformWhatsapp.resolveCredentials(tenant.id);
+    const { messagesUrl, token, accountId } =
+      await this.platformWhatsapp.resolveCredentials(tenant.id);
     const persistConversation = await isDedicatedBoundToTenant(
       this.prisma,
       tenant.id,
@@ -405,84 +427,322 @@ export class LeadsService implements OnModuleInit {
     const slots = this.asSlots(outreachTemplate.slots);
     const bindings = this.roleBindings(config.slotBindings, 'outreach');
 
-    for (let i = 0; i < leadsToContact.length; i++) {
-      const lead = leadsToContact[i] as LeadWithCity;
-      try {
-        const values = this.resolveRoleValues(slots, bindings, {
-          lead,
-          tenant,
-        });
-        if (!values) {
-          this.logger.warn(
-            `[contactLeads] slot literal/header_image vazio; skip POST lead=${lead.id}`,
-          );
-        } else {
-        await this.prisma.$transaction(async (tsx) => {
-          console.log(`[contactLeads] Selecionando lead aleatório: ${lead.id} (${lead.phone})`);
+    // While unificado: Graph-fail repõe via próximo pick (sem refillOne no catch).
+    // refillOne fica para webhook (task 05). Prefer premium após fail premium.
+    let graphAccepts = 0;
+    let preferPremium = false;
+    let isFirstPost = true;
+    const acceptTarget = Math.min(run.targetCount, affordable);
 
-          const sendBody = buildTemplateSendBody({
-            name: outreachTemplate.name,
-            language: outreachTemplate.language,
-            slots,
-            values,
-          });
-          const res = await this.httpService.axiosRef.post<WhatsAppSendMessageResponse>(
-            messagesUrl,
-            {
-              ...sendBody,
-              recipient_type: 'individual',
-              to: `55${lead.phone.replace(/[^0-9]/g, '')}`,
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-            },
-          );
-
-          this.logger.log(`[contactLeads] Mensagem enviada para o lead ${lead.id} (${lead.phone}): ${res.data}`);
-          await tsx.tenantLead.create({
-            data: {
-              tenantId: tenant.id,
-              leadId: lead.id,
-              contacted: true,
-              replied: false,
-              deleted: false,
-              messageId: res.data.messages[0].id,
-              templateName: outreachTemplate.name,
-            },
-          });
-
-          if (persistConversation) {
-            await upsertConversationThenMessage(tsx, {
-              tenantId: tenant.id,
-              phone: normalizeListPhone(lead.phone),
-              profileName: lead.name ?? null,
-              direction: WhatsappConversationDirection.OUT,
-              wamid: res.data.messages[0].id,
-              type: 'template',
-              body: outreachTemplate.name,
-              raw: {
-                ...sendBody,
-                to: `55${lead.phone.replace(/[^0-9]/g, '')}`,
-              } as unknown as Prisma.InputJsonValue,
-            });
-          }
-
-          this.logger.log(`[contactLeads] Lead ${lead.id} (${lead.phone}) marcado como contatado.`);
-        });
-        }
-      } catch (error) {
-        this.logger.error(`[contactLeads] Erro ao enviar mensagem para o lead ${lead.id} (${lead.phone}): ${error}`);
+    while (graphAccepts < acceptTarget) {
+      if (!(await this.canAffordOneCityLead(tenant.id, config))) {
+        this.logger.log(
+          `[contactLeads] run=${run.id} saldo insuficiente mid-loop; accepts=${graphAccepts}`,
+        );
+        break;
       }
 
-      if (i < leadsToContact.length - 1) {
+      const lead = this.pickNextCityLead(
+        premium,
+        regular,
+        preferPremium,
+      ) as LeadWithCity | null;
+      if (!lead) {
+        this.logger.log(
+          `[contactLeads] run=${run.id} pool esgotado; accepts=${graphAccepts}/${acceptTarget}`,
+        );
+        if (graphAccepts < run.targetCount) {
+          await this.runs.close(run.id, OutreachSendRunClosedReason.EXHAUSTED);
+        }
+        break;
+      }
+      this.removeLeadFromPools(lead, premium, regular);
+
+      const wasPrem = isPremium(lead, avgByCategory, categories);
+      const values = this.resolveRoleValues(slots, bindings, {
+        lead,
+        tenant,
+      });
+      if (!values) {
+        this.logger.warn(
+          `[contactLeads] slot literal/header_image vazio; skip POST lead=${lead.id} (sem beginTry)`,
+        );
+        continue;
+      }
+
+      if (!isFirstPost) {
         await this.sleep(config.sendIntervalSeconds * 1000);
+      }
+
+      const allowed = await this.runs.beginTry(run.id);
+      if (!allowed) {
+        this.logger.log(
+          `[contactLeads] run=${run.id} beginTry negado; encerrando tick`,
+        );
+        break;
+      }
+      isFirstPost = false;
+
+      try {
+        await this.persistCityGraphAccept({
+          tenant,
+          lead,
+          runId: run.id,
+          wasPremium: wasPrem,
+          outreachTemplate,
+          slots,
+          values,
+          messagesUrl,
+          token,
+          persistConversation,
+        });
+        await this.runs.recordAccept(run.id);
+        graphAccepts += 1;
+        preferPremium = false;
+        this.logger.log(
+          `[contactLeads] run=${run.id} accept lead=${lead.id} phone=${lead.phone} accepts=${graphAccepts}/${acceptTarget}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `[contactLeads] Graph-fail lead=${lead.id} (${lead.phone}) run=${run.id}: ${error}`,
+        );
+        // Repor no mesmo tick via continue do while (phone já removido do pool).
+        preferPremium = wasPrem;
       }
     }
 
-    await this.sleep(config.sendIntervalSeconds * 1000);
+    // Deixa OPEN para webhook catch-up (exceto EXHAUSTED acima).
+    this.logger.log(
+      `[contactLeads] tick fim run=${run.id} graphAccepts=${graphAccepts} target=${run.targetCount}`,
+    );
+  }
+
+  /**
+   * Sender registrado em OutreachQuotaRefillService (webhook refill).
+   * beginTry / recordAccept ficam a cargo do refill service.
+   */
+  async sendCityLead(args: {
+    runId: number;
+    tenantId: number;
+    lead: Lead;
+  }): Promise<{ accepted: boolean; tenantLeadId?: number }> {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: args.tenantId },
+      include: {
+        outreachConfig: { include: OUTREACH_INCLUDE },
+        sendPolicy: true,
+      },
+    });
+    if (!tenant?.outreachConfig) {
+      return { accepted: false };
+    }
+    const config = tenant.outreachConfig as OutreachConfigWithTemplates;
+    const outreachTemplate = config.outreachTemplate;
+    if (
+      !outreachTemplate ||
+      outreachTemplate.status.toUpperCase() !== 'APPROVED'
+    ) {
+      return { accepted: false };
+    }
+
+    const categories = this.asStringArray(config.categories);
+    const categoryFilter = this.categoryWhere(categories);
+    const allForAvg = await this.prisma.lead.findMany({
+      where: { deletedAt: null, ...categoryFilter },
+      select: { categories: true, category: true, reviews: true },
+    });
+    const avgByCategory = buildCategoryAverages(allForAvg, categories);
+    const wasPrem = isPremium(args.lead, avgByCategory, categories);
+
+    const leadWithCity =
+      (args.lead as LeadWithCity).city !== undefined
+        ? (args.lead as LeadWithCity)
+        : await this.prisma.lead.findUnique({
+            where: { id: args.lead.id },
+            include: { city: true },
+          });
+    if (!leadWithCity) {
+      return { accepted: false };
+    }
+
+    const slots = this.asSlots(outreachTemplate.slots);
+    const bindings = this.roleBindings(config.slotBindings, 'outreach');
+    const values = this.resolveRoleValues(slots, bindings, {
+      lead: leadWithCity,
+      tenant,
+    });
+    if (!values) {
+      this.logger.warn(
+        `[sendCityLead] binding skip lead=${args.lead.id} run=${args.runId}`,
+      );
+      return { accepted: false };
+    }
+
+    const { messagesUrl, token, accountId } =
+      await this.platformWhatsapp.resolveCredentials(args.tenantId);
+    const persistConversation = await isDedicatedBoundToTenant(
+      this.prisma,
+      args.tenantId,
+      { accountId },
+    );
+
+    try {
+      const tenantLeadId = await this.persistCityGraphAccept({
+        tenant: tenant as TenantWithOutreach,
+        lead: leadWithCity,
+        runId: args.runId,
+        wasPremium: wasPrem,
+        outreachTemplate,
+        slots,
+        values,
+        messagesUrl,
+        token,
+        persistConversation,
+      });
+      return { accepted: true, tenantLeadId };
+    } catch (error) {
+      this.logger.error(
+        `[sendCityLead] Graph-fail lead=${args.lead.id} run=${args.runId}: ${error}`,
+      );
+      return { accepted: false };
+    }
+  }
+
+  private async persistCityGraphAccept(args: {
+    tenant: TenantWithOutreach | Tenant;
+    lead: LeadWithCity;
+    runId: number;
+    wasPremium: boolean;
+    outreachTemplate: WhatsappMessageTemplate;
+    slots: TemplateSlot[];
+    values: Record<string, string>;
+    messagesUrl: string;
+    token: string;
+    persistConversation: boolean;
+  }): Promise<number> {
+    const {
+      tenant,
+      lead,
+      runId,
+      wasPremium,
+      outreachTemplate,
+      slots,
+      values,
+      messagesUrl,
+      token,
+      persistConversation,
+    } = args;
+
+    return this.prisma.$transaction(async (tsx) => {
+      const sendBody = buildTemplateSendBody({
+        name: outreachTemplate.name,
+        language: outreachTemplate.language,
+        slots,
+        values,
+      });
+      const res = await this.httpService.axiosRef.post<WhatsAppSendMessageResponse>(
+        messagesUrl,
+        {
+          ...sendBody,
+          recipient_type: 'individual',
+          to: `55${lead.phone.replace(/[^0-9]/g, '')}`,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const created = await tsx.tenantLead.create({
+        data: {
+          tenantId: tenant.id,
+          leadId: lead.id,
+          contacted: true,
+          replied: false,
+          deleted: false,
+          messageId: res.data.messages[0].id,
+          templateName: outreachTemplate.name,
+          runId,
+          wasPremium,
+        },
+      });
+
+      if (persistConversation) {
+        await upsertConversationThenMessage(tsx, {
+          tenantId: tenant.id,
+          phone: normalizeListPhone(lead.phone),
+          profileName: lead.name ?? null,
+          direction: WhatsappConversationDirection.OUT,
+          wamid: res.data.messages[0].id,
+          type: 'template',
+          body: outreachTemplate.name,
+          raw: {
+            ...sendBody,
+            to: `55${lead.phone.replace(/[^0-9]/g, '')}`,
+          } as unknown as Prisma.InputJsonValue,
+        });
+      }
+
+      return created.id;
+    });
+  }
+
+  private async canAffordOneCityLead(
+    tenantId: number,
+    config: TenantOutreachConfig,
+  ): Promise<boolean> {
+    if (config.costPerLead <= 0) {
+      return false;
+    }
+    const coin = await this.prisma.coin.findFirst({
+      where: { tenantId },
+      select: { balance: true },
+    });
+    const balance = coin?.balance ?? 0;
+    const { pendingCity, pendingListAmount, pendingOnDemand } =
+      await loadCrossChannelPending(this.prisma, tenantId);
+    const available = computeAvailableBalance({
+      balance,
+      pendingCity,
+      costPerLead: config.costPerLead,
+      pendingListAmount,
+      pendingOnDemand,
+      costPerOnDemandSend: config.costPerOnDemandSend ?? 0,
+    });
+    return affordableFromAvailable(available, config.costPerLead) >= 1;
+  }
+
+  /** Pick single lead; after premium Graph-fail prefer another premium. */
+  pickNextCityLead(
+    premium: Lead[],
+    regular: Lead[],
+    preferPremium: boolean,
+  ): Lead | null {
+    if (preferPremium) {
+      if (premium.length > 0) {
+        return selectStratifiedBatch(premium, [], 1, 1)[0] ?? null;
+      }
+      return selectStratifiedBatch([], regular, 1, 0)[0] ?? null;
+    }
+    const Y = computeY(premium.length, regular.length, 1);
+    return selectStratifiedBatch(premium, regular, 1, Y)[0] ?? null;
+  }
+
+  private removeLeadFromPools(
+    lead: Lead,
+    premium: Lead[],
+    regular: Lead[],
+  ): void {
+    const drop = (arr: Lead[]) => {
+      const idx = arr.findIndex((l) => l.id === lead.id);
+      if (idx >= 0) {
+        arr.splice(idx, 1);
+      }
+    };
+    drop(premium);
+    drop(regular);
   }
 
   @Cron('0 0 0 * * *')

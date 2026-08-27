@@ -14,6 +14,8 @@ import { ListCampaignsService } from './list-campaigns.service';
 import { ListCampaignReplyService } from './list-campaign-reply.service';
 import { InboxRealtimeNotifyService } from './inbox-realtime-notify.service';
 import { OnDemandScheduleCronService } from './on-demand-schedule-cron.service';
+import { OutreachSendRunService } from './outreach-send-run.service';
+import { OutreachQuotaRefillService } from './outreach-quota-refill.service';
 
 @Module({
   imports: [PrismaModule, ScheduleModule.forRoot(), HttpModule],
@@ -28,6 +30,8 @@ import { OnDemandScheduleCronService } from './on-demand-schedule-cron.service';
     ListCampaignsService,
     ListCampaignReplyService,
     InboxRealtimeNotifyService,
+    OutreachSendRunService,
+    OutreachQuotaRefillService,
   ],
 })
 export class NotiflyModule implements NestModule {

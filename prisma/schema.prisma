@@ -39,6 +39,7 @@ model Tenant {
   media                        TenantMedia[]
   onDemandSends                TenantOnDemandSend[]
   onDemandSchedules            TenantOnDemandSchedule[]
+  outreachSendRuns             OutreachSendRun[]
 
   @@map("tenants")
 }
@@ -170,10 +171,15 @@ model TenantLead {
   lastStatus     WhatsappDeliveryStatus?  @map("last_status")
   templateName   String?                  @map("template_name")
   messageId      String?                  @unique @map("message_id")
-  coinDebitedAt  DateTime?                @map("coin_debited_at")
-  coinRefundedAt DateTime?                @map("coin_refunded_at")
-  sendStatuses   WhatsappSendStatus[]
+  coinDebitedAt      DateTime?                @map("coin_debited_at")
+  coinRefundedAt     DateTime?                @map("coin_refunded_at")
+  runId              Int?                     @map("run_id")
+  run                OutreachSendRun?         @relation(fields: [runId], references: [id])
+  refillTriggeredAt  DateTime?                @map("refill_triggered_at")
+  wasPremium         Boolean?                 @map("was_premium")
+  sendStatuses       WhatsappSendStatus[]
 
+  @@index([runId])
   @@map("tenant_leads")
 }
 
@@ -512,6 +518,49 @@ enum CoinDebitOnStatus {
   read
 }
 
+enum OutreachSendRunChannel {
+  CITY
+  LIST
+}
+
+enum OutreachSendRunStatus {
+  OPEN
+  CLOSED
+}
+
+enum OutreachSendRunClosedReason {
+  TARGET_MET
+  ATTEMPT_CAP
+  EXHAUSTED
+  TTL
+  SUPERSEDED
+}
+
+model OutreachSendRun {
+  id           Int                          @id @default(autoincrement())
+  channel      OutreachSendRunChannel
+  tenantId     Int                          @map("tenant_id")
+  tenant       Tenant                       @relation(fields: [tenantId], references: [id])
+  campaignId   Int?                         @map("campaign_id")
+  campaign     TenantListCampaign?          @relation(fields: [campaignId], references: [id])
+  targetCount  Int                          @map("target_count")
+  tryCount     Int                          @default(0) @map("try_count")
+  attemptCount Int                          @default(0) @map("attempt_count")
+  chargedCount Int                          @default(0) @map("charged_count")
+  status       OutreachSendRunStatus        @default(OPEN)
+  closedReason OutreachSendRunClosedReason? @map("closed_reason")
+  expiresAt    DateTime                     @map("expires_at")
+  cityLeads    TenantLead[]
+  listSends    TenantListSend[]
+  createdAt    DateTime                     @default(now()) @map("created_at")
+  updatedAt    DateTime                     @updatedAt @map("updated_at")
+
+  @@index([tenantId, channel, status])
+  @@index([campaignId, status])
+  @@index([expiresAt])
+  @@map("outreach_send_runs")
+}
+
 enum ListCampaignButtonAction {
   NOTIFY
   NOOP
@@ -569,6 +618,7 @@ model TenantListCampaign {
   sendIntervalSeconds Int                      @default(5) @map("send_interval_seconds")
   sends               TenantListSend[]
   lockedLeads         TenantListLead[]         @relation("SendLock")
+  outreachSendRuns    OutreachSendRun[]
   createdAt           DateTime                 @default(now()) @map("created_at")
   updatedAt           DateTime                 @updatedAt @map("updated_at")
 
@@ -586,9 +636,13 @@ model TenantListSend {
   lastStatus           WhatsappDeliveryStatus?       @map("last_status")
   coinDebitedAt        DateTime?                     @map("coin_debited_at")
   coinRefundedAt       DateTime?                     @map("coin_refunded_at")
+  runId                Int?                          @map("run_id")
+  run                  OutreachSendRun?              @relation(fields: [runId], references: [id])
+  refillTriggeredAt    DateTime?                     @map("refill_triggered_at")
   statuses             WhatsappSendStatus[]
   conversationMessages WhatsappConversationMessage[]
 
+  @@index([runId])
   @@map("tenant_list_sends")
 }
 

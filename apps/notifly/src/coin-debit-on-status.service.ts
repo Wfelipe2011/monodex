@@ -5,6 +5,7 @@ import {
   Prisma,
   WhatsappDeliveryStatus,
 } from '@prisma/client';
+import { OutreachSendRunService } from './outreach-send-run.service';
 
 const STATUS_RANK: Record<
   Exclude<WhatsappDeliveryStatus, 'failed'>,
@@ -33,7 +34,10 @@ export type ApplyAfterStatusArgs = {
 export class CoinDebitOnStatusService {
   private readonly logger = new Logger(CoinDebitOnStatusService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly runs: OutreachSendRunService,
+  ) {}
 
   /**
    * Aplica débito ou estorno idempotente após persistir o status.
@@ -127,6 +131,7 @@ export class CoinDebitOnStatusService {
         leadId: true,
         messageId: true,
         coinDebitedAt: true,
+        runId: true,
       },
     });
     if (!lead || lead.tenantId !== tenantId || lead.coinDebitedAt != null) {
@@ -139,6 +144,7 @@ export class CoinDebitOnStatusService {
     }
 
     const wamid = lead.messageId ?? 'unknown';
+    let debited = false;
     await this.prisma.$transaction(async (tx) => {
       const fresh = await tx.tenantLead.findUnique({
         where: { id: tenantLeadId },
@@ -176,7 +182,12 @@ export class CoinDebitOnStatusService {
         where: { id: tenantLeadId },
         data: { coinDebitedAt: new Date() },
       });
+      debited = true;
     });
+
+    if (debited && lead.runId != null) {
+      await this.runs.recordCharge(lead.runId);
+    }
   }
 
   private async debitListSend(
@@ -189,6 +200,7 @@ export class CoinDebitOnStatusService {
         id: true,
         wamid: true,
         coinDebitedAt: true,
+        runId: true,
         listLead: {
           select: {
             id: true,
@@ -210,6 +222,7 @@ export class CoinDebitOnStatusService {
       return;
     }
 
+    let debited = false;
     await this.prisma.$transaction(async (tx) => {
       const fresh = await tx.tenantListSend.findUnique({
         where: { id: listSendId },
@@ -246,7 +259,12 @@ export class CoinDebitOnStatusService {
         where: { id: listSendId },
         data: { coinDebitedAt: new Date() },
       });
+      debited = true;
     });
+
+    if (debited && send.runId != null) {
+      await this.runs.recordCharge(send.runId);
+    }
   }
 
   private async refundCityLead(
@@ -262,6 +280,7 @@ export class CoinDebitOnStatusService {
         messageId: true,
         coinDebitedAt: true,
         coinRefundedAt: true,
+        runId: true,
       },
     });
     if (
@@ -279,6 +298,7 @@ export class CoinDebitOnStatusService {
     }
 
     const wamid = lead.messageId ?? 'unknown';
+    let refunded = false;
     await this.prisma.$transaction(async (tx) => {
       const fresh = await tx.tenantLead.findUnique({
         where: { id: tenantLeadId },
@@ -319,7 +339,12 @@ export class CoinDebitOnStatusService {
         where: { id: tenantLeadId },
         data: { coinRefundedAt: new Date() },
       });
+      refunded = true;
     });
+
+    if (refunded && lead.runId != null) {
+      await this.runs.recordChargeReversal(lead.runId);
+    }
   }
 
   private async refundListSend(
@@ -333,6 +358,7 @@ export class CoinDebitOnStatusService {
         wamid: true,
         coinDebitedAt: true,
         coinRefundedAt: true,
+        runId: true,
         listLead: {
           select: {
             list: { select: { tenantId: true, costPerSend: true } },
@@ -354,6 +380,7 @@ export class CoinDebitOnStatusService {
       return;
     }
 
+    let refunded = false;
     await this.prisma.$transaction(async (tx) => {
       const fresh = await tx.tenantListSend.findUnique({
         where: { id: listSendId },
@@ -393,7 +420,12 @@ export class CoinDebitOnStatusService {
         where: { id: listSendId },
         data: { coinRefundedAt: new Date() },
       });
+      refunded = true;
     });
+
+    if (refunded && send.runId != null) {
+      await this.runs.recordChargeReversal(send.runId);
+    }
   }
 
   private async debitOnDemandSend(

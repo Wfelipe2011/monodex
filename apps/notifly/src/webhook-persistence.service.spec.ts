@@ -65,8 +65,17 @@ describe('WebhookPersistenceService', () => {
       id: number;
       listLeadId: number;
       listLead: { list: { tenantId: number } };
+      runId?: number | null;
+      refillTriggeredAt?: Date | null;
     } | null;
-    tenantLead?: { id: number; tenantId?: number } | null;
+    tenantLead?: {
+      id: number;
+      tenantId?: number;
+      runId?: number | null;
+      refillTriggeredAt?: Date | null;
+      wasPremium?: boolean | null;
+      lead?: { phone: string };
+    } | null;
     onDemandSend?: { id: number; tenantId: number } | null;
     dedicatedAccount?: { id: number; isDefault: boolean } | null;
     outreachConfig?: {
@@ -80,12 +89,31 @@ describe('WebhookPersistenceService', () => {
     const createdAt = new Date('2026-08-18T12:00:00.000Z');
     const prisma = {
       tenantListSend: {
-        findUnique: jest.fn().mockResolvedValue(options?.listSend ?? null),
+        findUnique: jest.fn().mockResolvedValue(
+          options?.listSend == null
+            ? null
+            : {
+                runId: null,
+                refillTriggeredAt: null,
+                ...options.listSend,
+              },
+        ),
         update: jest.fn().mockResolvedValue({}),
       },
       tenantLead: {
         findFirst: jest.fn().mockResolvedValue(options?.tenantLead ?? null),
-        findUnique: jest.fn().mockResolvedValue(options?.tenantLead ?? null),
+        findUnique: jest.fn().mockResolvedValue(
+          options?.tenantLead == null
+            ? null
+            : {
+                tenantId: CITY_TENANT_ID,
+                runId: null,
+                refillTriggeredAt: null,
+                wasPremium: null,
+                lead: { phone: FROM_PHONE },
+                ...options.tenantLead,
+              },
+        ),
         update: jest.fn().mockResolvedValue({}),
       },
       tenantOnDemandSend: {
@@ -153,11 +181,15 @@ describe('WebhookPersistenceService', () => {
         ? jest.fn().mockRejectedValue(options.billingError)
         : jest.fn().mockResolvedValue(undefined),
     };
+    const quotaRefill = {
+      refillOne: jest.fn().mockResolvedValue(undefined),
+    };
     const service = new WebhookPersistenceService(
       prisma as never,
       coinDebitOnStatus as never,
+      quotaRefill as never,
     );
-    return { service, prisma, coinDebitOnStatus };
+    return { service, prisma, coinDebitOnStatus, quotaRefill };
   }
 
   it('dedicado frio + contacts nome persiste thread com displayName', async () => {
@@ -356,6 +388,7 @@ describe('WebhookPersistenceService', () => {
 
     expect(prisma.tenantLead.findUnique).toHaveBeenCalledWith({
       where: { messageId: CITY_WAMID },
+      include: { lead: { select: { phone: true } } },
     });
     expect(prisma.whatsappSendStatus.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -385,7 +418,7 @@ describe('WebhookPersistenceService', () => {
   });
 
   it('status só-lista amarra listSendId, atualiza send e unlock em failed', async () => {
-    const { service, prisma, coinDebitOnStatus } = build({
+    const { service, prisma, coinDebitOnStatus, quotaRefill } = build({
       listSend: {
         id: 9,
         listLeadId: 42,
@@ -425,6 +458,7 @@ describe('WebhookPersistenceService', () => {
       tenantLeadId: null,
       onDemandSendId: null,
     });
+    expect(quotaRefill.refillOne).not.toHaveBeenCalled();
   });
 
   it('lista delivered chama billing com tenant da lista', async () => {
@@ -525,7 +559,7 @@ describe('WebhookPersistenceService', () => {
   });
 
   it('failed de cidade seta contacted=false e chama billing (sem unlock de lista)', async () => {
-    const { service, prisma, coinDebitOnStatus } = build({
+    const { service, prisma, coinDebitOnStatus, quotaRefill } = build({
       tenantLead: { id: 77, tenantId: CITY_TENANT_ID },
     });
 
@@ -548,6 +582,8 @@ describe('WebhookPersistenceService', () => {
       tenantLeadId: 77,
       onDemandSendId: null,
     });
+    // runId null → só refund/reopen; sem refill
+    expect(quotaRefill.refillOne).not.toHaveBeenCalled();
   });
 
   it('erro de billing não impede append do status', async () => {
@@ -604,5 +640,135 @@ describe('WebhookPersistenceService', () => {
     expect(prisma.tenantListSend.update).not.toHaveBeenCalled();
     expect(prisma.tenantListLead.update).not.toHaveBeenCalled();
     expect(coinDebitOnStatus.applyAfterStatus).not.toHaveBeenCalled();
+  });
+
+  it('failed city com runId agenda refillOne fire-and-forget após billing', async () => {
+    const { service, coinDebitOnStatus, quotaRefill } = build({
+      tenantLead: {
+        id: 77,
+        tenantId: CITY_TENANT_ID,
+        runId: 501,
+        wasPremium: true,
+        lead: { phone: FROM_PHONE },
+      },
+    });
+
+    await service.handleStatus(statusEvent({ id: CITY_WAMID, status: 'failed' }));
+
+    expect(coinDebitOnStatus.applyAfterStatus).toHaveBeenCalled();
+    expect(quotaRefill.refillOne).toHaveBeenCalledWith({
+      runId: 501,
+      failedPhone: FROM_PHONE,
+      wasPremium: true,
+      sourceTenantLeadId: 77,
+    });
+  });
+
+  it('failed list com runId agenda refillOne com failedListLeadId', async () => {
+    const { service, quotaRefill } = build({
+      listSend: {
+        id: 9,
+        listLeadId: 42,
+        listLead: { list: { tenantId: LIST_TENANT_ID } },
+        runId: 502,
+      },
+    });
+
+    await service.handleStatus(
+      statusEvent({ id: LIST_SEND_WAMID, status: 'failed' }),
+    );
+
+    expect(quotaRefill.refillOne).toHaveBeenCalledWith({
+      runId: 502,
+      failedListLeadId: 42,
+      sourceListSendId: 9,
+    });
+  });
+
+  it('redelivery failed com refillTriggeredAt não agenda segundo refill', async () => {
+    const { service, quotaRefill } = build({
+      tenantLead: {
+        id: 77,
+        tenantId: CITY_TENANT_ID,
+        runId: 501,
+        refillTriggeredAt: new Date('2026-08-25T12:00:00.000Z'),
+      },
+    });
+
+    await service.handleStatus(statusEvent({ id: CITY_WAMID, status: 'failed' }));
+
+    expect(quotaRefill.refillOne).not.toHaveBeenCalled();
+  });
+
+  it('dois failed em dois sends agenda dois refillOnes', async () => {
+    const first = build({
+      tenantLead: {
+        id: 77,
+        tenantId: CITY_TENANT_ID,
+        runId: 501,
+      },
+    });
+    await first.service.handleStatus(
+      statusEvent({ id: CITY_WAMID, status: 'failed' }),
+    );
+
+    const second = build({
+      tenantLead: {
+        id: 78,
+        tenantId: CITY_TENANT_ID,
+        runId: 501,
+        lead: { phone: '5511888777666' },
+      },
+    });
+    await second.service.handleStatus(
+      statusEvent({ id: 'wamid.city.out.2', status: 'failed' }),
+    );
+
+    expect(first.quotaRefill.refillOne).toHaveBeenCalledTimes(1);
+    expect(second.quotaRefill.refillOne).toHaveBeenCalledTimes(1);
+    expect(second.quotaRefill.refillOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: 501,
+        sourceTenantLeadId: 78,
+      }),
+    );
+  });
+
+  it('on-demand failed não agenda refill', async () => {
+    const { service, quotaRefill } = build({
+      onDemandSend: {
+        id: ON_DEMAND_SEND_ID,
+        tenantId: ON_DEMAND_TENANT_ID,
+      },
+    });
+
+    await service.handleStatus(
+      statusEvent({ id: ON_DEMAND_WAMID, status: 'failed' }),
+    );
+
+    expect(quotaRefill.refillOne).not.toHaveBeenCalled();
+  });
+
+  it('handleStatus não espera o sleep do refill (fire-and-forget)', async () => {
+    let resolveRefill!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      resolveRefill = resolve;
+    });
+    const { service, quotaRefill } = build({
+      tenantLead: {
+        id: 77,
+        tenantId: CITY_TENANT_ID,
+        runId: 501,
+      },
+    });
+    quotaRefill.refillOne.mockReturnValue(pending);
+
+    await expect(
+      service.handleStatus(statusEvent({ id: CITY_WAMID, status: 'failed' })),
+    ).resolves.toBeUndefined();
+
+    expect(quotaRefill.refillOne).toHaveBeenCalled();
+    resolveRefill();
+    await pending;
   });
 });

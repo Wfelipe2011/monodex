@@ -1,8 +1,9 @@
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
+  OutreachSendRunClosedReason,
   Prisma,
   Tenant,
   TenantListCampaign,
@@ -33,6 +34,8 @@ import {
   computeAvailableBalance,
   loadCrossChannelPending,
 } from './coin-reservation';
+import { OutreachSendRunService } from './outreach-send-run.service';
+import { OutreachQuotaRefillService } from './outreach-quota-refill.service';
 
 type CampaignWithRelations = TenantListCampaign & {
   list: TenantLeadList & { tenant: Tenant };
@@ -49,14 +52,22 @@ const CAMPAIGN_INCLUDE = {
 } as const;
 
 @Injectable()
-export class ListCampaignsService {
+export class ListCampaignsService implements OnModuleInit {
   private readonly logger = new Logger(ListCampaignsService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly httpService: HttpService,
     private readonly platformWhatsapp: PlatformWhatsappService,
+    private readonly sendRuns: OutreachSendRunService,
+    private readonly quotaRefill: OutreachQuotaRefillService,
   ) {}
+
+  onModuleInit() {
+    this.quotaRefill.registerListSender(async (args) =>
+      this.sendListLeadForRefill(args),
+    );
+  }
 
   @Cron(CronExpression.EVERY_HOUR)
   async handleCron() {
@@ -142,23 +153,21 @@ export class ListCampaignsService {
       return;
     }
 
-    const eligible = await this.findEligibleLeads(campaign.listId);
-    const batchSize = Math.min(
-      campaign.sendsPerRun,
-      affordable,
-      eligible.length,
-    );
-
-    if (batchSize <= 0) {
+    const run = await this.sendRuns.openListRun({
+      tenantId: tenant.id,
+      campaignId: campaign.id,
+      targetCount: campaign.sendsPerRun,
+    });
+    if (!run) {
       this.logger.log(
-        `[runCampaign] Campanha ${campaign.id}: nenhum envio neste tick (eligible=${eligible.length}, affordable=${affordable})`,
+        `[runCampaign] Campanha ${campaign.id}: run OPEN existente; skip batch`,
       );
       return;
     }
 
-    const batch = eligible.slice(0, batchSize);
+    const maxAccepts = Math.min(campaign.sendsPerRun, affordable);
     this.logger.log(
-      `[runCampaign] Campanha ${campaign.id}: enviando ${batch.length} leads`,
+      `[runCampaign] Campanha ${campaign.id}: run=${run.id} targetAccepts=${maxAccepts} (sendsPerRun=${campaign.sendsPerRun}, affordable=${affordable})`,
     );
 
     const { messagesUrl, token, accountId } =
@@ -171,10 +180,60 @@ export class ListCampaignsService {
     const slots = this.asSlots(sendTemplate.slots);
     const bindings = this.roleBindings(campaign.slotBindings, 'send');
 
-    for (let i = 0; i < batch.length; i++) {
-      const listLead = batch[i];
+    const excludedLeadIds = new Set<number>();
+    let accepts = 0;
+    let isFirstTry = true;
+
+    // While unificado: Graph-fail / skip sem wamid → próximo lead (refill natural no tick).
+    // beginTry aplica try cap (sendsPerRun * 3). Run fica OPEN para webhook catch-up.
+    while (accepts < maxAccepts) {
+      const listLead = await this.pickNextEligibleLead(
+        campaign.listId,
+        run.id,
+        excludedLeadIds,
+      );
+      if (!listLead) {
+        this.logger.log(
+          `[runCampaign] Campanha ${campaign.id} run=${run.id}: pool esgotado (accepts=${accepts}/${maxAccepts})`,
+        );
+        if (accepts < maxAccepts) {
+          await this.sendRuns.close(
+            run.id,
+            OutreachSendRunClosedReason.EXHAUSTED,
+          );
+        }
+        break;
+      }
+
+      const previewValues = this.resolveRoleValues(slots, bindings, {
+        recipient: listLead,
+        tenant,
+      });
+      if (!previewValues) {
+        this.logger.warn(
+          `[runCampaign] binding inválido; exclui lead ${listLead.id} sem try`,
+        );
+        excludedLeadIds.add(listLead.id);
+        continue;
+      }
+
+      const allowed = await this.sendRuns.beginTry(run.id);
+      if (!allowed) {
+        this.logger.log(
+          `[runCampaign] Campanha ${campaign.id} run=${run.id}: beginTry recusou (cap/TTL/closed)`,
+        );
+        break;
+      }
+
+      excludedLeadIds.add(listLead.id);
+
+      if (!isFirstTry) {
+        await this.sleep(campaign.sendIntervalSeconds * 1000);
+      }
+      isFirstTry = false;
+
       try {
-        await this.sendToLead({
+        const result = await this.sendToLead({
           campaign,
           tenant,
           listLead,
@@ -184,18 +243,81 @@ export class ListCampaignsService {
           bindings,
           sendTemplate,
           persistConversation,
+          runId: run.id,
         });
+        if (result.accepted) {
+          accepts += 1;
+          await this.sendRuns.recordAccept(run.id);
+        }
       } catch (error) {
         const errData = (error as { response?: { data?: unknown } })?.response
           ?.data;
         this.logger.error(
           `[runCampaign] Erro Graph lead ${listLead.id}: ${error}${errData ? ` ${JSON.stringify(errData)}` : ''}`,
         );
+        // Continua o while — próximo pick repõe o fail (mesma run).
       }
+    }
 
-      if (i < batch.length - 1) {
-        await this.sleep(campaign.sendIntervalSeconds * 1000);
-      }
+    this.logger.log(
+      `[runCampaign] Campanha ${campaign.id} run=${run.id}: tick encerrou accepts=${accepts}; run permanece para webhook se OPEN`,
+    );
+  }
+
+  /**
+   * Sender fino para OutreachQuotaRefillService (webhook / refillOne).
+   * beginTry + recordAccept ficam no refill service.
+   */
+  private async sendListLeadForRefill(args: {
+    runId: number;
+    tenantId: number;
+    campaignId: number;
+    listLead: TenantListLead;
+  }): Promise<{ accepted: boolean; listSendId?: number }> {
+    const campaign = await this.prisma.tenantListCampaign.findUnique({
+      where: { id: args.campaignId },
+      include: CAMPAIGN_INCLUDE,
+    });
+    if (!campaign || campaign.list.tenantId !== args.tenantId) {
+      return { accepted: false };
+    }
+
+    const tenant = campaign.list.tenant;
+    const sendTemplate = campaign.template;
+    if (sendTemplate.status.toUpperCase() !== 'APPROVED') {
+      return { accepted: false };
+    }
+
+    const { messagesUrl, token, accountId } =
+      await this.platformWhatsapp.resolveCredentials(tenant.id);
+    const persistConversation = await isDedicatedBoundToTenant(
+      this.prisma,
+      tenant.id,
+      { accountId },
+    );
+    const slots = this.asSlots(sendTemplate.slots);
+    const bindings = this.roleBindings(campaign.slotBindings, 'send');
+
+    try {
+      return await this.sendToLead({
+        campaign: campaign as CampaignWithRelations,
+        tenant,
+        listLead: args.listLead,
+        messagesUrl,
+        token,
+        slots,
+        bindings,
+        sendTemplate,
+        persistConversation,
+        runId: args.runId,
+      });
+    } catch (error) {
+      const errData = (error as { response?: { data?: unknown } })?.response
+        ?.data;
+      this.logger.error(
+        `[sendListLeadForRefill] Erro Graph lead ${args.listLead.id}: ${error}${errData ? ` ${JSON.stringify(errData)}` : ''}`,
+      );
+      return { accepted: false };
     }
   }
 
@@ -209,7 +331,8 @@ export class ListCampaignsService {
     bindings: Record<string, SlotBinding>;
     sendTemplate: WhatsappMessageTemplate;
     persistConversation: boolean;
-  }) {
+    runId: number;
+  }): Promise<{ accepted: boolean; listSendId?: number }> {
     const {
       campaign,
       tenant,
@@ -220,6 +343,7 @@ export class ListCampaignsService {
       bindings,
       sendTemplate,
       persistConversation,
+      runId,
     } = args;
 
     const values = this.resolveRoleValues(slots, bindings, {
@@ -230,7 +354,7 @@ export class ListCampaignsService {
       this.logger.warn(
         `[sendToLead] binding inválido; skip lead ${listLead.id}`,
       );
-      return;
+      return { accepted: false };
     }
 
     const sendBody = buildTemplateSendBody({
@@ -258,14 +382,17 @@ export class ListCampaignsService {
     const wamid = res.data.messages[0].id;
     const phone = normalizeListPhone(listLead.phone);
 
+    let listSendId: number | undefined;
     await this.prisma.$transaction(async (tsx) => {
       const send = await tsx.tenantListSend.create({
         data: {
           campaignId: campaign.id,
           listLeadId: listLead.id,
           wamid,
+          runId,
         },
       });
+      listSendId = send.id;
 
       await tsx.tenantListLead.update({
         where: { id: listLead.id },
@@ -292,8 +419,27 @@ export class ListCampaignsService {
     });
 
     this.logger.log(
-      `[sendToLead] Enviado lead ${listLead.id} wamid=${wamid} campanha ${campaign.id}`,
+      `[sendToLead] Enviado lead ${listLead.id} wamid=${wamid} campanha ${campaign.id} run=${runId}`,
     );
+    return { accepted: true, listSendId };
+  }
+
+  private async pickNextEligibleLead(
+    listId: number,
+    runId: number,
+    excludedLeadIds: Set<number>,
+  ): Promise<TenantListLead | null> {
+    const sentInRun = await this.prisma.tenantListSend.findMany({
+      where: { runId },
+      select: { listLeadId: true },
+    });
+    const blocked = new Set(excludedLeadIds);
+    for (const row of sentInRun) {
+      blocked.add(row.listLeadId);
+    }
+
+    const eligible = await this.findEligibleLeads(listId);
+    return eligible.find((lead) => !blocked.has(lead.id)) ?? null;
   }
 
   private async findEligibleLeads(listId: number): Promise<TenantListLead[]> {
