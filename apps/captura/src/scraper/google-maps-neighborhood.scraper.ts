@@ -1,6 +1,7 @@
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
 import { scrollMapsFeedUntilSettled, waitForMapsFeed } from './maps-feed-scroll';
+import { navigateToMapsSearch } from './maps-navigation';
 
 @Injectable()
 export class GoogleMapsNeighborhoodScraper {
@@ -30,64 +31,69 @@ export class GoogleMapsNeighborhoodScraper {
         console.log('🔧 Abrindo navegador...');
         const browser = await puppeteer.launch({
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
         });
-        const page = await browser.newPage();
 
-        await page.setViewport({ width: 1440, height: 900 });
-        console.log('🔧 Viewport configurado.');
+        try {
+            const page = await browser.newPage();
 
-        const url = `https://www.google.com/maps/search/${cityName}+Bairros`;
-        console.log(`🌐 Navegando para URL: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+            await page.setViewport({ width: 1440, height: 900 });
+            console.log('🔧 Viewport configurado.');
 
+            const searchQuery = `${cityName} Bairros`;
+            console.log(`🌐 Navegando para busca: ${searchQuery}`);
+            await navigateToMapsSearch(page, searchQuery);
 
-        console.log('⏳ Aguardando feed de resultados...');
-        const hasFeed = await waitForMapsFeed(page);
-        if (!hasFeed) {
-            console.warn(`⚠️ Feed de resultados não encontrado para ${cityName}. Abortando.`);
-            await browser.close();
-            return;
-        }
+            console.log('⏳ Aguardando feed de resultados...');
+            const hasFeed = await waitForMapsFeed(page);
+            if (!hasFeed) {
+                console.warn(`⚠️ Feed de resultados não encontrado para ${cityName}. Abortando.`);
+                return;
+            }
 
-        await scrollMapsFeedUntilSettled(page, `na cidade ${cityName}`);
+            await scrollMapsFeedUntilSettled(page, `na cidade ${cityName}`);
 
-        console.log('📝 Extraindo dados dos resultados...');
-        const result = await page.evaluate(() => {
-            const results = [];
-            const items = document.querySelectorAll('.Nv2PK');
+            console.log('📝 Extraindo dados dos resultados...');
+            const result = await page.evaluate(() => {
+                const results = [];
+                const items = document.querySelectorAll('.Nv2PK');
 
-            items.forEach((el) => {
-                results.push({
-                    name: el.querySelector('.qBF1Pd')?.textContent?.trim(),
+                items.forEach((el) => {
+                    results.push({
+                        name: el.querySelector('.qBF1Pd')?.textContent?.trim(),
+                    });
                 });
-            });
 
-            return results;
-        }) as { name: string }[];
+                return results;
+            }) as { name: string }[];
 
-        console.log(`🔢 Quantidade de resultados extraídos: ${result.length}`);
+            console.log(`🔢 Quantidade de resultados extraídos: ${result.length}`);
 
-        for (const item of result) {
-            const neighborhood = await this.prismaService.neighborhood.findFirst({
-                where: {
-                    name: item.name,
-                    cityId: city.id,
-                },
-            });
-            if (!neighborhood) {
-                await this.prismaService.neighborhood.create({
-                    data: {
+            for (const item of result) {
+                if (!item.name) {
+                    continue;
+                }
+                const neighborhood = await this.prismaService.neighborhood.findFirst({
+                    where: {
                         name: item.name,
                         cityId: city.id,
                     },
                 });
-                console.log(`✅ Bairro "${item.name}" criado no banco de dados.`);
-            } else {
-                console.log(`✅ Bairro "${item.name}" já existe no banco de dados.`);
+                if (!neighborhood) {
+                    await this.prismaService.neighborhood.create({
+                        data: {
+                            name: item.name,
+                            cityId: city.id,
+                        },
+                    });
+                    console.log(`✅ Bairro "${item.name}" criado no banco de dados.`);
+                } else {
+                    console.log(`✅ Bairro "${item.name}" já existe no banco de dados.`);
+                }
             }
+        } finally {
+            await browser.close();
+            console.log('🛑 Navegador fechado. Scraping finalizado.');
         }
-        await browser.close();
-        console.log('🛑 Navegador fechado. Scraping finalizado.');
     }
 }

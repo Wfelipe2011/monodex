@@ -61,7 +61,17 @@ export class CapturaScraperService {
     this.running = true;
     try {
       for (const { city, categories } of groups) {
-        await this.scrape(city, categories);
+        try {
+          await this.scrape(city, categories);
+        } catch (e) {
+          this.logger.error(
+            `[refreshLeads] Scrape abortado para city=${city.name}`,
+            e instanceof Error ? e.stack : e,
+          );
+          for (const category of categories) {
+            await this.upsertCoverage(city.id, category, 'failed', 0);
+          }
+        }
       }
     } finally {
       this.running = false;
@@ -80,7 +90,14 @@ export class CapturaScraperService {
       this.logger.log(
         `[refreshLeads] Nenhum bairro no DB para ${city.name}; rodando neighborhood scraper...`,
       );
-      await this.googleMapsNeighborhoodScraper.scraper(city.name);
+      try {
+        await this.googleMapsNeighborhoodScraper.scraper(city.name);
+      } catch (e) {
+        this.logger.error(
+          `[refreshLeads] Neighborhood scraper failed city=${city.name}`,
+          e instanceof Error ? e.stack : e,
+        );
+      }
       neighborhoods = await this.prisma.neighborhood.findMany({
         where: { cityId: city.id },
         select: { name: true },

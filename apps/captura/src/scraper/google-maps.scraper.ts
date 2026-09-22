@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Lead } from '@prisma/client';
 import { scrollMapsFeedUntilSettled, waitForMapsFeed } from './maps-feed-scroll';
+import { navigateToMapsSearch } from './maps-navigation';
 
 @Injectable()
 export class GoogleMapsScraper {
@@ -35,9 +36,9 @@ export class GoogleMapsScraper {
             for (const bairro of shuffledBairros) {
                 try {
                     console.log(`➡️  Buscando no bairro: ${bairro}`);
-                    const url = `https://www.google.com/maps/search/${encodeURIComponent(category)}+${encodeURIComponent(bairro)}+${encodeURIComponent(city)}+SP`;
-                    console.log(`🌐 Navegando para URL: ${url}`);
-                    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+                    const searchQuery = `${category} ${bairro} ${city} SP`;
+                    console.log(`🌐 Navegando para busca: ${searchQuery}`);
+                    await navigateToMapsSearch(page, searchQuery);
 
                     console.log('⏳ Aguardando feed de resultados...');
                     const hasFeed = await waitForMapsFeed(page);
