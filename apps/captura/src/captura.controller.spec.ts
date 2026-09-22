@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CapturaController } from './captura.controller';
-import { CapturaScraperService } from './captura-scraper.service';
+import { LeadsService } from './leads.service';
 
 describe('CapturaController', () => {
   let capturaController: CapturaController;
@@ -8,15 +8,17 @@ describe('CapturaController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [CapturaController],
-      providers: [CapturaScraperService],
+      providers: [{ provide: LeadsService, useValue: {} }],
     }).compile();
 
     capturaController = app.get<CapturaController>(CapturaController);
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(capturaController.getHello()).toBe('Hello World!');
+    it('returns health status', async () => {
+      await expect(capturaController.healthCheck()).resolves.toEqual({
+        status: 'ok',
+      });
     });
   });
 });

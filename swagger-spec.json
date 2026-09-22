@@ -39,9 +39,6 @@
                 }
               }
             }
-          },
-          "201": {
-            "description": ""
           }
         },
         "summary": "Autenticação de usuário",
@@ -1408,14 +1405,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1453,14 +1443,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1498,14 +1481,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1535,14 +1511,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1580,14 +1549,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1625,14 +1587,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -1641,6 +1596,36 @@
           }
         ],
         "summary": "Patch operacional (knobs, schedule, templates, enabled)",
+        "tags": [
+          "Tenant — Outreach Config"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/outreach-config/eligible-categories": {
+      "get": {
+        "description": "Lista categorias distintas (ordenadas) e pares cidade/categoria derivados de ScrapeTarget enabled, filtrados pela política de cidades do tenant (allow/deny). Match case-sensitive ao catálogo.",
+        "operationId": "TenantOutreachConfigController_getEligibleCategories",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Categorias de outreach elegíveis para o tenant",
         "tags": [
           "Tenant — Outreach Config"
         ]
@@ -2393,17 +2378,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2432,14 +2407,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2468,14 +2436,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2513,14 +2474,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2548,14 +2502,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -2571,7 +2518,7 @@
     },
     "/platform/scrape-coverages": {
       "get": {
-        "description": "Retorna [] se nunca scrapou. Após um scrape, inclui lastStatus, lastRunAt, lastLeadCount e firstRunAt.",
+        "description": "Retorna [] se nunca scrapou. Inclui lastStatus, lastRunAt, lastLeadCount, firstRunAt, schedulePhase, nextScheduledRunAt, scheduledRunCount e lastRunKind.",
         "operationId": "ScrapeCoveragesController_list",
         "parameters": [
           {
@@ -2599,7 +2546,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object"
+                    "$ref": "#/components/schemas/ScrapeCoverageItemDto"
                   }
                 }
               }
@@ -2936,9 +2883,6 @@
                 }
               }
             }
-          },
-          "201": {
-            "description": ""
           },
           "400": {
             "description": "CSV inválido, file ausente ou phone duplicado"
@@ -4527,14 +4471,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -4572,14 +4509,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -4609,14 +4539,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -4960,17 +4883,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "security": [
@@ -5008,11 +4921,49 @@
         },
         "responses": {
           "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pedir par cidade/categoria compartilhado",
+        "tags": [
+          "Tenant — Scrape"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/scrape-targets/{targetId}/on-demand": {
+      "post": {
+        "description": "Valida vínculo, política de cidade, flags e quota (2/dia America/Sao_Paulo). 409 se lock global do par; 429 se quota esgotada.",
+        "operationId": "TenantScrapeTargetsController_triggerOnDemand",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "targetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/TenantScrapeOnDemandTriggerResultDto"
                 }
               }
             }
@@ -5023,7 +4974,107 @@
             "bearer": []
           }
         ],
-        "summary": "Pedir par cidade/categoria compartilhado",
+        "summary": "Disparar scrape on-demand (curto) para par vinculado",
+        "tags": [
+          "Tenant — Scrape"
+        ]
+      },
+      "get": {
+        "operationId": "TenantScrapeTargetsController_getOnDemandStatus",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "targetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantScrapeOnDemandStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Status on-demand (quota, cursor, último run)",
+        "tags": [
+          "Tenant — Scrape"
+        ]
+      },
+      "patch": {
+        "description": "Não altera ScrapeTarget.enabled global.",
+        "operationId": "TenantScrapeTargetsController_patchOnDemand",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "targetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchTenantScrapeOnDemandDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "onDemandEnabled": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ligar/desligar on-demand do tenant neste target",
         "tags": [
           "Tenant — Scrape"
         ]
@@ -5192,13 +5243,11 @@
         "properties": {
           "currentPassword": {
             "type": "string",
-            "minLength": 6,
             "description": "Senha atual em plaintext",
             "example": "antiga"
           },
           "newPassword": {
             "type": "string",
-            "minLength": 6,
             "description": "Nova senha em plaintext (será hasheada com bcrypt 10 rounds)",
             "example": "nova-senha"
           }
@@ -5225,7 +5274,6 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome do tenant",
             "example": "Academia Centro"
           },
@@ -5249,13 +5297,12 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome do tenant"
           },
           "phone": {
             "type": "string",
-            "nullable": true,
-            "description": "Telefone E.164 (único)"
+            "description": "Telefone E.164 (único)",
+            "nullable": true
           },
           "active": {
             "type": "boolean",
@@ -5272,7 +5319,6 @@
         "properties": {
           "phone": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone do tenant (não altera active)",
             "example": "12911112222"
           }
@@ -5286,27 +5332,22 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "example": "Maria Silva"
           },
           "username": {
             "type": "string",
-            "minLength": 1,
             "example": "maria.admin"
           },
           "email": {
             "type": "string",
-            "format": "email",
             "example": "maria@academia.com"
           },
           "password": {
             "type": "string",
-            "minLength": 6,
             "example": "senha-segura"
           },
           "roles": {
             "type": "array",
-            "uniqueItems": true,
             "description": "Roles do usuário do tenant (SUPER_ADMIN não permitido)",
             "default": [
               "ADMIN"
@@ -5333,12 +5374,10 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "example": "Maria Silva"
           },
           "roles": {
             "type": "array",
-            "uniqueItems": true,
             "description": "Roles do usuário do tenant (SUPER_ADMIN não permitido)",
             "items": {
               "type": "string",
@@ -5356,7 +5395,6 @@
         "properties": {
           "password": {
             "type": "string",
-            "minLength": 6,
             "description": "Nova senha em plaintext (será hasheada)",
             "example": "nova-senha"
           }
@@ -5441,19 +5479,19 @@
           "consumedAt": {
             "format": "date-time",
             "type": "string",
-            "nullable": true,
-            "example": null
+            "example": null,
+            "nullable": true
           },
           "revokedAt": {
             "format": "date-time",
             "type": "string",
-            "nullable": true,
-            "example": null
+            "example": null,
+            "nullable": true
           },
           "createdByUserId": {
             "type": "number",
-            "nullable": true,
-            "example": 1
+            "example": 1,
+            "nullable": true
           },
           "createdAt": {
             "format": "date-time",
@@ -5514,22 +5552,18 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "example": "Maria Silva"
           },
           "username": {
             "type": "string",
-            "minLength": 1,
             "example": "maria.admin"
           },
           "email": {
             "type": "string",
-            "format": "email",
             "example": "maria@academia.com"
           },
           "password": {
             "type": "string",
-            "minLength": 6,
             "example": "senha-segura"
           }
         },
@@ -5625,7 +5659,6 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da chave",
             "example": "crm-prod"
           }
@@ -5691,23 +5724,21 @@
           },
           "amount": {
             "type": "number",
-            "minimum": 1,
             "description": "Valor positivo a creditar",
             "example": 10
           },
           "description": {
             "type": "string",
-            "minLength": 1,
             "description": "Descrição livre (marcador do operador é anexado)",
             "example": "Credito inicial onboarding"
           },
           "type": {
             "type": "string",
+            "description": "Tipo da transaction (default CREDITO)",
             "enum": [
               "CREDITO",
               "BONUS"
             ],
-            "description": "Tipo da transaction (default CREDITO)",
             "default": "CREDITO"
           }
         },
@@ -5726,13 +5757,11 @@
           },
           "amount": {
             "type": "number",
-            "minimum": 1,
             "description": "Valor positivo a debitar",
             "example": 3
           },
           "description": {
             "type": "string",
-            "minLength": 1,
             "description": "Descrição livre (marcador do operador é anexado)",
             "example": "Ajuste operacional"
           }
@@ -5790,19 +5819,16 @@
           },
           "whatsappAccountId": {
             "type": "number",
-            "nullable": true,
-            "minimum": 1,
             "description": "Conta WhatsApp dedicada (não-default). Omitido ou null = remetente default da plataforma",
+            "nullable": true,
             "example": 2
           },
           "outreachTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de outreach no catálogo"
           },
           "notifyTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de notify no catálogo"
           },
           "slotBindings": {
@@ -5825,7 +5851,6 @@
             }
           },
           "categories": {
-            "minItems": 1,
             "description": "Categorias de leads",
             "example": [
               "Construtoras",
@@ -5838,14 +5863,12 @@
           },
           "leadsPerRun": {
             "type": "number",
-            "minimum": 1,
             "description": "Leads contactados por execução (default 5)",
             "example": 5,
             "default": 5
           },
           "sendIntervalSeconds": {
             "type": "number",
-            "minimum": 0,
             "description": "Intervalo em segundos entre envios (default 5)",
             "example": 5,
             "default": 5
@@ -5869,7 +5892,6 @@
           },
           "costPerOnDemandSend": {
             "type": "number",
-            "minimum": 0,
             "description": "Custo em coins por envio on-demand. 0 fecha o canal. Só Super Admin."
           },
           "cashbackOnReply": {
@@ -5878,19 +5900,18 @@
           },
           "coinDebitOnStatus": {
             "type": "string",
+            "description": "Status Meta em que o coin é debitado (cidade e lista). Default no schema: delivered. failed não é permitido.",
             "enum": [
               "sent",
               "delivered",
               "read"
             ],
-            "description": "Status Meta em que o coin é debitado (cidade e lista). Default no schema: delivered. failed não é permitido.",
             "example": "delivered"
           },
           "whatsappAccountId": {
             "type": "number",
-            "nullable": true,
-            "minimum": 1,
             "description": "Conta WhatsApp dedicada (não-default). null = remetente default da plataforma",
+            "nullable": true,
             "example": 2
           }
         }
@@ -5905,12 +5926,10 @@
           },
           "outreachTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de outreach no catálogo"
           },
           "notifyTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de notify no catálogo"
           },
           "slotBindings": {
@@ -5933,7 +5952,6 @@
             }
           },
           "categories": {
-            "minItems": 0,
             "type": "array",
             "items": {
               "type": "string"
@@ -5941,14 +5959,12 @@
           },
           "leadsPerRun": {
             "type": "number",
-            "minimum": 1,
             "description": "Leads contactados por execução (default 5)",
             "example": 5,
             "default": 5
           },
           "sendIntervalSeconds": {
             "type": "number",
-            "minimum": 0,
             "description": "Intervalo em segundos entre envios (default 5)",
             "example": 5,
             "default": 5
@@ -5964,12 +5980,10 @@
           },
           "outreachTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de outreach no catálogo"
           },
           "notifyTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de notify no catálogo"
           },
           "slotBindings": {
@@ -5992,7 +6006,6 @@
             }
           },
           "categories": {
-            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string"
@@ -6000,13 +6013,11 @@
           },
           "leadsPerRun": {
             "type": "number",
-            "minimum": 1,
             "description": "Leads contactados por execução",
             "example": 5
           },
           "sendIntervalSeconds": {
             "type": "number",
-            "minimum": 0,
             "description": "Intervalo em segundos entre envios",
             "example": 5
           }
@@ -6053,20 +6064,20 @@
           },
           "lastStatus": {
             "type": "string",
-            "nullable": true,
             "enum": [
               "sent",
               "delivered",
               "read",
               "failed"
             ],
-            "example": "delivered"
+            "example": "delivered",
+            "nullable": true
           },
           "templateName": {
             "type": "string",
-            "nullable": true,
             "description": "Nome do template no momento do disparo; null em histórico",
-            "example": "hello_city"
+            "example": "hello_city",
+            "nullable": true
           },
           "lead": {
             "$ref": "#/components/schemas/CityOutreachSendLeadRefDto"
@@ -6092,13 +6103,11 @@
         "properties": {
           "phoneNumberId": {
             "type": "string",
-            "minLength": 1,
             "description": "Meta Cloud API phone_number_id",
             "example": "688645744332614"
           },
           "wabaId": {
             "type": "string",
-            "minLength": 1,
             "description": "WhatsApp Business Account ID (WABA)",
             "example": "123456789012345"
           },
@@ -6109,7 +6118,6 @@
           },
           "tokenEnvKey": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da env var com o token Meta (nunca o token em si)",
             "default": "WHATSAPP_TOKEN"
           },
@@ -6124,8 +6132,8 @@
           },
           "tenantId": {
             "type": "number",
-            "nullable": true,
-            "description": "Deve ser null/omitido (somente contas de plataforma no MVP)"
+            "description": "Deve ser null/omitido (somente contas de plataforma no MVP)",
+            "nullable": true
           }
         },
         "required": [
@@ -6178,8 +6186,8 @@
         "properties": {
           "about": {
             "type": "string",
-            "maxLength": 139,
-            "description": "Texto \"About\" do perfil (máx. 139 chars na Meta)"
+            "description": "Texto \"About\" do perfil (máx. 139 chars na Meta)",
+            "maxLength": 139
           },
           "address": {
             "type": "string",
@@ -6191,26 +6199,22 @@
           },
           "email": {
             "type": "string",
-            "maxLength": 128,
-            "format": "email"
+            "maxLength": 128
           },
           "websites": {
-            "maxItems": 2,
             "description": "Até 2 URLs de websites",
+            "maxItems": 2,
             "type": "array",
             "items": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             }
           },
           "vertical": {
             "type": "string",
-            "minLength": 1,
             "description": "Vertical Meta (ex.: OTHER, RETAIL, HEALTH). Ver docs WhatsApp Business Profile."
           },
           "profile_picture_handle": {
             "type": "string",
-            "minLength": 1,
             "description": "Handle opaco de foto obtido via POST /platform/whatsapp-templates/media"
           }
         }
@@ -6220,12 +6224,10 @@
         "properties": {
           "phoneNumberId": {
             "type": "string",
-            "minLength": 1,
             "description": "Meta Cloud API phone_number_id"
           },
           "wabaId": {
             "type": "string",
-            "minLength": 1,
             "description": "WhatsApp Business Account ID (WABA)"
           },
           "displayPhone": {
@@ -6234,7 +6236,6 @@
           },
           "tokenEnvKey": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da env var com o token Meta (nunca o token em si)"
           },
           "enabled": {
@@ -6268,36 +6269,33 @@
         "properties": {
           "name": {
             "type": "string",
-            "pattern": "/^[a-z0-9_]+$/",
             "description": "Nome do template (somente minúsculas, números e underscore)",
             "example": "promo_boas_vindas"
           },
           "language": {
             "type": "string",
-            "pattern": "/^[a-z]{2}(_[A-Z]{2})?$/",
             "description": "Código de idioma Meta (ex. pt_BR)",
             "example": "pt_BR"
           },
           "category": {
             "type": "string",
+            "description": "Categoria Meta — MVP aceita somente MARKETING",
             "enum": [
               "MARKETING"
             ],
-            "description": "Categoria Meta — MVP aceita somente MARKETING",
             "example": "MARKETING"
           },
           "parameterFormat": {
             "type": "string",
+            "description": "Formato de parâmetros Meta",
             "enum": [
               "POSITIONAL",
               "NAMED"
             ],
-            "description": "Formato de parâmetros Meta",
             "example": "POSITIONAL"
           },
           "components": {
             "type": "array",
-            "minItems": 1,
             "description": "Components no shape Meta (HEADER TEXT|IMAGE, BODY, FOOTER?, BUTTONS?). Variáveis exigem example; HEADER IMAGE exige header_handle.",
             "items": {
               "type": "object",
@@ -6496,7 +6494,6 @@
         "properties": {
           "components": {
             "type": "array",
-            "minItems": 1,
             "description": "Components completos (replace Meta). Mesmas regras de validação do create. Inclua BODY.text com placeholders.",
             "items": {
               "type": "object",
@@ -6519,10 +6516,10 @@
           },
           "category": {
             "type": "string",
+            "description": "Categoria — MVP somente MARKETING",
             "enum": [
               "MARKETING"
-            ],
-            "description": "Categoria — MVP somente MARKETING"
+            ]
           }
         },
         "required": [
@@ -6551,7 +6548,6 @@
         "properties": {
           "to": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone de destino (dígitos; 55 será prefixado se faltar)",
             "example": "11999999999"
           },
@@ -6565,13 +6561,11 @@
           },
           "leadId": {
             "type": "number",
-            "minimum": 1,
             "description": "Lead opcional para resolver bindings lead.*",
             "example": 1
           },
           "whatsappAccountId": {
             "type": "number",
-            "minimum": 1,
             "description": "Conta plataforma para o envio (phoneNumberId). Omitido usa a default. O template continua no catálogo da default.",
             "example": 2
           }
@@ -6585,14 +6579,11 @@
         "properties": {
           "cronExpression": {
             "type": "string",
-            "minLength": 1,
-            "pattern": "FIVE_FIELD_CRON",
             "description": "Expressão cron de 5 campos",
             "example": "0 8 * * *"
           },
           "timeZone": {
             "type": "string",
-            "minLength": 1,
             "description": "Timezone IANA",
             "default": "America/Sao_Paulo",
             "example": "America/Sao_Paulo"
@@ -6611,19 +6602,16 @@
         "properties": {
           "cityName": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da cidade",
             "example": "Taubaté"
           },
           "state": {
             "type": "string",
-            "minLength": 1,
             "description": "UF da cidade",
             "example": "SP"
           },
           "category": {
             "type": "string",
-            "minLength": 1,
             "description": "Categoria a scrapar",
             "example": "Construtoras"
           },
@@ -6647,10 +6635,91 @@
           },
           "category": {
             "type": "string",
-            "minLength": 1,
             "description": "Nova categoria (respeita unique cityId+category)"
           }
         }
+      },
+      "ScrapeCoverageCityDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "ScrapeCoverageItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "cityId": {
+            "type": "number"
+          },
+          "category": {
+            "type": "string"
+          },
+          "firstRunAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastRunAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastStatus": {
+            "type": "string"
+          },
+          "lastLeadCount": {
+            "type": "number"
+          },
+          "schedulePhase": {
+            "type": "string",
+            "enum": [
+              "BOOTSTRAP",
+              "COOLDOWN_90D",
+              "RECURRING_180D"
+            ]
+          },
+          "nextScheduledRunAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scheduledRunCount": {
+            "type": "number"
+          },
+          "lastRunKind": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "on_demand"
+            ]
+          },
+          "city": {
+            "$ref": "#/components/schemas/ScrapeCoverageCityDto"
+          }
+        },
+        "required": [
+          "id",
+          "cityId",
+          "category",
+          "firstRunAt",
+          "lastRunAt",
+          "lastStatus",
+          "schedulePhase",
+          "scheduledRunCount",
+          "city"
+        ]
       },
       "TenantLeadListResponseDto": {
         "type": "object",
@@ -6697,7 +6766,6 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da lista",
             "example": "Construtoras SP"
           }
@@ -6711,7 +6779,6 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da lista",
             "example": "Construtoras SP — Q3"
           }
@@ -6752,22 +6819,18 @@
           },
           "website": {
             "type": "string",
-            "nullable": true,
             "example": "https://exemplo.com.br"
           },
           "category": {
             "type": "string",
-            "nullable": true,
             "example": "Construtoras"
           },
           "reviews": {
             "type": "number",
-            "nullable": true,
             "example": 42
           },
           "sendLockCampaignId": {
             "type": "number",
-            "nullable": true,
             "description": "Campanha que bloqueou o lead após envio aceito; null = elegível",
             "example": 3
           },
@@ -6796,13 +6859,11 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome do lead",
             "example": "Construtora ABC"
           },
           "phone": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone (normalizado para dígitos com prefixo 55)",
             "example": "(11) 98765-4321"
           },
@@ -6818,7 +6879,6 @@
           },
           "reviews": {
             "type": "number",
-            "minimum": 0,
             "description": "Quantidade de reviews (≥ 0)",
             "example": 42
           }
@@ -6832,7 +6892,6 @@
         "type": "object",
         "properties": {
           "leads": {
-            "minItems": 1,
             "example": {
               "leads": [
                 {
@@ -6864,13 +6923,11 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome do lead",
             "example": "Construtora ABC Ltda"
           },
           "phone": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone (será normalizado)",
             "example": "11987654321"
           },
@@ -6886,7 +6943,6 @@
           },
           "reviews": {
             "type": "number",
-            "minimum": 0,
             "description": "Quantidade de reviews (≥ 0)",
             "example": 50
           }
@@ -6897,9 +6953,9 @@
         "properties": {
           "costPerSend": {
             "type": "number",
-            "minimum": 0,
             "description": "Custo por envio (0 = campanha não envia)",
-            "example": 0.4
+            "example": 0.4,
+            "minimum": 0
           }
         },
         "required": [
@@ -6973,7 +7029,6 @@
           },
           "notifyTemplateId": {
             "type": "number",
-            "nullable": true,
             "example": 6
           },
           "notifySlotBindings": {
@@ -7029,12 +7084,7 @@
             "$ref": "#/components/schemas/CatalogTemplateRefDto"
           },
           "notifyTemplate": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CatalogTemplateRefDto"
-              }
-            ]
+            "$ref": "#/components/schemas/CatalogTemplateRefDto"
           },
           "createdAt": {
             "format": "date-time",
@@ -7107,7 +7157,6 @@
         "properties": {
           "buttonIndex": {
             "type": "number",
-            "minimum": 0,
             "example": 0
           },
           "label": {
@@ -7144,7 +7193,6 @@
           },
           "templateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de disparo no catálogo"
           },
           "slotBindings": {
@@ -7152,14 +7200,12 @@
           },
           "notifyTemplateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do template de notify (obrigatório se NOTIFY)"
           },
           "notifySlotBindings": {
             "$ref": "#/components/schemas/NotifySlotBindingsDto"
           },
           "buttonActions": {
-            "minItems": 0,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ButtonActionDto"
@@ -7179,12 +7225,10 @@
           },
           "sendsPerRun": {
             "type": "number",
-            "minimum": 1,
             "default": 5
           },
           "sendIntervalSeconds": {
             "type": "number",
-            "minimum": 0,
             "default": 5
           }
         },
@@ -7207,16 +7251,13 @@
             "type": "boolean"
           },
           "templateId": {
-            "type": "number",
-            "minimum": 1
+            "type": "number"
           },
           "slotBindings": {
             "$ref": "#/components/schemas/SendSlotBindingsDto"
           },
           "notifyTemplateId": {
-            "type": "number",
-            "nullable": true,
-            "minimum": 1
+            "type": "number"
           },
           "notifySlotBindings": {
             "$ref": "#/components/schemas/NotifySlotBindingsDto"
@@ -7240,12 +7281,10 @@
             }
           },
           "sendsPerRun": {
-            "type": "number",
-            "minimum": 1
+            "type": "number"
           },
           "sendIntervalSeconds": {
-            "type": "number",
-            "minimum": 0
+            "type": "number"
           }
         }
       },
@@ -7307,7 +7346,6 @@
           },
           "lastStatus": {
             "type": "string",
-            "nullable": true,
             "enum": [
               "sent",
               "delivered",
@@ -7361,8 +7399,8 @@
           },
           "body": {
             "type": "string",
-            "nullable": true,
-            "example": "Tenho Interesse!"
+            "example": "Tenho Interesse!",
+            "nullable": true
           },
           "createdAt": {
             "format": "date-time",
@@ -7401,8 +7439,8 @@
           "lastInboundAt": {
             "format": "date-time",
             "type": "string",
-            "nullable": true,
-            "example": "2026-08-19T11:50:00.000Z"
+            "example": "2026-08-19T11:50:00.000Z",
+            "nullable": true
           },
           "windowOpen": {
             "type": "boolean",
@@ -7452,7 +7490,6 @@
           },
           "body": {
             "type": "string",
-            "nullable": true,
             "example": "Tenho Interesse!",
             "description": "Texto ou label do botão quando aplicável"
           },
@@ -7475,10 +7512,9 @@
         "properties": {
           "text": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 4096,
             "description": "Texto livre (janela Meta 24h após último inbound)",
-            "example": "Olá! Como posso ajudar?"
+            "example": "Olá! Como posso ajudar?",
+            "maxLength": 4096
           }
         },
         "required": [
@@ -7545,19 +7581,16 @@
         "properties": {
           "templateId": {
             "type": "number",
-            "minimum": 1,
             "description": "Template granted ao tenant",
             "example": 1
           },
           "to": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone de destino (dígitos; 55 será prefixado se faltar)",
             "example": "11999999999"
           },
           "scheduledFor": {
             "type": "string",
-            "minLength": 1,
             "description": "Data e hora local em America/Sao_Paulo no início da hora (minuto=0). Ex.: 2026-08-22T14:00:00",
             "example": "2026-08-22T14:00:00"
           },
@@ -7571,13 +7604,11 @@
           },
           "imageId": {
             "type": "string",
-            "minLength": 1,
             "description": "publicId da mídia do tenant para header.image (quando o template exige imagem)",
             "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
           },
           "leadId": {
             "type": "number",
-            "minimum": 1,
             "description": "Lead opcional para resolver bindings lead.*",
             "example": 1
           }
@@ -7872,25 +7903,21 @@
         "type": "object",
         "properties": {
           "allowedCityIds": {
-            "uniqueItems": true,
             "description": "Allowlist de city ids (XOR com deniedCityIds)",
             "example": [
               1
             ],
             "type": "array",
             "items": {
-              "type": "number",
-              "minimum": 1
+              "type": "number"
             }
           },
           "deniedCityIds": {
-            "uniqueItems": true,
             "description": "Denylist de city ids (XOR com allowedCityIds)",
             "example": [],
             "type": "array",
             "items": {
-              "type": "number",
-              "minimum": 1
+              "type": "number"
             }
           },
           "respectAllTenants": {
@@ -7904,7 +7931,6 @@
             "example": false
           },
           "respectTenantIds": {
-            "uniqueItems": true,
             "description": "Tenant ids respeitados (não pode incluir o próprio tenantId)",
             "example": [
               2,
@@ -7912,8 +7938,7 @@
             ],
             "type": "array",
             "items": {
-              "type": "number",
-              "minimum": 1
+              "type": "number"
             }
           }
         },
@@ -7930,7 +7955,6 @@
         "properties": {
           "templateId": {
             "type": "number",
-            "minimum": 1,
             "description": "FK do WhatsappMessageTemplate no catálogo",
             "example": 10
           }
@@ -7944,7 +7968,6 @@
         "properties": {
           "to": {
             "type": "string",
-            "minLength": 1,
             "description": "Telefone de destino (dígitos; 55 será prefixado se faltar)",
             "example": "11999999999"
           },
@@ -7958,13 +7981,11 @@
           },
           "imageId": {
             "type": "string",
-            "minLength": 1,
             "description": "publicId da mídia do tenant para header.image (quando o template exige imagem)",
             "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
           },
           "leadId": {
             "type": "number",
-            "minimum": 1,
             "description": "Lead opcional para resolver bindings lead.*",
             "example": 1
           }
@@ -8010,19 +8031,16 @@
         "properties": {
           "cityName": {
             "type": "string",
-            "minLength": 1,
             "description": "Nome da cidade",
             "example": "Taubaté"
           },
           "state": {
             "type": "string",
-            "minLength": 1,
             "description": "UF da cidade",
             "example": "SP"
           },
           "category": {
             "type": "string",
-            "minLength": 1,
             "description": "Categoria a scrapar",
             "example": "Construtoras"
           }
@@ -8032,66 +8050,114 @@
           "category"
         ]
       },
-      "InboundMessageDto": {
+      "TenantScrapeOnDemandTriggerResultDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "leadsTouched": {
+            "type": "number"
+          },
+          "bairrosProcessed": {
+            "type": "number"
+          },
+          "nextBairroIndex": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "status",
+          "leadsTouched",
+          "bairrosProcessed",
+          "nextBairroIndex"
+        ]
+      },
+      "TenantScrapeOnDemandLastRunDto": {
         "type": "object",
         "properties": {
           "id": {
             "type": "number"
           },
-          "wamid": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "success",
+              "failed",
+              "conflict"
+            ]
+          },
+          "startedAt": {
+            "format": "date-time",
             "type": "string"
           },
-          "direction": {
+          "finishedAt": {
+            "format": "date-time",
             "type": "string"
           },
-          "type": {
-            "type": "string"
+          "leadsTouched": {
+            "type": "number"
           },
-          "body": {
-            "type": "string"
-          },
-          "phone": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string"
+          "bairrosProcessed": {
+            "type": "number"
           }
         },
         "required": [
           "id",
-          "wamid",
-          "direction",
-          "type",
-          "phone",
-          "createdAt"
+          "status",
+          "startedAt",
+          "leadsTouched",
+          "bairrosProcessed"
+        ]
+      },
+      "TenantScrapeOnDemandStatusDto": {
+        "type": "object",
+        "properties": {
+          "runsUsedToday": {
+            "type": "number",
+            "example": 1
+          },
+          "dailyLimit": {
+            "type": "number",
+            "example": 2
+          },
+          "nextBairroIndex": {
+            "type": "number"
+          },
+          "bairroCount": {
+            "type": "number"
+          },
+          "onDemandEnabled": {
+            "type": "boolean"
+          },
+          "lastRun": {
+            "$ref": "#/components/schemas/TenantScrapeOnDemandLastRunDto"
+          }
+        },
+        "required": [
+          "runsUsedToday",
+          "dailyLimit",
+          "nextBairroIndex",
+          "bairroCount",
+          "onDemandEnabled"
+        ]
+      },
+      "PatchTenantScrapeOnDemandDto": {
+        "type": "object",
+        "properties": {
+          "onDemandEnabled": {
+            "type": "boolean",
+            "description": "Liga/desliga scrape on-demand deste par tenant×target"
+          }
+        },
+        "required": [
+          "onDemandEnabled"
         ]
       },
       "InboxInboundEventDto": {
         "type": "object",
-        "properties": {
-          "type": {
-            "type": "string"
-          },
-          "tenantId": {
-            "type": "number"
-          },
-          "conversationId": {
-            "type": "number"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "message": {
-            "$ref": "#/components/schemas/InboundMessageDto"
-          }
-        },
-        "required": [
-          "type",
-          "tenantId",
-          "conversationId",
-          "displayName",
-          "message"
-        ]
+        "properties": {}
       },
       "PushSubscriptionKeysDto": {
         "type": "object",

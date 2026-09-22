@@ -43,6 +43,16 @@ import { OrphanMediaCleanupCron } from './modules/admin/orphan-media-cleanup.cro
           .description(
             'App ID do Meta Developer — Resumable Upload (handles de template/profile)',
           ),
+        CAPTURA_BASE_URL: Joi.when('NODE_ENV', {
+          is: 'production',
+          then: Joi.string().uri().required(),
+          otherwise: Joi.string().uri().optional(),
+        }).description('Base HTTP do serviço captura (POST /internal/scrape/on-demand)'),
+        CAPTURA_INTERNAL_SCRAPE_SECRET: Joi.when('NODE_ENV', {
+          is: 'production',
+          then: Joi.string().required(),
+          otherwise: Joi.string().optional(),
+        }).description('Secret X-Internal-Secret compartilhado com captura'),
       }),
     })],
   controllers: [GymController],

@@ -1482,7 +1482,7 @@
                 }
               ]
             },
-            "description": "Somente leitura. Retorna [] se nunca scrapou."
+            "description": "Somente leitura. Retorna [] se nunca scrapou. Cada item inclui lifecycle: `schedulePhase` (BOOTSTRAP | COOLDOWN_90D | RECURRING_180D), `nextScheduledRunAt`, `scheduledRunCount`, `lastRunKind` (planned | on_demand), além de `lastRunAt`, `lastStatus`, `lastLeadCount`, `firstRunAt` e `city`."
           }
         }
       ],
@@ -1630,6 +1630,33 @@
             "header": [],
             "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
             "description": "Inclui preço, `coinDebitOnStatus` e `resolvedWhatsappAccount` só leitura. ADMIN em outro tenantId → 403."
+          }
+        },
+        {
+          "name": "Get Eligible Outreach Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config/eligible-categories",
+            "description": "**Breaking:** use esta rota para popular o multiselect de `categories` (PUT/PATCH). Deriva de ScrapeTargets enabled filtrados pela send-policy. Exemplo 200:\n```json\n{\n  \"categories\": [\"Construtoras\", \"Restaurantes\"],\n  \"items\": [\n    { \"category\": \"Construtoras\", \"cityId\": 1, \"cityName\": \"Taubaté\" }\n  ]\n}\n```\nPATCH/PUT com categoria fora da lista → **400** `Categorias inválidas: ...`. Match case-sensitive ao catálogo."
+          }
+        },
+        {
+          "name": "Patch Outreach Invalid Category (expect 400)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/outreach-config",
+            "description": "Validação tenant: categoria não elegível → **400 Bad Request**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categories\": [\"CategoriaInexistenteNoCatalogo\"]\n}"
+            }
           }
         },
         {
@@ -2419,6 +2446,74 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"cityName\": \"Taubaté\",\n  \"state\": \"SP\",\n  \"category\": \"Construtoras\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('scrapeTargetId', String(json.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Scrape On-Demand Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/scrape-targets/{{scrapeTargetId}}/on-demand",
+            "description": "Quota do dia (America/Sao_Paulo), cursor de bairros e último run. Exemplo 200:\n```json\n{\n  \"runsUsedToday\": 0,\n  \"dailyLimit\": 2,\n  \"nextBairroIndex\": 0,\n  \"bairroCount\": 12,\n  \"onDemandEnabled\": true,\n  \"lastRun\": { \"id\": 1, \"status\": \"completed\", \"leadsTouched\": 3, \"bairrosProcessed\": 2 }\n}\n```\n404 se vínculo tenant×target inexistente."
+          }
+        },
+        {
+          "name": "Trigger Scrape On-Demand",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/scrape-targets/{{scrapeTargetId}}/on-demand",
+            "description": "Dispara scrape curto via captura (não altera `nextScheduledRunAt` do planned). Exemplo 200:\n```json\n{\n  \"status\": \"completed\",\n  \"leadsTouched\": 2,\n  \"bairrosProcessed\": 2,\n  \"nextBairroIndex\": 2\n}\n```\n**409** — lock global do par (planned/on-demand em andamento) ou on-demand desabilitado neste target / plataforma (`onDemandAllowed=false`). **429** — quota diária esgotada (2/dia): `{ \"statusCode\": 429, \"message\": \"Quota diária de scrape on-demand esgotada (2/dia)\" }`. **400** — cidade fora da send-policy. **503** — captura não configurada."
+          }
+        },
+        {
+          "name": "Trigger Scrape On-Demand (expect 429)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/scrape-targets/{{scrapeTargetId}}/on-demand",
+            "description": "Rodar após 2 triggers bem-sucedidos no mesmo dia (SP) para validar quota. Terceiro POST → **429 Too Many Requests**."
+          }
+        },
+        {
+          "name": "Trigger Scrape On-Demand (expect 409 lock)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/scrape-targets/{{scrapeTargetId}}/on-demand",
+            "description": "Disparar enquanto outro scrape do mesmo par `(cityId, category)` está em andamento → **409 Conflict** com mensagem de lock."
+          }
+        },
+        {
+          "name": "Patch Scrape On-Demand Enabled",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gymBaseUrl}}/tenant/{{tenantId}}/scrape-targets/{{scrapeTargetId}}/on-demand",
+            "description": "Liga/desliga on-demand só para este tenant×target (não altera `ScrapeTarget.enabled` global). POST com `onDemandEnabled: false` → **409** no trigger.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onDemandEnabled\": true\n}"
             }
           }
         }

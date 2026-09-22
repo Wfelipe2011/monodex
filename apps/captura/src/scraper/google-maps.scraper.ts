@@ -3,6 +3,14 @@ import { Lead } from '@prisma/client';
 import { scrollMapsFeedUntilSettled, waitForMapsFeed } from './maps-feed-scroll';
 import { navigateToMapsSearch } from './maps-navigation';
 
+export type ScrapeSorocabaLeadsOptions = {
+    maxBairros?: number;
+    startBairroIndex?: number;
+    shortScroll?: boolean;
+};
+
+const SHORT_SCROLL_MAX = 12;
+
 @Injectable()
 export class GoogleMapsScraper {
     async scrapeSorocabaLeads(
@@ -10,6 +18,7 @@ export class GoogleMapsScraper {
         categories: string[],
         bairros: string[],
         cb: (body: Lead[]) => Promise<void>,
+        options?: ScrapeSorocabaLeadsOptions,
     ) {
         console.log('🔧 Iniciando o scraper do Google Maps...');
         const puppeteer = require('puppeteer-extra');
@@ -26,14 +35,25 @@ export class GoogleMapsScraper {
         await page.setViewport({ width: 1440, height: 900 });
         console.log('🔧 Viewport configurado.');
 
-        const shuffledCategories = [...categories].sort(() => Math.random() - 0.5);
-        const shuffledBairros = [...bairros].sort(() => Math.random() - 0.5);
-        console.log('🔧 Categorias embaralhadas:', shuffledCategories);
-        console.log('🔧 Bairros embaralhados:', shuffledBairros.length);
+        const shortRun = options?.shortScroll === true || options?.maxBairros != null;
+        const categoryList = shortRun ? categories : [...categories].sort(() => Math.random() - 0.5);
+        let bairroList: string[];
+        if (options?.maxBairros != null) {
+            const start = options.startBairroIndex ?? 0;
+            bairroList = bairros.slice(start, start + options.maxBairros);
+        } else if (shortRun) {
+            bairroList = bairros;
+        } else {
+            bairroList = [...bairros].sort(() => Math.random() - 0.5);
+        }
+        console.log('🔧 Categorias:', categoryList);
+        console.log('🔧 Bairros nesta execução:', bairroList.length);
 
-        for (const category of shuffledCategories) {
+        const scrollOpts = options?.shortScroll ? { maxScrolls: SHORT_SCROLL_MAX } : undefined;
+
+        for (const category of categoryList) {
             console.log(`🔍 Iniciando busca para categoria: ${category}`);
-            for (const bairro of shuffledBairros) {
+            for (const bairro of bairroList) {
                 try {
                     console.log(`➡️  Buscando no bairro: ${bairro}`);
                     const searchQuery = `${category} ${bairro} ${city} SP`;
@@ -47,7 +67,11 @@ export class GoogleMapsScraper {
                         continue;
                     }
 
-                    await scrollMapsFeedUntilSettled(page, `${category} no bairro ${bairro}`);
+                    await scrollMapsFeedUntilSettled(
+                        page,
+                        `${category} no bairro ${bairro}`,
+                        scrollOpts,
+                    );
 
                     console.log('📝 Extraindo dados dos resultados...');
                     const categoryResults = await page.evaluate(() => {

@@ -31,14 +31,19 @@ export async function waitForMapsFeed(page: MapsPage): Promise<boolean> {
     }
 }
 
-export async function scrollMapsFeedUntilSettled(page: MapsPage, label: string): Promise<void> {
+export async function scrollMapsFeedUntilSettled(
+    page: MapsPage,
+    label: string,
+    options?: { maxScrolls?: number },
+): Promise<void> {
+    const scrollLimit = options?.maxScrolls ?? MAX_FEED_SCROLLS;
     let attempts = 0;
     let stalled = 0;
     let lastCount = -1;
 
     console.log(`🔽 Iniciando scroll para carregar resultados (${label})...`);
 
-    while (attempts < MAX_FEED_SCROLLS) {
+    while (attempts < scrollLimit) {
         const state = await page.evaluate((): FeedState => {
             const text = (document.body.innerText || '').toLowerCase();
             const atEnd =
@@ -72,7 +77,7 @@ export async function scrollMapsFeedUntilSettled(page: MapsPage, label: string):
         }
 
         console.log(
-            `🔽 Scroll attempt ${attempts + 1}/${MAX_FEED_SCROLLS} (${state.cardCount} cards) - ${label}`,
+            `🔽 Scroll attempt ${attempts + 1}/${scrollLimit} (${state.cardCount} cards) - ${label}`,
         );
 
         await page.evaluate(() => {
@@ -88,5 +93,5 @@ export async function scrollMapsFeedUntilSettled(page: MapsPage, label: string):
         attempts += 1;
     }
 
-    console.log(`⏹️ Encerrando scroll: teto de ${MAX_FEED_SCROLLS} tentativas - ${label}`);
+    console.log(`⏹️ Encerrando scroll: teto de ${scrollLimit} tentativas - ${label}`);
 }

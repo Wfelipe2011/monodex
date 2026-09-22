@@ -128,6 +128,15 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
             pick(accounts[1], select),
         ),
       },
+      tenantSendPolicy: {
+        findUnique: jest.fn(async () => null),
+      },
+      scrapeTarget: {
+        findMany: jest.fn(async () => []),
+      },
+      tenantTemplateGrant: {
+        findUnique: jest.fn(async () => ({ tenantId: 10 })),
+      },
     };
 
     const service = new OutreachConfigService(prisma as never);
@@ -440,5 +449,149 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
       { whatsappAccountId: 2 },
     );
     expect(result.whatsappAccountId).toBe(2);
+  });
+
+  describe('eligible categories (task 06)', () => {
+  const catalogTargets = [
+    {
+      cityId: 1,
+      category: 'Academias',
+      enabled: true,
+      city: { name: 'Taubaté' },
+    },
+    {
+      cityId: 1,
+      category: 'Construtoras',
+      enabled: true,
+      city: { name: 'Taubaté' },
+    },
+    {
+      cityId: 2,
+      category: 'Clínicas médicas',
+      enabled: true,
+      city: { name: 'São Paulo' },
+    },
+  ];
+
+  function buildWithCatalog(opts?: {
+    tenantId?: number;
+    policy?: { allowedCityIds: number[]; deniedCityIds: number[] } | null;
+    targets?: typeof catalogTargets;
+    hasConfig?: boolean;
+  }) {
+    const tenantId = opts?.tenantId ?? 10;
+    const configMap =
+      opts?.hasConfig === false
+        ? {}
+        : { [tenantId]: configRow(tenantId) };
+    const { service, prisma } = build({ configs: configMap });
+    (prisma as Record<string, unknown>).tenantSendPolicy = {
+      findUnique: jest.fn(async () =>
+        opts?.policy === null
+          ? null
+          : (opts?.policy ?? { allowedCityIds: [], deniedCityIds: [] }),
+      ),
+    };
+    (prisma as Record<string, unknown>).scrapeTarget = {
+      findMany: jest.fn(async () => opts?.targets ?? catalogTargets),
+    };
+    (prisma as Record<string, unknown>).tenantTemplateGrant = {
+      findUnique: jest.fn(async () => ({ tenantId })),
+    };
+    return { service, prisma, tenantId };
+  }
+
+  it('GET eligible-categories respeita allowlist de cidades', async () => {
+    const { service, tenantId } = buildWithCatalog({
+      policy: { allowedCityIds: [1], deniedCityIds: [] },
+    });
+    const result = await service.getEligibleCategories(tenantId);
+    expect(result.categories).toEqual(['Academias', 'Construtoras']);
+    expect(result.items).toEqual([
+      { category: 'Academias', cityId: 1, cityName: 'Taubaté' },
+      { category: 'Construtoras', cityId: 1, cityName: 'Taubaté' },
+    ]);
+  });
+
+  it('GET inclui target global de outro tenant (pool global)', async () => {
+    const { service, tenantId } = buildWithCatalog({
+      policy: { allowedCityIds: [], deniedCityIds: [] },
+    });
+    const result = await service.getEligibleCategories(tenantId);
+    expect(result.categories).toEqual([
+      'Academias',
+      'Clínicas médicas',
+      'Construtoras',
+    ]);
+  });
+
+  it('PATCH tenant rejeita categoria fantasma', async () => {
+    const { service, prisma, tenantId } = buildWithCatalog();
+    await expect(
+      service.patchTenant(
+        tenantId,
+        { categories: ['Categoria inexistente'] },
+        [Roles.ADMIN],
+        { categories: ['Categoria inexistente'] },
+      ),
+    ).rejects.toThrow(/Categorias inválidas: Categoria inexistente/);
+    expect(prisma.tenantOutreachConfig.update).not.toHaveBeenCalled();
+  });
+
+  it('PATCH tenant aceita categoria do catálogo elegível', async () => {
+    const { service, prisma, tenantId } = buildWithCatalog({
+      policy: { allowedCityIds: [1], deniedCityIds: [] },
+    });
+    const result = await service.patchTenant(
+      tenantId,
+      { categories: ['Construtoras'] },
+      [Roles.ADMIN],
+      { categories: ['Construtoras'] },
+    );
+    expect(prisma.tenantOutreachConfig.update).toHaveBeenCalled();
+    expect(result.categories).toEqual(['Construtoras']);
+  });
+
+  it('bootstrap platform aceita categoria fora do filtro de cidade do tenant', async () => {
+    const { service, prisma, tenantId } = buildWithCatalog({
+      tenantId: 30,
+      hasConfig: false,
+      policy: { allowedCityIds: [1], deniedCityIds: [] },
+    });
+    await service.createBootstrap(
+      tenantId,
+      {
+        enabled: false,
+        costPerLead: 0.35,
+        outreachTemplateId: 1,
+        notifyTemplateId: 2,
+        slotBindings: { outreach: {}, notify: {} },
+        schedule: {},
+        categories: ['Clínicas médicas'],
+      },
+      [Roles.SUPER_ADMIN],
+    );
+    expect(prisma.tenantOutreachConfig.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          categories: ['Clínicas médicas'],
+        }),
+      }),
+    );
+  });
+
+  it('PATCH tenant rejeita categoria só em cidade negada pelo policy', async () => {
+    const { service, tenantId } = buildWithCatalog({
+      policy: { allowedCityIds: [1], deniedCityIds: [] },
+    });
+    await expect(
+      service.patchTenant(
+        tenantId,
+        { categories: ['Clínicas médicas'] },
+        [Roles.ADMIN],
+        { categories: ['Clínicas médicas'] },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
   });
 });

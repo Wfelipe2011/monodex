@@ -116,6 +116,17 @@ export class TenantOutreachConfigController {
     return this.outreachConfigService.get(tenantId);
   }
 
+  @Get('eligible-categories')
+  @ApiOperation({
+    summary: 'Categorias de outreach elegíveis para o tenant',
+    description:
+      'Lista categorias distintas (ordenadas) e pares cidade/categoria derivados de ScrapeTarget enabled, ' +
+      'filtrados pela política de cidades do tenant (allow/deny). Match case-sensitive ao catálogo.',
+  })
+  getEligibleCategories(@Param('tenantId', ParseIntPipe) tenantId: number) {
+    return this.outreachConfigService.getEligibleCategories(tenantId);
+  }
+
   @Put()
   @ApiOperation({
     summary: 'Criar outreach config se ainda não existir',

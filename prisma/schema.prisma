@@ -40,6 +40,8 @@ model Tenant {
   onDemandSends                TenantOnDemandSend[]
   onDemandSchedules            TenantOnDemandSchedule[]
   outreachSendRuns             OutreachSendRun[]
+  scrapeOnDemandStates         ScrapeOnDemandState[]
+  scrapeOnDemandRuns           ScrapeOnDemandRun[]
 
   @@map("tenants")
 }
@@ -472,32 +474,89 @@ model PlatformJobSchedule {
   @@map("platform_job_schedules")
 }
 
+enum ScrapeSchedulePhase {
+  BOOTSTRAP
+  COOLDOWN_90D
+  RECURRING_180D
+}
+
+enum ScrapeLastRunKind {
+  planned
+  on_demand
+}
+
+enum ScrapeOnDemandRunStatus {
+  running
+  success
+  failed
+  conflict
+}
+
 model ScrapeTarget {
-  id          Int                 @id @default(autoincrement())
-  cityId      Int                 @map("city_id")
-  city        City                @relation(fields: [cityId], references: [id])
-  category    String
-  enabled     Boolean             @default(true)
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-  tenantLinks TenantScrapeTarget[]
+  id               Int                    @id @default(autoincrement())
+  cityId           Int                    @map("city_id")
+  city             City                   @relation(fields: [cityId], references: [id])
+  category         String
+  enabled          Boolean                @default(true)
+  onDemandAllowed  Boolean                @default(true) @map("on_demand_allowed")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+  tenantLinks      TenantScrapeTarget[]
+  onDemandStates   ScrapeOnDemandState[]
+  onDemandRuns     ScrapeOnDemandRun[]
 
   @@unique([cityId, category])
   @@map("scrape_targets")
 }
 
 model ScrapeCoverage {
-  id            Int      @id @default(autoincrement())
-  cityId        Int      @map("city_id")
-  city          City     @relation(fields: [cityId], references: [id])
-  category      String
-  firstRunAt    DateTime @map("first_run_at")
-  lastRunAt     DateTime @map("last_run_at")
-  lastStatus    String   @map("last_status")
-  lastLeadCount Int?     @map("last_lead_count")
+  id                 Int                  @id @default(autoincrement())
+  cityId             Int                  @map("city_id")
+  city               City                 @relation(fields: [cityId], references: [id])
+  category           String
+  firstRunAt         DateTime             @map("first_run_at")
+  lastRunAt          DateTime             @map("last_run_at")
+  lastStatus         String               @map("last_status")
+  lastLeadCount      Int?                 @map("last_lead_count")
+  schedulePhase      ScrapeSchedulePhase  @default(BOOTSTRAP) @map("schedule_phase")
+  nextScheduledRunAt DateTime?            @map("next_scheduled_run_at")
+  scheduledRunCount  Int                  @default(0) @map("scheduled_run_count")
+  lastRunKind        ScrapeLastRunKind?   @map("last_run_kind")
 
   @@unique([cityId, category])
   @@map("scrape_coverages")
+}
+
+model ScrapeOnDemandState {
+  id              Int          @id @default(autoincrement())
+  tenantId        Int          @map("tenant_id")
+  tenant          Tenant       @relation(fields: [tenantId], references: [id])
+  scrapeTargetId  Int          @map("scrape_target_id")
+  scrapeTarget    ScrapeTarget @relation(fields: [scrapeTargetId], references: [id], onDelete: Restrict)
+  onDemandEnabled Boolean      @default(true) @map("on_demand_enabled")
+  bairroOrder     Json         @default("[]") @map("bairro_order")
+  nextBairroIndex Int          @default(0) @map("next_bairro_index")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@unique([tenantId, scrapeTargetId])
+  @@map("scrape_on_demand_states")
+}
+
+model ScrapeOnDemandRun {
+  id               Int                     @id @default(autoincrement())
+  tenantId         Int                     @map("tenant_id")
+  tenant           Tenant                  @relation(fields: [tenantId], references: [id])
+  scrapeTargetId   Int                     @map("scrape_target_id")
+  scrapeTarget     ScrapeTarget            @relation(fields: [scrapeTargetId], references: [id], onDelete: Restrict)
+  startedAt        DateTime                @map("started_at")
+  finishedAt       DateTime?               @map("finished_at")
+  status           ScrapeOnDemandRunStatus
+  leadsTouched     Int                     @default(0) @map("leads_touched")
+  bairrosProcessed Int                     @default(0) @map("bairros_processed")
+
+  @@index([tenantId, scrapeTargetId, startedAt])
+  @@map("scrape_on_demand_runs")
 }
 
 enum WhatsappConversationDirection {

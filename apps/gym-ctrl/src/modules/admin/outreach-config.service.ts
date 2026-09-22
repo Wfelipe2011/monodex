@@ -13,6 +13,8 @@ import { PatchOutreachConfigDto } from './dto/patch-outreach-config.dto';
 import { PatchPlatformOutreachConfigDto } from './dto/patch-platform-outreach-config.dto';
 import { assertTemplateGranted } from './assert-template-grant';
 import { rejectForbiddenBodyKeys } from './reject-forbidden-body-keys';
+import { eligibleOutreachCategories } from '@core/shared/eligible-outreach-categories';
+import { asIntArray, cityAllowed } from '@core/shared/send-policy';
 import {
   assertSlotBindingsValid,
   persistedSlotKeys,
@@ -64,6 +66,28 @@ type TenantReadiness = { id: number; phone: string | null; active: boolean };
 export class OutreachConfigService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async getEligibleCategories(tenantId: number) {
+    await this.ensureTenant(tenantId);
+    const { allowedCityIds, deniedCityIds } =
+      await this.loadTenantCityPolicy(tenantId);
+    const targets = await this.loadEnabledScrapeTargetsForCatalog();
+    const categories = eligibleOutreachCategories({
+      allowedCityIds,
+      deniedCityIds,
+      targets,
+    });
+    const items = targets
+      .filter((target) =>
+        cityAllowed(target.cityId, allowedCityIds, deniedCityIds),
+      )
+      .map((target) => ({
+        category: target.category,
+        cityId: target.cityId,
+        cityName: target.city.name,
+      }));
+    return { categories, items };
+  }
+
   async get(tenantId: number) {
     await this.ensureTenant(tenantId);
     const config = await this.prisma.tenantOutreachConfig.findUnique({
@@ -112,6 +136,7 @@ export class OutreachConfigService {
       notifyTemplateId: dto.notifyTemplateId,
       slotBindings,
     });
+    await this.assertPlatformCategoriesValid(dto.categories);
 
     const whatsappAccountId = dto.whatsappAccountId ?? null;
     await this.assertAssignableWhatsappAccount(whatsappAccountId, tenantId);
@@ -245,6 +270,7 @@ export class OutreachConfigService {
       notifyTemplateId,
       slotBindings,
     });
+    await this.assertTenantCategoriesValid(tenantId, dto.categories ?? []);
 
     const created = await this.prisma.tenantOutreachConfig.create({
       data: {
@@ -323,6 +349,10 @@ export class OutreachConfigService {
     };
 
     await this.assertEnableAllowed(tenant, merged);
+
+    if (dto.categories !== undefined) {
+      await this.assertTenantCategoriesValid(tenantId, dto.categories);
+    }
 
     const updated = await this.prisma.tenantOutreachConfig.update({
       where: { tenantId },
@@ -474,6 +504,78 @@ export class OutreachConfigService {
   ) {
     await assertTemplateGranted(this.prisma, tenantId, ids.outreachTemplateId);
     await assertTemplateGranted(this.prisma, tenantId, ids.notifyTemplateId);
+  }
+
+  private async loadTenantCityPolicy(tenantId: number) {
+    const policy = await this.prisma.tenantSendPolicy.findUnique({
+      where: { tenantId },
+      select: { allowedCityIds: true, deniedCityIds: true },
+    });
+    return {
+      allowedCityIds: asIntArray(policy?.allowedCityIds),
+      deniedCityIds: asIntArray(policy?.deniedCityIds),
+    };
+  }
+
+  private async loadEnabledScrapeTargetsForCatalog() {
+    return this.prisma.scrapeTarget.findMany({
+      where: { enabled: true },
+      select: {
+        cityId: true,
+        category: true,
+        enabled: true,
+        city: { select: { name: true } },
+      },
+      orderBy: [{ category: 'asc' }, { city: { name: 'asc' } }],
+    });
+  }
+
+  private async tenantCategoryAllowList(tenantId: number): Promise<Set<string>> {
+    const { allowedCityIds, deniedCityIds } =
+      await this.loadTenantCityPolicy(tenantId);
+    const targets = await this.loadEnabledScrapeTargetsForCatalog();
+    return new Set(
+      eligibleOutreachCategories({
+        allowedCityIds,
+        deniedCityIds,
+        targets,
+      }),
+    );
+  }
+
+  private async globalEnabledCategoryAllowList(): Promise<Set<string>> {
+    const targets = await this.loadEnabledScrapeTargetsForCatalog();
+    return new Set(targets.map((t) => t.category));
+  }
+
+  /**
+   * Case-sensitive match to ScrapeTarget.category strings (no normalization).
+   */
+  private assertCategoriesInAllowList(
+    categories: string[],
+    allowList: Set<string>,
+  ): void {
+    const invalid = categories.filter((c) => !allowList.has(c));
+    if (invalid.length > 0) {
+      throw new BadRequestException(
+        `Categorias inválidas: ${invalid.join(', ')}`,
+      );
+    }
+  }
+
+  private async assertTenantCategoriesValid(
+    tenantId: number,
+    categories: string[],
+  ): Promise<void> {
+    const allowList = await this.tenantCategoryAllowList(tenantId);
+    this.assertCategoriesInAllowList(categories, allowList);
+  }
+
+  private async assertPlatformCategoriesValid(
+    categories: string[],
+  ): Promise<void> {
+    const allowList = await this.globalEnabledCategoryAllowList();
+    this.assertCategoriesInAllowList(categories, allowList);
   }
 
   private async ensureTenant(tenantId: number) {

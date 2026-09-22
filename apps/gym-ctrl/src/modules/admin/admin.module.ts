@@ -61,6 +61,7 @@ import { TemplateGrantsController } from './template-grants.controller';
 import { TemplateGrantsService } from './template-grants.service';
 import { TenantTemplatesController } from './tenant-templates.controller';
 import { TenantScrapeTargetsController } from './tenant-scrape-targets.controller';
+import { TenantScrapeOnDemandService } from './tenant-scrape-on-demand.service';
 import { TenantScrapeTargetsService } from './tenant-scrape-targets.service';
 import { AuthModule } from '../auth.module';
 import { PublicInvitesController } from './public-invites.controller';
@@ -130,6 +131,7 @@ import { OnDemandSchedulesService } from './on-demand-schedules.service';
     PlatformJobSchedulesService,
     ScrapeTargetsService,
     TenantScrapeTargetsService,
+    TenantScrapeOnDemandService,
     ScrapeCoveragesService,
     LeadListsService,
     ListCampaignsService,

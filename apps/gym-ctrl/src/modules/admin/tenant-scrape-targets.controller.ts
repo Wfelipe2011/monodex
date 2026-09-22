@@ -6,13 +6,19 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
   UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
@@ -20,6 +26,12 @@ import { Roles } from '@prisma/client';
 import type { Request } from 'express';
 import { RequestTenantScrapeTargetDto } from './dto/request-tenant-scrape-target.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
+import { PatchTenantScrapeOnDemandDto } from './dto/patch-tenant-scrape-on-demand.dto';
+import {
+  TenantScrapeOnDemandStatusDto,
+  TenantScrapeOnDemandTriggerResultDto,
+} from './dto/swagger/tenant-scrape-on-demand.swagger.dto';
+import { TenantScrapeOnDemandService } from './tenant-scrape-on-demand.service';
 import { TenantScrapeTargetsService } from './tenant-scrape-targets.service';
 
 @ApiTags('Tenant — Scrape')
@@ -31,6 +43,7 @@ import { TenantScrapeTargetsService } from './tenant-scrape-targets.service';
 export class TenantScrapeTargetsController {
   constructor(
     private readonly tenantScrapeTargetsService: TenantScrapeTargetsService,
+    private readonly tenantScrapeOnDemandService: TenantScrapeOnDemandService,
   ) {}
 
   @Get()
@@ -60,5 +73,58 @@ export class TenantScrapeTargetsController {
   ) {
     rejectSecretTokenFields(req.body);
     return this.tenantScrapeTargetsService.request(tenantId, dto);
+  }
+
+  @Post(':targetId/on-demand')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Disparar scrape on-demand (curto) para par vinculado',
+    description:
+      'Valida vínculo, política de cidade, flags e quota (2/dia America/Sao_Paulo). ' +
+      '409 se lock global do par; 429 se quota esgotada.',
+  })
+  @ApiOkResponse({ type: TenantScrapeOnDemandTriggerResultDto })
+  triggerOnDemand(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Param('targetId', ParseIntPipe) targetId: number,
+  ) {
+    return this.tenantScrapeOnDemandService.trigger(tenantId, targetId);
+  }
+
+  @Get(':targetId/on-demand')
+  @ApiOperation({
+    summary: 'Status on-demand (quota, cursor, último run)',
+  })
+  @ApiOkResponse({ type: TenantScrapeOnDemandStatusDto })
+  getOnDemandStatus(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Param('targetId', ParseIntPipe) targetId: number,
+  ) {
+    return this.tenantScrapeOnDemandService.getStatus(tenantId, targetId);
+  }
+
+  @Patch(':targetId/on-demand')
+  @ApiOperation({
+    summary: 'Ligar/desligar on-demand do tenant neste target',
+    description: 'Não altera ScrapeTarget.enabled global.',
+  })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: { onDemandEnabled: { type: 'boolean' } },
+    },
+  })
+  patchOnDemand(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Param('targetId', ParseIntPipe) targetId: number,
+    @Body() dto: PatchTenantScrapeOnDemandDto,
+    @Req() req: Request,
+  ) {
+    rejectSecretTokenFields(req.body);
+    return this.tenantScrapeOnDemandService.patchEnabled(
+      tenantId,
+      targetId,
+      dto,
+    );
   }
 }
