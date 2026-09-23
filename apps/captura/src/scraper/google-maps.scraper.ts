@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Lead } from '@prisma/client';
 import { scrollMapsFeedUntilSettled, waitForMapsFeed } from './maps-feed-scroll';
 import { navigateToMapsSearch } from './maps-navigation';
+import { captureMapsFeedMissDebug } from './maps-scrape-debug';
 
 export type ScrapeSorocabaLeadsOptions = {
     maxBairros?: number;
@@ -64,6 +65,12 @@ export class GoogleMapsScraper {
                     const hasFeed = await waitForMapsFeed(page);
                     if (!hasFeed) {
                         console.warn('⚠️ Feed de resultados não encontrado. Pulando...');
+                        await captureMapsFeedMissDebug(page, {
+                            searchQuery,
+                            city,
+                            category,
+                            bairro,
+                        });
                         continue;
                     }
 
