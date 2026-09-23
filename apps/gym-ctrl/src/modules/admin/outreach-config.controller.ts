@@ -11,7 +11,18 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { ADMIN_TENANT_ID_PARAM } from './dto/swagger/tenant-list.swagger.dto';
+import { EligibleOutreachCategoriesResponseDto } from './dto/swagger/eligible-outreach-categories.swagger.dto';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
@@ -120,8 +131,55 @@ export class TenantOutreachConfigController {
   @ApiOperation({
     summary: 'Categorias de outreach elegíveis para o tenant',
     description:
-      'Lista categorias distintas (ordenadas) e pares cidade/categoria derivados de ScrapeTarget enabled, ' +
-      'filtrados pela política de cidades do tenant (allow/deny). Match case-sensitive ao catálogo.',
+      '**Request:** `GET /tenant/{tenantId}/outreach-config/eligible-categories` com header `Authorization: Bearer <JWT>` ' +
+      '(ADMIN ou SUPER_ADMIN do tenant). Sem body.\n\n' +
+      '**Uso:** chame antes de `PATCH`/`PUT` em `categories` — só strings desta lista são aceitas no path tenant ' +
+      '(fora do catálogo → HTTP 400).\n\n' +
+      '**Origem dos dados:** todos os `ScrapeTarget` com `enabled=true` cujas cidades respeitam `TenantSendPolicy` ' +
+      '(allowlist/denylist). Não exige vínculo TenantScrapeTarget; pool global na cidade permitida.\n\n' +
+      '**Match:** case-sensitive (ex.: `Construtoras` ≠ `construtoras`).',
+  })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiOkResponse({
+    description:
+      'Catálogo atual. `categories` vazio e `items: []` quando não há target enabled nas cidades permitidas.',
+    type: EligibleOutreachCategoriesResponseDto,
+    content: {
+      'application/json': {
+        examples: {
+          comTargets: {
+            summary: 'Tenant com cidades permitidas e targets enabled',
+            value: {
+              categories: ['Clínicas médicas', 'Construtoras'],
+              items: [
+                {
+                  category: 'Construtoras',
+                  cityId: 3,
+                  cityName: 'Taubaté',
+                },
+                {
+                  category: 'Clínicas médicas',
+                  cityId: 3,
+                  cityName: 'Taubaté',
+                },
+              ],
+            },
+          },
+          vazio: {
+            summary: 'Nenhum target enabled na política de cidades',
+            value: {
+              categories: [],
+              items: [],
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiNotFoundResponse({ description: 'Tenant {tenantId} não encontrado' })
+  @ApiUnauthorizedResponse({ description: 'JWT ausente ou inválido' })
+  @ApiForbiddenResponse({
+    description: 'Tenant inativo, escopo errado ou role insuficiente',
   })
   getEligibleCategories(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.outreachConfigService.getEligibleCategories(tenantId);

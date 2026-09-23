@@ -9,6 +9,7 @@
     "gym:build": "nest build gym-ctrl",
     "captura:build": "nest build captura",
     "notifly:build": "nest build notifly",
+    "prebuilds": "prisma generate",
     "builds": "concurrently \"npm run gym:build\" \"npm run captura:build\" \"npm run notifly:build\"",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "nest start",

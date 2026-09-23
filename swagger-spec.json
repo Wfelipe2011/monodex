@@ -1603,21 +1603,69 @@
     },
     "/tenant/{tenantId}/outreach-config/eligible-categories": {
       "get": {
-        "description": "Lista categorias distintas (ordenadas) e pares cidade/categoria derivados de ScrapeTarget enabled, filtrados pela política de cidades do tenant (allow/deny). Match case-sensitive ao catálogo.",
+        "description": "**Request:** `GET /tenant/{tenantId}/outreach-config/eligible-categories` com header `Authorization: Bearer <JWT>` (ADMIN ou SUPER_ADMIN do tenant). Sem body.\n\n**Uso:** chame antes de `PATCH`/`PUT` em `categories` — só strings desta lista são aceitas no path tenant (fora do catálogo → HTTP 400).\n\n**Origem dos dados:** todos os `ScrapeTarget` com `enabled=true` cujas cidades respeitam `TenantSendPolicy` (allowlist/denylist). Não exige vínculo TenantScrapeTarget; pool global na cidade permitida.\n\n**Match:** case-sensitive (ex.: `Construtoras` ≠ `construtoras`).",
         "operationId": "TenantOutreachConfigController_getEligibleCategories",
         "parameters": [
           {
             "name": "tenantId",
             "required": true,
             "in": "path",
+            "description": "ID numérico do tenant",
             "schema": {
+              "example": 8,
               "type": "number"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Catálogo atual. `categories` vazio e `items: []` quando não há target enabled nas cidades permitidas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EligibleOutreachCategoriesResponseDto"
+                },
+                "examples": {
+                  "comTargets": {
+                    "summary": "Targets enabled nas cidades permitidas",
+                    "value": {
+                      "categories": [
+                        "Clínicas médicas",
+                        "Construtoras"
+                      ],
+                      "items": [
+                        {
+                          "category": "Construtoras",
+                          "cityId": 3,
+                          "cityName": "Taubaté"
+                        },
+                        {
+                          "category": "Clínicas médicas",
+                          "cityId": 3,
+                          "cityName": "Taubaté"
+                        }
+                      ]
+                    }
+                  },
+                  "vazio": {
+                    "summary": "Nenhum target na política de cidades",
+                    "value": {
+                      "categories": [],
+                      "items": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente ou inválido"
+          },
+          "403": {
+            "description": "Tenant inativo, escopo errado ou role insuficiente"
+          },
+          "404": {
+            "description": "Tenant {tenantId} não encontrado"
           }
         },
         "security": [
@@ -5915,6 +5963,75 @@
             "example": 2
           }
         }
+      },
+      "EligibleOutreachCategoryItemDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "example": "Construtoras",
+            "description": "String exata do catálogo (case-sensitive). Use este valor em PATCH/PUT de outreach-config.categories."
+          },
+          "cityId": {
+            "type": "number",
+            "example": 3,
+            "description": "ID da cidade (City.id)"
+          },
+          "cityName": {
+            "type": "string",
+            "example": "Taubaté",
+            "description": "Nome da cidade"
+          }
+        },
+        "required": [
+          "category",
+          "cityId",
+          "cityName"
+        ]
+      },
+      "EligibleOutreachCategoriesResponseDto": {
+        "type": "object",
+        "properties": {
+          "categories": {
+            "example": [
+              "Clínicas médicas",
+              "Construtoras"
+            ],
+            "description": "Categorias distintas, ordenadas alfabeticamente, deduplicadas a partir de items.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "items": {
+            "description": "Um item por ScrapeTarget enabled cuja cidade passa na TenantSendPolicy (allow/deny). Inclui targets pedidos por outros tenants na mesma cidade permitida.",
+            "example": [
+              {
+                "category": "Construtoras",
+                "cityId": 3,
+                "cityName": "Taubaté"
+              },
+              {
+                "category": "Clínicas médicas",
+                "cityId": 3,
+                "cityName": "Taubaté"
+              },
+              {
+                "category": "Construtoras",
+                "cityId": 5,
+                "cityName": "Sorocaba"
+              }
+            ],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EligibleOutreachCategoryItemDto"
+            }
+          }
+        },
+        "required": [
+          "categories",
+          "items"
+        ]
       },
       "UpsertTenantOutreachConfigDto": {
         "type": "object",
