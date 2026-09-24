@@ -1,3 +1,5 @@
+export const MAPS_LEAD_CARD_SELECTOR = '.Nv2PK';
+
 const MAPS_FEED_SELECTOR = 'div[role="feed"]';
 const MAPS_FEED_FALLBACK_SELECTOR = '.m6QErb.DxyBCb.kA9KIf.dS8AEf';
 const MAX_FEED_SCROLLS = 40;
@@ -17,18 +19,31 @@ function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function waitForMapsFeed(page: MapsPage): Promise<boolean> {
+async function waitSelector(page: MapsPage, selector: string, timeout: number): Promise<boolean> {
     try {
-        await page.waitForSelector(MAPS_FEED_SELECTOR, { timeout: 15000 });
+        await page.waitForSelector(selector, { timeout });
         return true;
     } catch {
-        try {
-            await page.waitForSelector(MAPS_FEED_FALLBACK_SELECTOR, { timeout: 10000 });
-            return true;
-        } catch {
-            return false;
-        }
+        return false;
     }
+}
+
+/**
+ * Maps often shows the results panel without `role="feed"`. Treat lead cards as success.
+ */
+export async function waitForMapsFeed(page: MapsPage): Promise<boolean> {
+    if (await waitSelector(page, MAPS_FEED_SELECTOR, 15_000)) {
+        return true;
+    }
+    if (await waitSelector(page, MAPS_FEED_FALLBACK_SELECTOR, 10_000)) {
+        return true;
+    }
+    if (await waitSelector(page, MAPS_LEAD_CARD_SELECTOR, 15_000)) {
+        return true;
+    }
+    return page.evaluate(
+        () => document.querySelectorAll('.Nv2PK').length > 0,
+    );
 }
 
 export async function scrollMapsFeedUntilSettled(
@@ -81,11 +96,25 @@ export async function scrollMapsFeedUntilSettled(
         );
 
         await page.evaluate(() => {
-            const fallbacks = document.querySelectorAll('.m6QErb.DxyBCb.kA9KIf.dS8AEf');
-            const feed =
-                document.querySelector('[role="feed"]') || fallbacks[1] || fallbacks[0];
+            const scrollStep = 400;
+            const feed = document.querySelector('[role="feed"]');
             if (feed) {
-                feed.scrollBy(0, Math.max((feed as HTMLElement).clientHeight, 400));
+                feed.scrollBy(0, Math.max((feed as HTMLElement).clientHeight, scrollStep));
+                return;
+            }
+            const fallbacks = document.querySelectorAll('.m6QErb.DxyBCb.kA9KIf.dS8AEf');
+            const panel = fallbacks[1] || fallbacks[0];
+            if (panel) {
+                panel.scrollBy(0, Math.max(panel.clientHeight, scrollStep));
+                return;
+            }
+            const panels = document.querySelectorAll('.m6QErb');
+            for (const el of panels) {
+                const html = el as HTMLElement;
+                if (el.querySelector('.Nv2PK') && html.scrollHeight > html.clientHeight + 8) {
+                    html.scrollBy(0, Math.max(html.clientHeight, scrollStep));
+                    return;
+                }
             }
         });
 

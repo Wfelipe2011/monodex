@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Lead } from '@prisma/client';
 import { scrollMapsFeedUntilSettled, waitForMapsFeed } from './maps-feed-scroll';
 import { navigateToMapsSearch } from './maps-navigation';
-import { captureMapsFeedMissDebug } from './maps-scrape-debug';
+import { captureMapsScrapeDebug } from './maps-scrape-debug';
 
 export type ScrapeSorocabaLeadsOptions = {
     maxBairros?: number;
@@ -63,13 +63,12 @@ export class GoogleMapsScraper {
 
                     console.log('⏳ Aguardando feed de resultados...');
                     const hasFeed = await waitForMapsFeed(page);
+                    const debugCtx = { searchQuery, city, category, bairro };
                     if (!hasFeed) {
                         console.warn('⚠️ Feed de resultados não encontrado. Pulando...');
-                        await captureMapsFeedMissDebug(page, {
-                            searchQuery,
-                            city,
-                            category,
-                            bairro,
+                        await captureMapsScrapeDebug(page, {
+                            ...debugCtx,
+                            reason: 'maps_feed_not_found',
                         });
                         continue;
                     }
@@ -103,6 +102,15 @@ export class GoogleMapsScraper {
 
                     console.log(`🔢 Quantidade de resultados extraídos: ${categoryResults.length}`);
 
+                    if (categoryResults.length === 0) {
+                        console.warn('⚠️ Nenhum lead extraído dos cards visíveis.');
+                        await captureMapsScrapeDebug(page, {
+                            ...debugCtx,
+                            reason: 'zero_leads_extracted',
+                        });
+                        continue;
+                    }
+
                     const body: Lead[] = categoryResults.map((item) => ({
                         name: item['name'],
                         phone: item['phone'],
@@ -123,6 +131,15 @@ export class GoogleMapsScraper {
                         `❌ Erro ao processar categoria "${category}" no bairro "${bairro}":`,
                         error,
                     );
+                    const message = error instanceof Error ? error.message : String(error);
+                    await captureMapsScrapeDebug(page, {
+                        searchQuery: `${category} ${bairro} ${city} SP`,
+                        city,
+                        category,
+                        bairro,
+                        reason: 'scrape_error',
+                        extra: message.slice(0, 500),
+                    }).catch(() => undefined);
                     continue;
                 }
             }
