@@ -16,10 +16,9 @@ import {
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
@@ -29,9 +28,11 @@ import { RequestUser } from '@core/contracts/request-user';
 import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
 import { Roles } from '@prisma/client';
+import { ApiTenantScopedErrors } from '../../swagger/api-route-errors.decorator';
 import { CreateOnDemandSendDto } from './dto/create-on-demand-send.dto';
 import { OnDemandSendCreatedDto } from './dto/swagger/tenant-on-demand.swagger.dto';
 import { WhatsappTemplatePreviewDto } from './dto/swagger/whatsapp-template-preview.swagger.dto';
+import { ADMIN_TENANT_ID_PARAM } from './dto/swagger/tenant-list.swagger.dto';
 import { OnDemandSendsService } from './on-demand-sends.service';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
 import { TemplateGrantsService } from './template-grants.service';
@@ -59,11 +60,13 @@ export class TenantTemplatesController {
       'O front substitui {{n}} usando slots + variáveis — sem render no backend. Sem sync Graph. ' +
       'Templates do catálogo sem grant são omitidos. Auth: JWT ADMIN/SUPER_ADMIN ou X-API-KEY.',
   })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiOkResponse({
     type: WhatsappTemplatePreviewDto,
     isArray: true,
     description: 'Templates granted com components para bubble preview',
   })
+  @ApiTenantScopedErrors()
   list(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.templateGrantsService.listGrantedTemplates(tenantId);
   }
@@ -74,9 +77,11 @@ export class TenantTemplatesController {
     description:
       'Mesmo shape da listagem (preview client-side). Sem grant → 404 (não revela existência no catálogo global). Sem sync Graph.',
   })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiParam({ name: 'templateId', type: Number, example: 12 })
   @ApiOkResponse({ type: WhatsappTemplatePreviewDto })
-  @ApiNotFoundResponse({
-    description: 'Sem grant para o templateId neste tenant (ou id inexistente)',
+  @ApiTenantScopedErrors({
+    notFound: 'Sem grant para o templateId neste tenant (ou id inexistente)',
   })
   getById(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -93,12 +98,17 @@ export class TenantTemplatesController {
       'Usa número dedicado do tenant. Persiste TenantOnDemandSend sem debitar coins. ' +
       'Super Admin sempre 403.',
   })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiParam({ name: 'templateId', type: Number, example: 12 })
   @ApiCreatedResponse({
     type: OnDemandSendCreatedDto,
     description:
       'Envio aceito pela Graph (wamid + conversationId). Coins NÃO debitados no 201.',
   })
-  @ApiForbiddenResponse({ description: 'Super Admin ou tenant inativo' })
+  @ApiTenantScopedErrors({
+    notFound: 'Tenant, template sem grant ou número dedicado ausente',
+    badRequest: 'Validação, slots faltando ou erro Graph 4xx',
+  })
   createSend(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('templateId', ParseIntPipe) templateId: number,

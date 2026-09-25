@@ -15,16 +15,15 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import {
-  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiTenantScopedErrors } from '../../swagger/api-route-errors.decorator';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
@@ -60,7 +59,7 @@ export class ListCampaignsController {
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiOkResponse({ type: ListCampaignResponseDto, isArray: true })
-  @ApiNotFoundResponse({ description: 'Tenant ou lista não encontrado' })
+  @ApiTenantScopedErrors({ notFound: 'Tenant ou lista não encontrado' })
   listCampaigns(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -77,10 +76,10 @@ export class ListCampaignsController {
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiCreatedResponse({ type: ListCampaignResponseDto })
-  @ApiBadRequestResponse({
-    description: 'Validação de enable, bindings ou buttonActions',
+  @ApiTenantScopedErrors({
+    badRequest: 'Validação de enable, bindings ou buttonActions',
+    notFound: 'Tenant ou lista não encontrado',
   })
-  @ApiNotFoundResponse({ description: 'Tenant ou lista não encontrado' })
   createCampaign(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -102,7 +101,9 @@ export class ListCampaignsController {
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiParam(CAMPAIGN_ID_PARAM)
   @ApiOkResponse({ type: ListCampaignResponseDto })
-  @ApiNotFoundResponse({ description: 'Tenant, lista ou campanha não encontrado' })
+  @ApiTenantScopedErrors({
+    notFound: 'Tenant, lista ou campanha não encontrado',
+  })
   getCampaign(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -120,7 +121,10 @@ export class ListCampaignsController {
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiParam(CAMPAIGN_ID_PARAM)
   @ApiOkResponse({ type: ListCampaignResponseDto })
-  @ApiBadRequestResponse({ description: 'Validação falhou' })
+  @ApiTenantScopedErrors({
+    badRequest: 'Validação falhou',
+    notFound: 'Tenant, lista ou campanha não encontrado',
+  })
   replaceCampaign(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -148,7 +152,10 @@ export class ListCampaignsController {
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiParam(CAMPAIGN_ID_PARAM)
   @ApiOkResponse({ type: ListCampaignResponseDto })
-  @ApiBadRequestResponse({ description: 'Validação falhou' })
+  @ApiTenantScopedErrors({
+    badRequest: 'Validação falhou',
+    notFound: 'Tenant, lista ou campanha não encontrado',
+  })
   patchCampaign(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -198,8 +205,10 @@ export class ListSendsController {
     example: 3,
   })
   @ApiOkResponse({ type: ListSendResponseDto, isArray: true })
-  @ApiBadRequestResponse({ description: 'campaignId inválido' })
-  @ApiNotFoundResponse({ description: 'Tenant ou lista não encontrado' })
+  @ApiTenantScopedErrors({
+    badRequest: 'campaignId inválido',
+    notFound: 'Tenant ou lista não encontrado',
+  })
   listSends(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,

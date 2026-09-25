@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -11,7 +13,13 @@ import {
   ValidationPipe,
   Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
@@ -21,6 +29,11 @@ import { UsersService } from './users.service';
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { UpdateTenantUserDto } from './dto/update-tenant-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import {
+  ApiPlatformSuperAdminErrors,
+  ApiTenantScopedErrors,
+} from '../../swagger/api-route-errors.decorator';
+import { TenantUserResponseDto } from './dto/swagger/users.swagger.dto';
 
 @ApiTags('Platform — Tenant Users')
 @ApiBearerAuth()
@@ -32,6 +45,8 @@ export class UsersController {
 
   @Get()
   @ApiOperation({ summary: 'Listar users do tenant (sem password)' })
+  @ApiOkResponse({ type: TenantUserResponseDto, isArray: true })
+  @ApiPlatformSuperAdminErrors({ notFound: 'Tenant não encontrado' })
   list(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.usersService.listByTenant(tenantId);
   }
@@ -41,6 +56,12 @@ export class UsersController {
     summary: 'Criar o primeiro user do tenant (default roles: ADMIN)',
     description:
       'Permitido somente se o tenant ainda não tiver users. PATCH e reset de senha ficam na superfície /tenant.',
+  })
+  @ApiCreatedResponse({ type: TenantUserResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'Tenant não encontrado',
+    conflict: 'Valor único já em uso (email/username)',
+    badRequest: 'SUPER_ADMIN não é permitido em usuários de tenant',
   })
   create(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -61,6 +82,8 @@ export class TenantUsersController {
 
   @Get()
   @ApiOperation({ summary: 'Listar users do tenant (sem password)' })
+  @ApiOkResponse({ type: TenantUserResponseDto, isArray: true })
+  @ApiTenantScopedErrors()
   list(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.usersService.listByTenant(tenantId);
   }
@@ -70,6 +93,11 @@ export class TenantUsersController {
     summary: 'Criar user adicional do tenant (default roles: ADMIN)',
     description:
       'Admin do tenant. Super Admin sempre 403 (primeiro user é /platform).',
+  })
+  @ApiCreatedResponse({ type: TenantUserResponseDto })
+  @ApiTenantScopedErrors({
+    conflict: 'Valor único já em uso (email/username)',
+    badRequest: 'SUPER_ADMIN não é permitido em usuários de tenant',
   })
   create(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -85,6 +113,11 @@ export class TenantUsersController {
 
   @Patch(':userId')
   @ApiOperation({ summary: 'Atualizar nome/roles de um user do tenant' })
+  @ApiOkResponse({ type: TenantUserResponseDto })
+  @ApiTenantScopedErrors({
+    notFound: 'User não encontrado no tenant',
+    badRequest: 'SUPER_ADMIN não é permitido em usuários de tenant',
+  })
   update(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('userId', ParseIntPipe) userId: number,
@@ -100,7 +133,13 @@ export class TenantUsersController {
   }
 
   @Post(':userId/reset-password')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Resetar senha de um user do tenant' })
+  @ApiOkResponse({ type: TenantUserResponseDto })
+  @ApiTenantScopedErrors({
+    notFound: 'User não encontrado no tenant',
+    badRequest: 'Validação do body falhou',
+  })
   resetPassword(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('userId', ParseIntPipe) userId: number,

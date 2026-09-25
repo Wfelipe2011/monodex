@@ -42,15 +42,20 @@ export class TenantScrapeOnDemandStatusDto {
 }
 
 export class TenantScrapeOnDemandTriggerResultDto {
-  @ApiProperty()
+  @ApiProperty({ example: 'ok' })
   status!: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 12 })
   leadsTouched!: number;
 
-  @ApiProperty()
+  @ApiProperty({ example: 3 })
   bairrosProcessed!: number;
 
-  @ApiProperty()
+  @ApiProperty({ example: 4 })
   nextBairroIndex!: number;
+}
+
+export class TenantScrapeOnDemandPatchResultDto {
+  @ApiProperty({ example: true })
+  onDemandEnabled!: boolean;
 }

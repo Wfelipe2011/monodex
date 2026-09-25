@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiOkResponse,
   ApiOperation,
   ApiQuery,
   ApiTags,
@@ -25,6 +26,15 @@ import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { CoinsService } from './coins.service';
 import { CreditCoinDto } from './dto/credit-coin.dto';
 import { DebitCoinDto } from './dto/debit-coin.dto';
+import {
+  ApiPlatformSuperAdminErrors,
+  ApiTenantScopedErrors,
+} from '../../swagger/api-route-errors.decorator';
+import {
+  CoinBalanceResponseDto,
+  CoinMutationResponseDto,
+  CoinTransactionResponseDto,
+} from './dto/swagger/coins.swagger.dto';
 
 @ApiTags('Platform — Coins')
 @ApiBearerAuth()
@@ -36,6 +46,8 @@ export class CoinsController {
 
   @Get('coins')
   @ApiOperation({ summary: 'Listar saldos de coins do tenant' })
+  @ApiOkResponse({ type: CoinBalanceResponseDto, isArray: true })
+  @ApiPlatformSuperAdminErrors({ notFound: 'Tenant não encontrado' })
   listCoins(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.coinsService.listCoins(tenantId);
   }
@@ -43,6 +55,8 @@ export class CoinsController {
   @Get('coin-transactions')
   @ApiOperation({ summary: 'Listar transactions recentes do tenant' })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 50 })
+  @ApiOkResponse({ type: CoinTransactionResponseDto, isArray: true })
+  @ApiPlatformSuperAdminErrors({ notFound: 'Tenant não encontrado' })
   listTransactions(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
@@ -52,6 +66,11 @@ export class CoinsController {
 
   @Post('coins/credit')
   @ApiOperation({ summary: 'Creditar coins (upsert da carteira)' })
+  @ApiOkResponse({ type: CoinMutationResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'Tenant ou user não encontrado',
+    badRequest: 'amount deve ser maior que 0',
+  })
   credit(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: CreditCoinDto,
@@ -62,6 +81,11 @@ export class CoinsController {
 
   @Post('coins/debit')
   @ApiOperation({ summary: 'Debitar coins (amount > 0; row com amount negativo)' })
+  @ApiOkResponse({ type: CoinMutationResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'Tenant ou user não encontrado',
+    badRequest: 'amount deve ser maior que 0 ou saldo insuficiente',
+  })
   debit(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: DebitCoinDto,
@@ -85,6 +109,8 @@ export class TenantCoinsController {
 
   @Get('coins')
   @ApiOperation({ summary: 'Listar saldos de coins do tenant (somente leitura)' })
+  @ApiOkResponse({ type: CoinBalanceResponseDto, isArray: true })
+  @ApiTenantScopedErrors()
   listCoins(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.coinsService.listCoins(tenantId);
   }
@@ -92,6 +118,8 @@ export class TenantCoinsController {
   @Get('coin-transactions')
   @ApiOperation({ summary: 'Listar transactions recentes do tenant (somente leitura)' })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 50 })
+  @ApiOkResponse({ type: CoinTransactionResponseDto, isArray: true })
+  @ApiTenantScopedErrors()
   listTransactions(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,

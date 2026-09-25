@@ -13,13 +13,21 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { Roles } from '@prisma/client';
 import type { Request } from 'express';
+import { ApiPlatformSuperAdminErrors } from '../../swagger/api-route-errors.decorator';
 import { ScrapeTargetsService } from './scrape-targets.service';
 import { CreateScrapeTargetDto } from './dto/create-scrape-target.dto';
 import { PatchScrapeTargetDto } from './dto/patch-scrape-target.dto';
+import { ScrapeTargetResponseDto } from './dto/swagger/scrape-target.swagger.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
 
 @ApiTags('Platform — Scrape')
@@ -32,6 +40,8 @@ export class ScrapeTargetsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar scrape targets (cidade × categoria)' })
+  @ApiOkResponse({ type: ScrapeTargetResponseDto, isArray: true })
+  @ApiPlatformSuperAdminErrors()
   list() {
     return this.scrapeTargetsService.list();
   }
@@ -43,6 +53,10 @@ export class ScrapeTargetsController {
     description:
       'Resolve/cria City por nome (e state se enviado). Upsert no par cityId+category. Não dispara scrape.',
   })
+  @ApiOkResponse({ type: ScrapeTargetResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    badRequest: 'Validação do body ou cityName inválido',
+  })
   create(@Body() dto: CreateScrapeTargetDto, @Req() req: Request) {
     rejectSecretTokenFields(req.body);
     return this.scrapeTargetsService.create(dto);
@@ -50,6 +64,11 @@ export class ScrapeTargetsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Obter scrape target por id' })
+  @ApiParam({ name: 'id', type: Number, example: 12 })
+  @ApiOkResponse({ type: ScrapeTargetResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'ScrapeTarget id não encontrado',
+  })
   getById(@Param('id', ParseIntPipe) id: number) {
     return this.scrapeTargetsService.getById(id);
   }
@@ -58,6 +77,13 @@ export class ScrapeTargetsController {
   @ApiOperation({
     summary: 'Atualizar scrape target',
     description: 'enabled=false faz o cron pular o par. category colidindo → 409.',
+  })
+  @ApiParam({ name: 'id', type: Number, example: 12 })
+  @ApiOkResponse({ type: ScrapeTargetResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'ScrapeTarget id não encontrado',
+    badRequest: 'Validação do body',
+    conflict: 'Já existe ScrapeTarget para cityId+category',
   })
   patch(
     @Param('id', ParseIntPipe) id: number,
@@ -72,6 +98,14 @@ export class ScrapeTargetsController {
   @ApiOperation({
     summary: 'Remover scrape target',
     description: 'Apaga só o target. City, Neighborhood e ScrapeCoverage permanecem.',
+  })
+  @ApiParam({ name: 'id', type: Number, example: 12 })
+  @ApiOkResponse({
+    type: ScrapeTargetResponseDto,
+    description: 'Row removida (snapshot antes do delete)',
+  })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'ScrapeTarget id não encontrado',
   })
   delete(@Param('id', ParseIntPipe) id: number) {
     return this.scrapeTargetsService.delete(id);

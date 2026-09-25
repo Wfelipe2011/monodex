@@ -13,15 +13,16 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiConflictResponse,
   ApiCreatedResponse,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  ApiPlatformSuperAdminErrors,
+  ApiTenantScopedErrors,
+} from '../../swagger/api-route-errors.decorator';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { RequestUser } from '@core/contracts/request-user';
 import { InvitePurpose, Roles } from '@prisma/client';
@@ -52,8 +53,10 @@ export class InvitesController {
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiCreatedResponse({ type: IssuedInviteResponseDto })
-  @ApiConflictResponse({ description: 'Tenant já possui usuários' })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiPlatformSuperAdminErrors({
+    conflict: 'Tenant já possui usuários',
+    notFound: 'Tenant não encontrado',
+  })
   issue(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Req() req: RequestUser,
@@ -69,7 +72,7 @@ export class InvitesController {
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiOkResponse({ type: InviteListItemDto, isArray: true })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiPlatformSuperAdminErrors({ notFound: 'Tenant não encontrado' })
   list(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.invitesService.listByTenant(tenantId, InvitePurpose.FIRST_ADMIN);
   }
@@ -83,8 +86,10 @@ export class InvitesController {
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(INVITE_ID_PARAM)
   @ApiOkResponse({ type: InviteListItemDto })
-  @ApiConflictResponse({ description: 'Convite não está pendente' })
-  @ApiNotFoundResponse({ description: 'Tenant ou convite não encontrado' })
+  @ApiPlatformSuperAdminErrors({
+    conflict: 'Convite não está pendente',
+    notFound: 'Tenant ou convite não encontrado',
+  })
   revoke(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('inviteId', ParseIntPipe) inviteId: number,
@@ -115,10 +120,10 @@ export class TenantInvitesController {
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiCreatedResponse({ type: IssuedInviteResponseDto })
-  @ApiForbiddenResponse({
-    description: 'Super Admin, tenant inativo ou Admin de outro tenant',
+  @ApiTenantScopedErrors({
+    forbidden: 'Super Admin, tenant inativo ou Admin de outro tenant',
+    notFound: 'Tenant não encontrado',
   })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
   issue(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Req() req: RequestUser,
@@ -138,7 +143,7 @@ export class TenantInvitesController {
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiOkResponse({ type: InviteListItemDto, isArray: true })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiTenantScopedErrors({ notFound: 'Tenant não encontrado' })
   list(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.invitesService.listByTenant(tenantId, InvitePurpose.TENANT_USER);
   }
@@ -152,11 +157,11 @@ export class TenantInvitesController {
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(INVITE_ID_PARAM)
   @ApiOkResponse({ type: InviteListItemDto })
-  @ApiForbiddenResponse({
-    description: 'Super Admin, tenant inativo ou Admin de outro tenant',
+  @ApiTenantScopedErrors({
+    forbidden: 'Super Admin, tenant inativo ou Admin de outro tenant',
+    conflict: 'Convite não está pendente',
+    notFound: 'Tenant ou convite não encontrado',
   })
-  @ApiConflictResponse({ description: 'Convite não está pendente' })
-  @ApiNotFoundResponse({ description: 'Tenant ou convite não encontrado' })
   revoke(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('inviteId', ParseIntPipe) inviteId: number,

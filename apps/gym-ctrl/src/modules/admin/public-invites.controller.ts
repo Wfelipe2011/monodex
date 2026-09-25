@@ -11,16 +11,14 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import {
-  ApiConflictResponse,
   ApiCreatedResponse,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
   ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
+import { ApiPublicRouteErrors } from '../../swagger/api-route-errors.decorator';
 import { Public } from '@core/decorators/public.decorator';
 import { LoginOutput } from '../../dtos/login.dto';
 import {
@@ -45,7 +43,7 @@ export class PublicInvitesController {
   })
   @ApiParam(PUBLIC_INVITE_TOKEN_PARAM)
   @ApiOkResponse({ type: PreviewInviteResponseDto })
-  @ApiNotFoundResponse({ description: 'Convite não encontrado' })
+  @ApiPublicRouteErrors({ notFound: 'Convite não encontrado' })
   @ApiTooManyRequestsResponse({ description: 'Rate limit por IP excedido' })
   preview(
     @Param('token') token: string,
@@ -64,10 +62,11 @@ export class PublicInvitesController {
   })
   @ApiParam(PUBLIC_INVITE_TOKEN_PARAM)
   @ApiCreatedResponse({ type: LoginOutput })
-  @ApiNotFoundResponse({ description: 'Convite não encontrado' })
-  @ApiForbiddenResponse({ description: 'Tenant inativo' })
-  @ApiConflictResponse({
-    description: 'E-mail/username duplicado ou tenant já possui usuários',
+  @ApiPublicRouteErrors({
+    badRequest: 'Validação do body falhou (email, username, password)',
+    notFound: 'Convite não encontrado',
+    forbidden: 'Tenant inativo',
+    conflict: 'E-mail/username duplicado ou tenant já possui usuários',
   })
   @ApiTooManyRequestsResponse({ description: 'Rate limit por IP excedido' })
   accept(

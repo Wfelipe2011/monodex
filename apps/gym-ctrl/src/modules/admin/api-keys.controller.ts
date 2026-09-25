@@ -15,15 +15,13 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiConflictResponse,
   ApiCreatedResponse,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiTenantScopedErrors } from '../../swagger/api-route-errors.decorator';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
@@ -59,7 +57,7 @@ export class ApiKeysController {
     isArray: true,
     description: 'Chaves do tenant (sem secret)',
   })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiTenantScopedErrors({ notFound: 'Tenant não encontrado' })
   list(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.apiKeysService.list(tenantId);
   }
@@ -75,11 +73,12 @@ export class ApiKeysController {
     type: TenantApiKeyCreatedDto,
     description: 'Chave criada; campo `key` só neste 201',
   })
-  @ApiForbiddenResponse({
-    description: 'Super Admin, grant off ou tenant inativo',
+  @ApiTenantScopedErrors({
+    badRequest: 'name inválido ou body inválido',
+    forbidden: 'Super Admin, grant off ou tenant inativo',
+    conflict: 'Já existem 3 chaves ativas',
+    notFound: 'Tenant não encontrado',
   })
-  @ApiConflictResponse({ description: 'Já existem 3 chaves ativas' })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
   create(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: CreateApiKeyDto,
@@ -102,8 +101,10 @@ export class ApiKeysController {
     type: TenantApiKeyListItemDto,
     description: 'Chave revogada (sem secret)',
   })
-  @ApiForbiddenResponse({ description: 'Super Admin ou tenant inativo' })
-  @ApiNotFoundResponse({ description: 'Tenant ou chave não encontrada' })
+  @ApiTenantScopedErrors({
+    forbidden: 'Super Admin ou tenant inativo',
+    notFound: 'Tenant ou chave não encontrada',
+  })
   revoke(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('keyId', ParseIntPipe) keyId: number,

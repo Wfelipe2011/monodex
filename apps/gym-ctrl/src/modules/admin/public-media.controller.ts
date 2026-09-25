@@ -1,12 +1,8 @@
 import { Controller, Get, Param, StreamableFile } from '@nestjs/common';
-import {
-  ApiNotFoundResponse,
-  ApiOkResponse,
-  ApiOperation,
-  ApiParam,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiOkBinaryResponse } from '../../swagger/api-binary-response.decorator';
 import { Public } from '@core/decorators/public.decorator';
+import { ApiPublicRouteErrors } from '../../swagger/api-route-errors.decorator';
 import { MediaService } from './media.service';
 
 @ApiTags('Public — Media')
@@ -24,8 +20,13 @@ export class PublicMediaController {
     description: 'UUID público da mídia (não o id sequencial)',
     example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @ApiOkResponse({ description: 'Bytes da imagem com Content-Type da row' })
-  @ApiNotFoundResponse({ description: 'publicId desconhecido ou arquivo ausente' })
+  @ApiOkBinaryResponse(
+    'Bytes da imagem com Content-Type da row (ex.: image/png)',
+    'image/png',
+  )
+  @ApiPublicRouteErrors({
+    notFound: 'publicId desconhecido ou arquivo ausente',
+  })
   async getByPublicId(
     @Param('publicId') publicId: string,
   ): Promise<StreamableFile> {

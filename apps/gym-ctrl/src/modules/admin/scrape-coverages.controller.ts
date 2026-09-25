@@ -9,6 +9,7 @@ import {
 import { ScrapeCoverageItemDto } from './dto/swagger/scrape-coverage.swagger.dto';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { Roles } from '@prisma/client';
+import { ApiPlatformSuperAdminErrors } from '../../swagger/api-route-errors.decorator';
 import { ScrapeCoveragesService } from './scrape-coverages.service';
 
 @ApiTags('Platform — Scrape')
@@ -28,8 +29,11 @@ export class ScrapeCoveragesController {
       'schedulePhase, nextScheduledRunAt, scheduledRunCount e lastRunKind.',
   })
   @ApiOkResponse({ type: ScrapeCoverageItemDto, isArray: true })
-  @ApiQuery({ name: 'cityId', required: false, type: Number })
-  @ApiQuery({ name: 'category', required: false, type: String })
+  @ApiQuery({ name: 'cityId', required: false, type: Number, example: 3 })
+  @ApiQuery({ name: 'category', required: false, type: String, example: 'Construtoras' })
+  @ApiPlatformSuperAdminErrors({
+    badRequest: 'cityId inválido na query',
+  })
   list(
     @Query('cityId', new ParseIntPipe({ optional: true })) cityId?: number,
     @Query('category') category?: string,

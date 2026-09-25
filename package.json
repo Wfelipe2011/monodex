@@ -7,6 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "gym:build": "nest build gym-ctrl",
+    "gym:swagger": "ts-node -r tsconfig-paths/register apps/gym-ctrl/src/generate-swagger-spec.ts",
     "captura:build": "nest build captura",
     "notifly:build": "nest build notifly",
     "prebuilds": "prisma generate",

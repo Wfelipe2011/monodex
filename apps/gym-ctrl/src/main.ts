@@ -1,5 +1,10 @@
 import { NestFactory } from '@nestjs/core';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
+import {
+  SWAGGER_EXTRA_MODELS,
+  buildSwaggerDocumentConfig,
+} from './swagger/swagger-document.config';
+import { enrichSwaggerResponseExamples } from './swagger/enrich-swagger-examples';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { GymModule } from './gym.module';
 import { ConfigService } from '@nestjs/config';
@@ -15,24 +20,14 @@ async function bootstrap() {
     allowedHeaders: 'Content-Type, Authorization, X-API-KEY', // Cabeçalhos permitidos
   });
   const configService = app.get(ConfigService);
-  const config = new DocumentBuilder()
-    .setTitle('Gestão de Leads')
-    .setDescription('API para gestão de leads')
-    .setVersion('1.0')
-    .addTag('leads')
-    .addBearerAuth()
-    .addApiKey(
-      {
-        type: 'apiKey',
-        name: 'X-API-KEY',
-        in: 'header',
-        description:
-          'Chave do tenant (allowlist). Não combine com Authorization Bearer.',
-      },
-      'X-API-KEY',
-    )
-    .build();
-  const documentFactory = () => SwaggerModule.createDocument(app, config);
+  const config = buildSwaggerDocumentConfig();
+  const documentFactory = () => {
+    const doc = SwaggerModule.createDocument(app, config, {
+      extraModels: SWAGGER_EXTRA_MODELS,
+    });
+    enrichSwaggerResponseExamples(doc);
+    return doc;
+  };
   SwaggerModule.setup('api', app, documentFactory);
 
   writeFileSync('swagger-spec.json', JSON.stringify(documentFactory(), null, 2));

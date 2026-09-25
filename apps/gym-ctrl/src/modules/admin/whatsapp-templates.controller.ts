@@ -19,13 +19,10 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
-  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
-  ApiConflictResponse,
   ApiConsumes,
   ApiCreatedResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
@@ -34,6 +31,9 @@ import {
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
+import {
+  ApiPlatformSuperAdminErrors,
+} from '../../swagger/api-route-errors.decorator';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
 import { CreateWhatsappTemplateDto } from './dto/create-whatsapp-template.dto';
 import { PatchWhatsappTemplateDto } from './dto/patch-whatsapp-template.dto';
@@ -42,6 +42,8 @@ import { MetaMediaHandleResponseDto } from './dto/swagger/whatsapp-template-medi
 import {
   WhatsappTemplateDeletedDto,
   WhatsappTemplatePreviewDto,
+  WhatsappTemplateSyncResponseDto,
+  WhatsappTemplateTestSendResponseDto,
 } from './dto/swagger/whatsapp-template-preview.swagger.dto';
 import {
   META_UPLOAD_ALLOWED_MIME,
@@ -65,6 +67,13 @@ export class WhatsappTemplatesController {
   @Post('sync')
   @ApiOperation({
     summary: 'Sincronizar catálogo de templates a partir da WABA da plataforma',
+  })
+  @ApiOkResponse({
+    type: WhatsappTemplateSyncResponseDto,
+    description: 'Contagem de upserts e conta default usada',
+  })
+  @ApiPlatformSuperAdminErrors({
+    badRequest: 'wabaId da conta default vazio ou falha ao listar templates na Graph',
   })
   sync(@Req() req: RequestUser) {
     rejectSecretTokenFields(req.body);
@@ -92,8 +101,9 @@ export class WhatsappTemplatesController {
     type: MetaMediaHandleResponseDto,
     description: 'Handle Meta opaco (sem access token)',
   })
-  @ApiBadRequestResponse({
-    description: 'MIME inválido, arquivo vazio, META_APP_ID ausente ou erro Graph 4xx',
+  @ApiPlatformSuperAdminErrors({
+    badRequest:
+      'MIME inválido, arquivo vazio, META_APP_ID ausente ou erro Graph 4xx',
   })
   @UseInterceptors(
     FileInterceptor('file', {
@@ -134,8 +144,9 @@ export class WhatsappTemplatesController {
     type: WhatsappTemplatePreviewDto,
     description: 'Preview do template criado/upsertado (components com BODY.text)',
   })
-  @ApiBadRequestResponse({
-    description: 'Validação, category ≠ MARKETING, IMAGE sem handle ou erro Graph 4xx',
+  @ApiPlatformSuperAdminErrors({
+    badRequest:
+      'Validação, category ≠ MARKETING, IMAGE sem handle ou erro Graph 4xx',
   })
   create(@Body() dto: CreateWhatsappTemplateDto, @Req() req: RequestUser) {
     rejectSecretTokenFields(req.body);
@@ -156,6 +167,7 @@ export class WhatsappTemplatesController {
   })
   @ApiQuery({ name: 'status', required: false, type: String })
   @ApiQuery({ name: 'name', required: false, type: String })
+  @ApiPlatformSuperAdminErrors()
   list(@Query('status') status?: string, @Query('name') name?: string) {
     return this.whatsappTemplatesService.list({ status, name });
   }
@@ -168,7 +180,9 @@ export class WhatsappTemplatesController {
       '404 se id inexistente. Sem sync Graph.',
   })
   @ApiOkResponse({ type: WhatsappTemplatePreviewDto })
-  @ApiNotFoundResponse({ description: 'Template id inexistente' })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'Template id inexistente',
+  })
   getById(@Param('id', ParseIntPipe) id: number) {
     return this.whatsappTemplatesService.getById(id);
   }
@@ -181,10 +195,11 @@ export class WhatsappTemplatesController {
       'MVP: category MARKETING. Resposta = preview (components + slots).',
   })
   @ApiOkResponse({ type: WhatsappTemplatePreviewDto })
-  @ApiBadRequestResponse({
-    description: 'metaId null, name/language no body, validação ou erro Graph 4xx',
+  @ApiPlatformSuperAdminErrors({
+    badRequest:
+      'metaId null, name/language no body, validação ou erro Graph 4xx',
+    notFound: 'Template id inexistente',
   })
-  @ApiNotFoundResponse({ description: 'Template id inexistente' })
   patch(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: PatchWhatsappTemplateDto,
@@ -210,10 +225,10 @@ export class WhatsappTemplatesController {
       'Sem cascade de grants — remova FKs antes. Sucesso: { deleted: true, id }.',
   })
   @ApiOkResponse({ type: WhatsappTemplateDeletedDto })
-  @ApiConflictResponse({
-    description: 'Template ainda referenciado por FKs locais (HTTP 409)',
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'Template id inexistente',
+    conflict: 'Template ainda referenciado por grant, outreach ou envio on-demand',
   })
-  @ApiNotFoundResponse({ description: 'Template id inexistente' })
   delete(@Param('id', ParseIntPipe) id: number) {
     return this.whatsappTemplatesService.delete(id);
   }
@@ -221,6 +236,12 @@ export class WhatsappTemplatesController {
   @Post(':id/test')
   @ApiOperation({
     summary: 'Enviar template do catálogo para um número (sem TenantLead/coin)',
+  })
+  @ApiOkResponse({ type: WhatsappTemplateTestSendResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    badRequest:
+      'Template não APPROVED, slots obrigatórios faltando, telefone inválido ou erro Graph 4xx',
+    notFound: 'Template ou lead não encontrado',
   })
   test(
     @Param('id', ParseIntPipe) id: number,

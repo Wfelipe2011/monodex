@@ -1,7 +1,6 @@
 import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -12,6 +11,10 @@ import { RolesAuth } from '@core/decorators/roles.decorator';
 import { Roles } from '@prisma/client';
 import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
 import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
+import {
+  ApiPlatformSuperAdminErrors,
+  ApiTenantScopedErrors,
+} from '../../swagger/api-route-errors.decorator';
 import { OutreachSendsService } from './outreach-sends.service';
 import { ADMIN_TENANT_ID_PARAM } from './dto/swagger/tenant-list.swagger.dto';
 import { CityOutreachSendResponseDto } from './dto/swagger/city-outreach-sends.swagger.dto';
@@ -45,7 +48,7 @@ export class TenantOutreachSendsController {
     example: 'failed',
   })
   @ApiOkResponse({ type: CityOutreachSendResponseDto, isArray: true })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiTenantScopedErrors({ badRequest: 'Query status inválida' })
   listSends(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Query('status') status?: string,
@@ -72,7 +75,10 @@ export class PlatformOutreachSendsController {
     example: 'failed',
   })
   @ApiOkResponse({ type: CityOutreachSendResponseDto, isArray: true })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'Tenant não encontrado',
+    badRequest: 'Query status inválida',
+  })
   listSends(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Query('status') status?: string,

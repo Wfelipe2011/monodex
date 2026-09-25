@@ -2,7 +2,8 @@
 import { Public } from '@core/decorators/public.decorator';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
 import { Controller, Get, Logger } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { HealthCheckResponseDto } from './modules/admin/dto/swagger/tenant.swagger.dto';
 
 @ApiTags('Verificação de Saúde')
 @Controller()
@@ -12,6 +13,11 @@ export class GymController {
 
   @Public()
   @Get('/health-check')
+  @ApiOperation({ summary: 'Health check público da API' })
+  @ApiOkResponse({
+    type: HealthCheckResponseDto,
+    description: 'API está funcionando corretamente',
+  })
   async healthCheck() {
 
     return {

@@ -13,21 +13,24 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ADMIN_TENANT_ID_PARAM } from './dto/swagger/tenant-list.swagger.dto';
 import { EligibleOutreachCategoriesResponseDto } from './dto/swagger/eligible-outreach-categories.swagger.dto';
+import { TenantOutreachConfigResponseDto } from './dto/swagger/outreach-config.swagger.dto';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
 import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
 import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
+import {
+  ApiPlatformSuperAdminErrors,
+  ApiRouteErrors,
+  ApiTenantScopedErrors,
+} from '../../swagger/api-route-errors.decorator';
 import { OutreachConfigService } from './outreach-config.service';
 import { UpsertOutreachConfigDto } from './dto/upsert-outreach-config.dto';
 import { UpsertTenantOutreachConfigDto } from './dto/upsert-tenant-outreach-config.dto';
@@ -52,6 +55,11 @@ export class OutreachConfigController {
       'coinDebitOnStatus (sent|delivered|read, default delivered), whatsappAccountId e resolvedWhatsappAccount ' +
       '(default da plataforma se a FK for null).',
   })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiOkResponse({ type: TenantOutreachConfigResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'Tenant ou outreach config não encontrada',
+  })
   get(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.outreachConfigService.get(tenantId);
   }
@@ -65,6 +73,16 @@ export class OutreachConfigController {
       'coinDebitOnStatus omisso → delivered no schema. ' +
       'Campos legado (outreachTemplateName, notifyTenantTemplateName, outreachContactText, headerImageUrl) retornam 400. ' +
       'enabled=true exige tenant ativo com phone, templates APPROVED e cobertura de slots.',
+  })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiOkResponse({ type: TenantOutreachConfigResponseDto })
+  @ApiRouteErrors({
+    unauthorized: true,
+    forbidden: 'Requer role SUPER_ADMIN ou config já existe (use PATCH)',
+    notFound: 'Tenant não encontrado',
+    badRequest:
+      'Validação, campos legado, templates, slots, categorias ou conta WhatsApp inválida',
+    conflict: 'Conflito de unicidade na conta WhatsApp',
   })
   upsert(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -90,6 +108,16 @@ export class OutreachConfigController {
       'coinDebitOnStatus: sent | delivered | read (failed → 400). ' +
       'whatsappAccountId null volta ao remetente default. Id da default ou número já de outro tenant → 400. ' +
       'Campos legado retornam 400.',
+  })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiOkResponse({ type: TenantOutreachConfigResponseDto })
+  @ApiRouteErrors({
+    unauthorized: true,
+    forbidden: 'Requer role SUPER_ADMIN ou campos tenant-owned no body',
+    notFound: 'Tenant ou outreach config não encontrada',
+    badRequest:
+      'coinDebitOnStatus inválido, campos legado ou conta WhatsApp não atribuível',
+    conflict: 'Conta WhatsApp já atribuída a outro tenant',
   })
   patch(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -122,6 +150,11 @@ export class TenantOutreachConfigController {
     description:
       'Devolve a row completa, inclusive costPerLead/costPerOnDemandSend/cashbackOnReply, coinDebitOnStatus, whatsappAccountId e resolvedWhatsappAccount. ' +
       'Admin não altera preço (cidade ou on-demand), gatilho de débito nem número neste path.',
+  })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiOkResponse({ type: TenantOutreachConfigResponseDto })
+  @ApiTenantScopedErrors({
+    notFound: 'Outreach config do tenant não encontrada',
   })
   get(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.outreachConfigService.get(tenantId);
@@ -176,11 +209,7 @@ export class TenantOutreachConfigController {
       },
     },
   })
-  @ApiNotFoundResponse({ description: 'Tenant {tenantId} não encontrado' })
-  @ApiUnauthorizedResponse({ description: 'JWT ausente ou inválido' })
-  @ApiForbiddenResponse({
-    description: 'Tenant inativo, escopo errado ou role insuficiente',
-  })
+  @ApiTenantScopedErrors()
   getEligibleCategories(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.outreachConfigService.getEligibleCategories(tenantId);
   }
@@ -191,6 +220,15 @@ export class TenantOutreachConfigController {
     description:
       'Cria com costPerLead=0, cashbackOnReply=0, coinDebitOnStatus=delivered (schema) e whatsappAccountId null. Se já existir, 403 — use PATCH. ' +
       'costPerLead/cashbackOnReply/coinDebitOnStatus/whatsappAccountId no body → 403. Super Admin só no pontapé (recurso ausente).',
+  })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiOkResponse({ type: TenantOutreachConfigResponseDto })
+  @ApiRouteErrors({
+    unauthorized: true,
+    forbidden:
+      'Config já existe, campos de plataforma no body ou Super Admin fora da janela de pontapé',
+    notFound: 'Tenant não encontrado',
+    badRequest: 'Validação, campos legado, templates ou slots inválidos',
   })
   create(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -213,6 +251,16 @@ export class TenantOutreachConfigController {
     description:
       'Não aceita costPerLead/costPerOnDemandSend/cashbackOnReply/coinDebitOnStatus/whatsappAccountId (403). Super Admin só dentro da janela de 30 min. ' +
       'enabled=true exige phone, tenant ativo, templates APPROVED, grants e bindings.',
+  })
+  @ApiParam(ADMIN_TENANT_ID_PARAM)
+  @ApiOkResponse({ type: TenantOutreachConfigResponseDto })
+  @ApiRouteErrors({
+    unauthorized: true,
+    forbidden:
+      'Campos de plataforma no body ou Super Admin fora da janela de edição',
+    notFound: 'Outreach config do tenant não encontrada',
+    badRequest:
+      'Validação, categorias fora do catálogo, templates ou readiness para enabled',
   })
   patch(
     @Param('tenantId', ParseIntPipe) tenantId: number,

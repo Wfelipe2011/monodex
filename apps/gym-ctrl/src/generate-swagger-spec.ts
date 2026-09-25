@@ -3,30 +3,22 @@
  * Uso: npx ts-node -r tsconfig-paths/register apps/gym-ctrl/src/generate-swagger-spec.ts
  */
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import { writeFileSync } from 'fs';
 import { GymModule } from './gym.module';
+import {
+  SWAGGER_EXTRA_MODELS,
+  buildSwaggerDocumentConfig,
+} from './swagger/swagger-document.config';
+import { enrichSwaggerResponseExamples } from './swagger/enrich-swagger-examples';
 
 async function main() {
   const app = await NestFactory.create(GymModule, { logger: false });
-  const config = new DocumentBuilder()
-    .setTitle('Gestão de Leads')
-    .setDescription('API para gestão de leads')
-    .setVersion('1.0')
-    .addTag('leads')
-    .addBearerAuth()
-    .addApiKey(
-      {
-        type: 'apiKey',
-        name: 'X-API-KEY',
-        in: 'header',
-        description:
-          'Chave do tenant (allowlist). Não combine com Authorization Bearer.',
-      },
-      'X-API-KEY',
-    )
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
+  const config = buildSwaggerDocumentConfig();
+  const document = SwaggerModule.createDocument(app, config, {
+    extraModels: SWAGGER_EXTRA_MODELS,
+  });
+  enrichSwaggerResponseExamples(document);
   writeFileSync('swagger-spec.json', JSON.stringify(document, null, 2));
   await app.close();
   console.log('swagger-spec.json regenerated');

@@ -12,15 +12,14 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiForbiddenResponse,
+  ApiBody,
   ApiNoContentResponse,
-  ApiNotFoundResponse,
   ApiOperation,
   ApiTags,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { RequestUser } from '@core/contracts/request-user';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
+import { ApiRouteErrors } from '../../swagger/api-route-errors.decorator';
 import { DeletePushSubscriptionDto } from './dto/delete-push-subscription.dto';
 import { UpsertPushSubscriptionDto } from './dto/upsert-push-subscription.dto';
 
@@ -34,9 +33,12 @@ export class PushSubscriptionsController {
   @Put()
   @HttpCode(204)
   @ApiOperation({ summary: 'Registrar ou atualizar PushSubscription do usuário autenticado' })
+  @ApiBody({ type: UpsertPushSubscriptionDto })
   @ApiNoContentResponse({ description: 'Subscription registrada ou atualizada' })
-  @ApiForbiddenResponse({ description: 'Tenant inativo' })
-  @ApiUnauthorizedResponse({ description: 'JWT ausente ou inválido' })
+  @ApiRouteErrors({
+    badRequest: 'Validação de endpoint ou keys falhou',
+    forbidden: 'Tenant inativo',
+  })
   async upsert(
     @Body() dto: UpsertPushSubscriptionDto,
     @Req() req: RequestUser,
@@ -65,10 +67,13 @@ export class PushSubscriptionsController {
   @Delete()
   @HttpCode(204)
   @ApiOperation({ summary: 'Remover PushSubscription do usuário autenticado' })
+  @ApiBody({ type: DeletePushSubscriptionDto })
   @ApiNoContentResponse({ description: 'Subscription removida' })
-  @ApiNotFoundResponse({ description: 'Subscription não encontrada para este usuário' })
-  @ApiForbiddenResponse({ description: 'Tenant inativo' })
-  @ApiUnauthorizedResponse({ description: 'JWT ausente ou inválido' })
+  @ApiRouteErrors({
+    badRequest: 'Validação de endpoint falhou',
+    notFound: 'Push subscription não encontrada para este usuário',
+    forbidden: 'Tenant inativo',
+  })
   async remove(
     @Body() dto: DeletePushSubscriptionDto,
     @Req() req: RequestUser,

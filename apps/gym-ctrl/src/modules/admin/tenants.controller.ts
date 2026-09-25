@@ -15,6 +15,8 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiQuery,
   ApiTags,
@@ -29,6 +31,11 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { PatchTenantPhoneDto } from './dto/patch-tenant-phone.dto';
 import { rejectForbiddenBodyKeys } from './reject-forbidden-body-keys';
+import {
+  ApiPlatformSuperAdminErrors,
+  ApiTenantScopedErrors,
+} from '../../swagger/api-route-errors.decorator';
+import { TenantResponseDto } from './dto/swagger/tenant.swagger.dto';
 
 @ApiTags('Platform — Tenants')
 @ApiBearerAuth()
@@ -46,6 +53,8 @@ export class TenantsController {
     type: Boolean,
     description: 'Filtrar por active',
   })
+  @ApiOkResponse({ type: TenantResponseDto, isArray: true })
+  @ApiPlatformSuperAdminErrors()
   list(
     @Query('active', new ParseBoolPipe({ optional: true })) active?: boolean,
   ) {
@@ -54,12 +63,21 @@ export class TenantsController {
 
   @Post()
   @ApiOperation({ summary: 'Criar tenant' })
+  @ApiCreatedResponse({ type: TenantResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    conflict: 'Valor único já em uso (phone)',
+    badRequest: 'Validação do body falhou',
+  })
   create(@Body() dto: CreateTenantDto) {
     return this.tenantsService.create(dto);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obter tenant por id' })
+  @ApiOkResponse({ type: TenantResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'Tenant não encontrado',
+  })
   getById(@Param('id', ParseIntPipe) id: number) {
     return this.tenantsService.getById(id);
   }
@@ -70,6 +88,12 @@ export class TenantsController {
     description:
       'Inclui `apiAccessEnabled` (grant de API keys / X-API-KEY). Default false. ' +
       'Só Super Admin neste path.',
+  })
+  @ApiOkResponse({ type: TenantResponseDto })
+  @ApiPlatformSuperAdminErrors({
+    notFound: 'Tenant não encontrado',
+    conflict: 'Valor único já em uso (phone)',
+    badRequest: 'Validação do body falhou',
   })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -93,6 +117,11 @@ export class TenantSelfController {
     summary: 'Atualizar phone do tenant',
     description:
       'Somente `{ phone }`. `active` e `apiAccessEnabled` neste path retornam 403.',
+  })
+  @ApiOkResponse({ type: TenantResponseDto })
+  @ApiTenantScopedErrors({
+    conflict: 'Valor único já em uso (phone)',
+    badRequest: 'Validação do body falhou',
   })
   patchPhone(
     @Param('tenantId', ParseIntPipe) tenantId: number,

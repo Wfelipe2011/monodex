@@ -19,19 +19,20 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
-  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
-  ApiProduces,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiOkTextDownloadResponse } from '../../swagger/api-binary-response.decorator';
+import {
+  ApiPlatformSuperAdminErrors,
+  ApiTenantScopedErrors,
+} from '../../swagger/api-route-errors.decorator';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
@@ -75,7 +76,7 @@ export class LeadListsController {
     isArray: true,
     description: 'Array de listas do tenant',
   })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiTenantScopedErrors({ notFound: 'Tenant não encontrado' })
   listLists(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.leadListsService.listLists(tenantId);
   }
@@ -88,9 +89,12 @@ export class LeadListsController {
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiCreatedResponse({ type: TenantLeadListResponseDto })
-  @ApiBadRequestResponse({ description: 'name inválido ou body inválido' })
-  @ApiForbiddenResponse({ description: 'costPerSend no body, tenant inativo ou Super Admin fora do pontapé' })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiTenantScopedErrors({
+    badRequest: 'name inválido ou body inválido',
+    forbidden:
+      'costPerSend no body, tenant inativo ou Super Admin fora do pontapé',
+    notFound: 'Tenant não encontrado',
+  })
   createList(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: CreateLeadListDto,
@@ -105,7 +109,7 @@ export class LeadListsController {
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiOkResponse({ type: TenantLeadListResponseDto })
-  @ApiNotFoundResponse({ description: 'Tenant ou lista não encontrado' })
+  @ApiTenantScopedErrors({ notFound: 'Tenant ou lista não encontrado' })
   getList(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -122,8 +126,11 @@ export class LeadListsController {
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiOkResponse({ type: TenantLeadListResponseDto })
-  @ApiForbiddenResponse({ description: 'costPerSend no body ou Super Admin fora da janela' })
-  @ApiNotFoundResponse({ description: 'Tenant ou lista não encontrado' })
+  @ApiTenantScopedErrors({
+    badRequest: 'name inválido ou body inválido',
+    forbidden: 'costPerSend no body ou Super Admin fora da janela',
+    notFound: 'Tenant ou lista não encontrado',
+  })
   patchList(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -148,15 +155,8 @@ export class LeadListsController {
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(LEAD_LIST_ID_PARAM)
-  @ApiProduces('text/csv')
-  @ApiOkResponse({
-    description: 'Arquivo CSV de exemplo',
-    schema: {
-      type: 'string',
-      example:
-        'name,phone,website,category,reviews\nConstrutora Exemplo,(11) 98765-4321,https://exemplo.com.br,Construtoras,42',
-    },
-  })
+  @ApiOkTextDownloadResponse('Arquivo CSV de exemplo para importação de leads')
+  @ApiTenantScopedErrors({ notFound: 'Tenant ou lista não encontrado' })
   @Header('Content-Type', 'text/csv')
   @Header(
     'Content-Disposition',
@@ -186,10 +186,10 @@ export class LeadListsController {
     },
   })
   @ApiOkResponse({ type: LeadImportResultDto })
-  @ApiBadRequestResponse({
-    description: 'CSV inválido, file ausente ou phone duplicado',
+  @ApiTenantScopedErrors({
+    badRequest: 'CSV inválido, file ausente ou phone duplicado',
+    notFound: 'Tenant ou lista não encontrado',
   })
-  @ApiNotFoundResponse({ description: 'Tenant ou lista não encontrado' })
   @UseInterceptors(FileInterceptor('file'))
   importCsv(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -216,7 +216,7 @@ export class LeadListsController {
     type: TenantListLeadResponseDto,
     isArray: true,
   })
-  @ApiNotFoundResponse({ description: 'Tenant ou lista não encontrado' })
+  @ApiTenantScopedErrors({ notFound: 'Tenant ou lista não encontrado' })
   listLeads(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -232,7 +232,10 @@ export class LeadListsController {
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiCreatedResponse({ type: LeadImportResultDto })
-  @ApiBadRequestResponse({ description: 'Phone duplicado ou validação falhou' })
+  @ApiTenantScopedErrors({
+    badRequest: 'Phone duplicado ou validação falhou',
+    notFound: 'Tenant ou lista não encontrado',
+  })
   bulkCreateLeads(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -256,7 +259,10 @@ export class LeadListsController {
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiCreatedResponse({ type: TenantListLeadResponseDto })
-  @ApiBadRequestResponse({ description: 'Phone duplicado ou campos inválidos' })
+  @ApiTenantScopedErrors({
+    badRequest: 'Phone duplicado ou campos inválidos',
+    notFound: 'Tenant ou lista não encontrado',
+  })
   createLead(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -273,7 +279,9 @@ export class LeadListsController {
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiParam(LIST_LEAD_ID_PARAM)
   @ApiOkResponse({ type: TenantListLeadResponseDto })
-  @ApiNotFoundResponse({ description: 'Tenant, lista ou lead não encontrado' })
+  @ApiTenantScopedErrors({
+    notFound: 'Tenant, lista ou lead não encontrado',
+  })
   getLead(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -288,7 +296,10 @@ export class LeadListsController {
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiParam(LIST_LEAD_ID_PARAM)
   @ApiOkResponse({ type: TenantListLeadResponseDto })
-  @ApiBadRequestResponse({ description: 'Phone duplicado na lista' })
+  @ApiTenantScopedErrors({
+    badRequest: 'Phone duplicado na lista',
+    notFound: 'Tenant, lista ou lead não encontrado',
+  })
   patchLead(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -315,7 +326,9 @@ export class LeadListsController {
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiParam(LIST_LEAD_ID_PARAM)
   @ApiOkResponse({ type: TenantListLeadResponseDto })
-  @ApiNotFoundResponse({ description: 'Tenant, lista ou lead não encontrado' })
+  @ApiTenantScopedErrors({
+    notFound: 'Tenant, lista ou lead não encontrado',
+  })
   deleteLead(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,
@@ -354,7 +367,7 @@ export class TenantCategorySuggestionsController {
       example: ['Construtoras', 'Clínicas médicas', 'Consultorias'],
     },
   })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiTenantScopedErrors({ notFound: 'Tenant não encontrado' })
   categorySuggestions(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.leadListsService.categorySuggestions(tenantId);
   }
@@ -377,8 +390,10 @@ export class PlatformLeadListsController {
   @ApiParam(ADMIN_TENANT_ID_PARAM)
   @ApiParam(LEAD_LIST_ID_PARAM)
   @ApiOkResponse({ type: TenantLeadListResponseDto })
-  @ApiBadRequestResponse({ description: 'costPerSend negativo ou body inválido' })
-  @ApiNotFoundResponse({ description: 'Tenant ou lista não encontrado' })
+  @ApiPlatformSuperAdminErrors({
+    badRequest: 'costPerSend negativo ou body inválido',
+    notFound: 'Tenant ou lista não encontrado',
+  })
   patchCost(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('listId', ParseIntPipe) listId: number,

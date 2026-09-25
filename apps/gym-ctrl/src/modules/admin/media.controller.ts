@@ -19,17 +19,16 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import {
   ApiBearerAuth,
-  ApiBadRequestResponse,
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
-  ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiTenantScopedErrors } from '../../swagger/api-route-errors.decorator';
 import { RolesAuth } from '@core/decorators/roles.decorator';
 import { ApiKeyAllowlist } from '@core/decorators/api-key-allowlist.decorator';
 import { RequestUser } from '@core/contracts/request-user';
@@ -77,6 +76,7 @@ export class MediaController {
     isArray: true,
     description: 'Lista ordenada por createdAt desc',
   })
+  @ApiTenantScopedErrors({ notFound: 'Tenant não encontrado' })
   list(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.mediaService.list(tenantId);
   }
@@ -103,10 +103,11 @@ export class MediaController {
     type: TenantMediaItemDto,
     description: 'Mídia persistida (sem relativePath)',
   })
-  @ApiBadRequestResponse({
-    description: 'MIME inválido, arquivo ausente ou > 5 MB',
+  @ApiTenantScopedErrors({
+    badRequest: 'MIME inválido, arquivo ausente ou > 5 MB',
+    forbidden: 'Super Admin ou tenant inativo',
+    notFound: 'Tenant não encontrado',
   })
-  @ApiForbiddenResponse({ description: 'Super Admin ou tenant inativo' })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({

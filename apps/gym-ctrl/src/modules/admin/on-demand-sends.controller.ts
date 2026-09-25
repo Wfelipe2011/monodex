@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -21,6 +20,7 @@ import { RolesAuth } from '@core/decorators/roles.decorator';
 import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
 import { Roles } from '@prisma/client';
+import { ApiTenantScopedErrors } from '../../swagger/api-route-errors.decorator';
 import { ADMIN_TENANT_ID_PARAM } from './dto/swagger/tenant-list.swagger.dto';
 import { OnDemandSendStatusDto } from './dto/swagger/tenant-on-demand.swagger.dto';
 import { OnDemandSendsService } from './on-demand-sends.service';
@@ -47,7 +47,7 @@ export class OnDemandSendsController {
     isArray: true,
     description: 'Lista de envios on-demand',
   })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiTenantScopedErrors()
   list(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.onDemandSendsService.list(tenantId);
   }
@@ -55,9 +55,11 @@ export class OnDemandSendsController {
   @Get(':sendId')
   @ApiOperation({ summary: 'Detalhe de um envio on-demand' })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
-  @ApiParam({ name: 'sendId', type: Number })
+  @ApiParam({ name: 'sendId', type: Number, example: 10 })
   @ApiOkResponse({ type: OnDemandSendStatusDto, description: 'Envio on-demand' })
-  @ApiNotFoundResponse({ description: 'Tenant ou send não encontrado' })
+  @ApiTenantScopedErrors({
+    notFound: 'Tenant ou send não encontrado',
+  })
   getById(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('sendId', ParseIntPipe) sendId: number,

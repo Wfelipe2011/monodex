@@ -14,10 +14,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiConflictResponse,
   ApiCreatedResponse,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -30,6 +27,7 @@ import { RequestUser } from '@core/contracts/request-user';
 import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
 import { Roles } from '@prisma/client';
+import { ApiTenantScopedErrors } from '../../swagger/api-route-errors.decorator';
 import { CreateOnDemandScheduleDto } from './dto/create-on-demand-schedule.dto';
 import { ADMIN_TENANT_ID_PARAM } from './dto/swagger/tenant-list.swagger.dto';
 import { OnDemandScheduleDto } from './dto/swagger/tenant-on-demand.swagger.dto';
@@ -62,8 +60,10 @@ export class OnDemandSchedulesController {
     type: OnDemandScheduleDto,
     description: 'Agenda PENDING criada',
   })
-  @ApiForbiddenResponse({ description: 'Super Admin ou tenant inativo' })
-  @ApiNotFoundResponse({ description: 'Tenant ou template não encontrado' })
+  @ApiTenantScopedErrors({
+    notFound: 'Tenant ou template sem grant não encontrado',
+    badRequest: 'Validação do body ou horário inválido',
+  })
   create(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: CreateOnDemandScheduleDto,
@@ -86,7 +86,7 @@ export class OnDemandSchedulesController {
     isArray: true,
     description: 'Lista de agendas',
   })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiTenantScopedErrors()
   list(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.onDemandSchedulesService.list(tenantId);
   }
@@ -94,9 +94,11 @@ export class OnDemandSchedulesController {
   @Get(':scheduleId')
   @ApiOperation({ summary: 'Detalhe de uma agenda on-demand' })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
-  @ApiParam({ name: 'scheduleId', type: Number })
+  @ApiParam({ name: 'scheduleId', type: Number, example: 1 })
   @ApiOkResponse({ type: OnDemandScheduleDto, description: 'Agenda' })
-  @ApiNotFoundResponse({ description: 'Tenant ou agenda não encontrada' })
+  @ApiTenantScopedErrors({
+    notFound: 'Tenant ou agenda não encontrada',
+  })
   getById(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('scheduleId', ParseIntPipe) scheduleId: number,
@@ -111,11 +113,12 @@ export class OnDemandSchedulesController {
     description: 'Só PENDING. SENT/FAILED/CANCELLED → 409. Super Admin → 403.',
   })
   @ApiParam(ADMIN_TENANT_ID_PARAM)
-  @ApiParam({ name: 'scheduleId', type: Number })
+  @ApiParam({ name: 'scheduleId', type: Number, example: 1 })
   @ApiOkResponse({ type: OnDemandScheduleDto, description: 'Agenda CANCELLED' })
-  @ApiConflictResponse({ description: 'Agenda não está PENDING' })
-  @ApiForbiddenResponse({ description: 'Super Admin ou tenant inativo' })
-  @ApiNotFoundResponse({ description: 'Tenant ou agenda não encontrada' })
+  @ApiTenantScopedErrors({
+    conflict: 'Agenda não está PENDING',
+    notFound: 'Tenant ou agenda não encontrada',
+  })
   cancel(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('scheduleId', ParseIntPipe) scheduleId: number,

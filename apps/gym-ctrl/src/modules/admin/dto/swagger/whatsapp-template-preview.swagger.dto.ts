@@ -113,6 +113,30 @@ export class WhatsappTemplatePreviewDto {
   lastSyncedAt: Date | string;
 }
 
+/** Resposta de POST /platform/whatsapp-templates/sync. */
+export class WhatsappTemplateSyncResponseDto {
+  @ApiProperty({ example: 42, description: 'Templates upsertados nesta execução' })
+  upserted: number;
+
+  @ApiProperty({ example: 1, description: 'ID da conta WhatsApp default usada no sync' })
+  accountId: number;
+}
+
+/** Resposta de POST /platform/whatsapp-templates/:id/test. */
+export class WhatsappTemplateTestSendResponseDto {
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 'wamid.HBgNNTUxMTk5OTk5OTk5OQ==',
+  })
+  wamid: string | null;
+
+  @ApiProperty({ example: '5511999999999' })
+  to: string;
+
+  @ApiPropertyOptional({ nullable: true, example: 'accepted' })
+  messageStatus: string | null;
+}
+
 /** Resposta de DELETE /platform/whatsapp-templates/:id (sucesso). */
 export class WhatsappTemplateDeletedDto {
   @ApiProperty({ example: true })

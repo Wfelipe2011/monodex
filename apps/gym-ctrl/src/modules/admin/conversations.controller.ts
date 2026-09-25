@@ -14,11 +14,8 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadGatewayResponse,
-  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -32,6 +29,8 @@ import { RequestUser } from '@core/contracts/request-user';
 import { Roles } from '@prisma/client';
 import { TenantScopeGuard } from '@core/guard/tenant-scope.guard';
 import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
+import { ApiTenantScopedErrors } from '../../swagger/api-route-errors.decorator';
+import { apiErrorJsonContent } from '../../swagger/http-error.swagger';
 import { ConversationsService } from './conversations.service';
 import { SendConversationMessageDto } from './dto/send-conversation-message.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
@@ -65,7 +64,7 @@ export class ConversationsController {
     isArray: true,
     description: 'Threads do tenant, mais recente primeiro',
   })
-  @ApiNotFoundResponse({ description: 'Tenant não encontrado' })
+  @ApiTenantScopedErrors()
   listConversations(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.conversationsService.listConversations(tenantId);
   }
@@ -89,8 +88,10 @@ export class ConversationsController {
     isArray: true,
     description: 'Histórico completo ou delta desde `since`',
   })
-  @ApiBadRequestResponse({ description: 'since inválido (não ISO8601)' })
-  @ApiNotFoundResponse({ description: 'Tenant ou conversa não encontrada' })
+  @ApiTenantScopedErrors({
+    badRequest: 'since inválido (não ISO8601)',
+    notFound: 'Tenant ou conversa não encontrada',
+  })
   listMessages(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('conversationId', ParseIntPipe) conversationId: number,
@@ -117,13 +118,15 @@ export class ConversationsController {
     type: ConversationMessageResponseDto,
     description: 'Mensagem OUT persistida com wamid retornado pela Meta',
   })
-  @ApiBadRequestResponse({
-    description:
-      'Texto vazio, sem número dedicado, fora da janela 24h (OUTSIDE_MESSAGING_WINDOW) ou erro 4xx da Graph',
+  @ApiBadGatewayResponse({
+    description: 'Erro 5xx da Graph API',
+    content: apiErrorJsonContent(502, 'Graph API: upstream error', 'Bad Gateway'),
   })
-  @ApiForbiddenResponse({ description: 'Super Admin ou tenant inativo' })
-  @ApiBadGatewayResponse({ description: 'Erro 5xx da Graph API' })
-  @ApiNotFoundResponse({ description: 'Tenant ou conversa não encontrada' })
+  @ApiTenantScopedErrors({
+    badRequest:
+      'Texto vazio, sem número dedicado, fora da janela 24h (OUTSIDE_MESSAGING_WINDOW) ou erro 4xx da Graph',
+    notFound: 'Tenant ou conversa não encontrada',
+  })
   sendTextMessage(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('conversationId', ParseIntPipe) conversationId: number,
