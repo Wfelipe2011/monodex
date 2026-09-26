@@ -42,18 +42,9 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
       costPerOnDemandSend: overrides?.costPerOnDemandSend ?? 0,
       cashbackOnReply: 0,
       coinDebitOnStatus: overrides?.coinDebitOnStatus ?? 'delivered',
-      outreachTemplateId: 1,
-      notifyTemplateId: 2,
       whatsappAccountId: overrides?.whatsappAccountId ?? null,
-      slotBindings: { outreach: {}, notify: {} },
-      schedule: {},
-      categories: [],
-      leadsPerRun: 5,
-      sendIntervalSeconds: 5,
       createdAt: oldCreatedAt,
       updatedAt: oldCreatedAt,
-      outreachTemplate: null,
-      notifyTemplate: null,
     };
   }
 
@@ -137,6 +128,9 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
       tenantTemplateGrant: {
         findUnique: jest.fn(async () => ({ tenantId: 10 })),
       },
+      tenantOutreachCampaign: {
+        count: jest.fn(async () => 0),
+      },
     };
 
     const service = new OutreachConfigService(prisma as never);
@@ -196,7 +190,7 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
     await expect(
       service.patchTenant(
         10,
-        { leadsPerRun: 10 },
+        {},
         [Roles.ADMIN],
         { coinDebitOnStatus: 'sent' },
       ),
@@ -231,7 +225,7 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
     await expect(
       service.patchTenant(
         10,
-        { leadsPerRun: 10 },
+        {},
         [Roles.ADMIN],
         { costPerOnDemandSend: 0.01 },
       ),
@@ -249,13 +243,9 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
     const { service, prisma } = build();
     const result = await service.createTenant(
       30,
-      {
-        enabled: false,
-        schedule: {},
-        categories: [],
-      },
+      { enabled: false },
       [Roles.ADMIN],
-      { enabled: false, schedule: {}, categories: [] },
+      { enabled: false },
     );
     expect(prisma.tenantOutreachConfig.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -369,7 +359,7 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
     await expect(
       service.patchTenant(
         10,
-        { leadsPerRun: 10 },
+        {},
         [Roles.ADMIN],
         { whatsappAccountId: 2 },
       ),
@@ -381,13 +371,9 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
     const { service, prisma } = build();
     const result = await service.createTenant(
       30,
-      {
-        enabled: false,
-        schedule: {},
-        categories: [],
-      },
+      { enabled: false },
       [Roles.ADMIN],
-      { enabled: false, schedule: {}, categories: [] },
+      { enabled: false },
     );
     expect(prisma.tenantOutreachConfig.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -525,34 +511,7 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
     ]);
   });
 
-  it('PATCH tenant rejeita categoria fantasma', async () => {
-    const { service, prisma, tenantId } = buildWithCatalog();
-    await expect(
-      service.patchTenant(
-        tenantId,
-        { categories: ['Categoria inexistente'] },
-        [Roles.ADMIN],
-        { categories: ['Categoria inexistente'] },
-      ),
-    ).rejects.toThrow(/Categorias inválidas: Categoria inexistente/);
-    expect(prisma.tenantOutreachConfig.update).not.toHaveBeenCalled();
-  });
-
-  it('PATCH tenant aceita categoria do catálogo elegível', async () => {
-    const { service, prisma, tenantId } = buildWithCatalog({
-      policy: { allowedCityIds: [1], deniedCityIds: [] },
-    });
-    const result = await service.patchTenant(
-      tenantId,
-      { categories: ['Construtoras'] },
-      [Roles.ADMIN],
-      { categories: ['Construtoras'] },
-    );
-    expect(prisma.tenantOutreachConfig.update).toHaveBeenCalled();
-    expect(result.categories).toEqual(['Construtoras']);
-  });
-
-  it('bootstrap platform aceita categoria fora do filtro de cidade do tenant', async () => {
+  it('bootstrap platform persiste apenas campos slim da config', async () => {
     const { service, prisma, tenantId } = buildWithCatalog({
       tenantId: 30,
       hasConfig: false,
@@ -563,35 +522,21 @@ describe('OutreachConfigService — WhatsApp assignment (task 04)', () => {
       {
         enabled: false,
         costPerLead: 0.35,
-        outreachTemplateId: 1,
-        notifyTemplateId: 2,
-        slotBindings: { outreach: {}, notify: {} },
-        schedule: {},
-        categories: ['Clínicas médicas'],
       },
       [Roles.SUPER_ADMIN],
     );
     expect(prisma.tenantOutreachConfig.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          categories: ['Clínicas médicas'],
+          costPerLead: 0.35,
+          enabled: false,
         }),
       }),
     );
-  });
-
-  it('PATCH tenant rejeita categoria só em cidade negada pelo policy', async () => {
-    const { service, tenantId } = buildWithCatalog({
-      policy: { allowedCityIds: [1], deniedCityIds: [] },
-    });
-    await expect(
-      service.patchTenant(
-        tenantId,
-        { categories: ['Clínicas médicas'] },
-        [Roles.ADMIN],
-        { categories: ['Clínicas médicas'] },
-      ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    const createData = prisma.tenantOutreachConfig.create.mock.calls[0][0]
+      .data as Record<string, unknown>;
+    expect(createData).not.toHaveProperty('categories');
+    expect(createData).not.toHaveProperty('outreachTemplateId');
   });
   });
 });

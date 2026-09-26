@@ -92,6 +92,20 @@ export class TenantHomeSendBucketsResponseDto {
   total: number;
 }
 
+export class TenantHomeOutreachCampaignSendsResponseDto {
+  @ApiProperty({ example: 3 })
+  outreachCampaignId: number;
+
+  @ApiProperty({ example: 'Padrão' })
+  name: string;
+
+  @ApiProperty({ type: TenantHomeSendBucketsResponseDto })
+  today: TenantHomeSendBucketsResponseDto;
+
+  @ApiProperty({ type: TenantHomeSendBucketsResponseDto })
+  yesterday: TenantHomeSendBucketsResponseDto;
+}
+
 export class TenantHomeSendsResponseDto {
   @ApiProperty({ example: 'America/Sao_Paulo' })
   timezone: string;
@@ -101,6 +115,14 @@ export class TenantHomeSendsResponseDto {
 
   @ApiProperty({ type: TenantHomeSendBucketsResponseDto })
   yesterday: TenantHomeSendBucketsResponseDto;
+
+  @ApiProperty({
+    type: TenantHomeOutreachCampaignSendsResponseDto,
+    isArray: true,
+    description:
+      'Contagem pool (TenantLead com messageId) agrupada por campanha; list sends não entram',
+  })
+  byOutreachCampaign: TenantHomeOutreachCampaignSendsResponseDto[];
 }
 
 export class TenantHomeResponseDto {

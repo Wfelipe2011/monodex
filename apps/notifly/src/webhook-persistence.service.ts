@@ -219,9 +219,6 @@ export class WebhookPersistenceService {
         where: { id: tenantLead.id },
         data: {
           lastStatus: deliveryStatus,
-          ...(deliveryStatus === WhatsappDeliveryStatus.failed
-            ? { contacted: false }
-            : {}),
         },
       });
     }

@@ -116,11 +116,24 @@ describe('OutreachQuotaRefillService', () => {
       },
       tenantOutreachConfig: {
         findUnique: jest.fn().mockResolvedValue({
-          categories: ['Construtoras'],
           costPerLead: opts?.costPerLead ?? 2,
           costPerOnDemandSend: 0,
+        }),
+      },
+      tenantOutreachCampaign: {
+        findUnique: jest.fn().mockResolvedValue({
+          categories: ['Construtoras'],
+          cityId: null,
           sendIntervalSeconds: opts?.sendIntervalSeconds ?? 5,
         }),
+        findFirst: jest.fn().mockResolvedValue({
+          categories: ['Construtoras'],
+          cityId: null,
+          sendIntervalSeconds: opts?.sendIntervalSeconds ?? 5,
+        }),
+      },
+      tenantSendPolicy: {
+        findUnique: jest.fn().mockResolvedValue(null),
       },
       coin: {
         findFirst: jest.fn().mockResolvedValue({

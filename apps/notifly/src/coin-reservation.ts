@@ -16,10 +16,18 @@ export function isUnchargedPendingStatus(
   return lastStatus !== WhatsappDeliveryStatus.failed;
 }
 
-/** Phone exclusion for city outreach: failed does NOT exclude. */
+/**
+ * Pool audience lock for city outreach selection.
+ * Graph-accepted sends (`messageId` set) permanently exclude the phone, including Meta `failed`.
+ * Pending / in-flight sends without `messageId` still exclude via status (not failed).
+ */
 export function isCityPhoneExcludedByStatus(
   lastStatus: WhatsappDeliveryStatus | null | undefined,
+  messageId?: string | null,
 ): boolean {
+  if (messageId != null && messageId !== '') {
+    return true;
+  }
   return isUnchargedPendingStatus(lastStatus);
 }
 
@@ -70,7 +78,7 @@ export function cityUsedPhonesWhere(
 ): Prisma.TenantLeadWhereInput {
   return {
     tenantId,
-    ...lastStatusNotFailed,
+    messageId: { not: null },
   };
 }
 

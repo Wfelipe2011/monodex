@@ -558,7 +558,7 @@ describe('WebhookPersistenceService', () => {
     });
   });
 
-  it('failed de cidade seta contacted=false e chama billing (sem unlock de lista)', async () => {
+  it('failed de cidade mantém contacted e chama billing (sem unlock de lista)', async () => {
     const { service, prisma, coinDebitOnStatus, quotaRefill } = build({
       tenantLead: { id: 77, tenantId: CITY_TENANT_ID },
     });
@@ -570,7 +570,6 @@ describe('WebhookPersistenceService', () => {
       where: { id: 77 },
       data: {
         lastStatus: WhatsappDeliveryStatus.failed,
-        contacted: false,
       },
     });
     expect(prisma.tenantListLead.update).not.toHaveBeenCalled();

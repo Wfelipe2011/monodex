@@ -18,6 +18,13 @@ export type HomeSendBuckets = {
   total: number;
 };
 
+export type HomeOutreachCampaignSendBreakdown = {
+  outreachCampaignId: number;
+  name: string;
+  today: HomeSendBuckets;
+  yesterday: HomeSendBuckets;
+};
+
 export function saoPauloDayRange(now: Date): {
   yesterdayStart: Date;
   todayStart: Date;
@@ -147,20 +154,43 @@ export class OpsService {
           messageId: { not: null },
           createdAt: { gte: yesterdayStart, lt: tomorrowStart },
         },
-        select: { lastStatus: true, createdAt: true },
+        select: {
+          lastStatus: true,
+          createdAt: true,
+          outreachCampaignId: true,
+          outreachCampaign: { select: { name: true } },
+        },
       }),
     ]);
 
     const today = emptySendBuckets();
     const yesterday = emptySendBuckets();
+    const byCampaign = new Map<number, HomeOutreachCampaignSendBreakdown>();
 
     for (const row of listSends) {
       const bucket = row.sentAt >= todayStart ? today : yesterday;
       addSendStatus(bucket, row.lastStatus);
     }
     for (const row of citySends) {
-      const bucket = row.createdAt >= todayStart ? today : yesterday;
+      const isToday = row.createdAt >= todayStart;
+      const bucket = isToday ? today : yesterday;
       addSendStatus(bucket, row.lastStatus);
+
+      if (row.outreachCampaignId != null) {
+        let entry = byCampaign.get(row.outreachCampaignId);
+        if (!entry) {
+          entry = {
+            outreachCampaignId: row.outreachCampaignId,
+            name: row.outreachCampaign?.name ?? '',
+            today: emptySendBuckets(),
+            yesterday: emptySendBuckets(),
+          };
+          byCampaign.set(row.outreachCampaignId, entry);
+        } else if (!entry.name && row.outreachCampaign?.name) {
+          entry.name = row.outreachCampaign.name;
+        }
+        addSendStatus(isToday ? entry.today : entry.yesterday, row.lastStatus);
+      }
     }
 
     return {
@@ -181,6 +211,9 @@ export class OpsService {
         timezone: HOME_SENDS_TIMEZONE,
         today,
         yesterday,
+        byOutreachCampaign: [...byCampaign.values()].sort(
+          (a, b) => a.outreachCampaignId - b.outreachCampaignId,
+        ),
       },
     };
   }

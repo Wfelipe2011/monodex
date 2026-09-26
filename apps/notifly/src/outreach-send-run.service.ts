@@ -12,6 +12,7 @@ const RUN_TTL_MS = 60 * 60 * 1000;
 
 export type OpenCityRunArgs = {
   tenantId: number;
+  outreachCampaignId: number;
   targetCount: number;
 };
 
@@ -34,6 +35,7 @@ export class OutreachSendRunService {
     await this.closeExpiredOpenRuns({
       channel: OutreachSendRunChannel.CITY,
       tenantId: args.tenantId,
+      outreachCampaignId: args.outreachCampaignId,
       now,
     });
 
@@ -41,13 +43,14 @@ export class OutreachSendRunService {
       where: {
         channel: OutreachSendRunChannel.CITY,
         tenantId: args.tenantId,
+        outreachCampaignId: args.outreachCampaignId,
         status: OutreachSendRunStatus.OPEN,
         expiresAt: { gt: now },
       },
     });
     if (existing) {
       this.logger.log(
-        `[openCityRun] skip tenant=${args.tenantId}: OPEN run ${existing.id} ainda válido`,
+        `[openCityRun] skip tenant=${args.tenantId} campaign=${args.outreachCampaignId}: OPEN run ${existing.id} ainda válido`,
       );
       return null;
     }
@@ -56,6 +59,7 @@ export class OutreachSendRunService {
       data: {
         channel: OutreachSendRunChannel.CITY,
         tenantId: args.tenantId,
+        outreachCampaignId: args.outreachCampaignId,
         targetCount: args.targetCount,
         expiresAt: new Date(now.getTime() + RUN_TTL_MS),
       },
@@ -259,6 +263,7 @@ export class OutreachSendRunService {
     channel: OutreachSendRunChannel;
     tenantId?: number;
     campaignId?: number;
+    outreachCampaignId?: number;
     now: Date;
   }): Promise<void> {
     await this.prisma.outreachSendRun.updateMany({
@@ -268,6 +273,9 @@ export class OutreachSendRunService {
         expiresAt: { lte: args.now },
         ...(args.tenantId != null ? { tenantId: args.tenantId } : {}),
         ...(args.campaignId != null ? { campaignId: args.campaignId } : {}),
+        ...(args.outreachCampaignId != null
+          ? { outreachCampaignId: args.outreachCampaignId }
+          : {}),
       },
       data: {
         status: OutreachSendRunStatus.CLOSED,

@@ -47,6 +47,16 @@ describe('OpsService.home', () => {
     createdAt: new Date('2026-08-19T10:00:00.000Z'),
     tenantId: TENANT_ID,
     messageId: 'wamid.city-pending',
+    outreachCampaignId: 3,
+    outreachCampaign: { name: 'Camp A' },
+  };
+  const cityDeliveredToday = {
+    lastStatus: WhatsappDeliveryStatus.delivered,
+    createdAt: new Date('2026-08-19T11:00:00.000Z'),
+    tenantId: TENANT_ID,
+    messageId: 'wamid.city-delivered',
+    outreachCampaignId: 7,
+    outreachCampaign: { name: 'Camp B' },
   };
   const capturaToday = {
     lastStatus: null as WhatsappDeliveryStatus | null,
@@ -59,6 +69,8 @@ describe('OpsService.home', () => {
     createdAt: new Date('2026-08-18T12:00:00.000Z'),
     tenantId: TENANT_ID,
     messageId: 'wamid.city-yesterday',
+    outreachCampaignId: 3,
+    outreachCampaign: { name: 'Camp A' },
   };
   const listUtcTodayStillYesterdaySp = {
     lastStatus: WhatsappDeliveryStatus.sent,
@@ -83,7 +95,12 @@ describe('OpsService.home', () => {
     } | null;
   }) {
     const listSends = [listDeliveredToday, listUtcTodayStillYesterdaySp];
-    const cityLeads = [cityPendingToday, capturaToday, cityFailedYesterday];
+    const cityLeads = [
+      cityPendingToday,
+      cityDeliveredToday,
+      capturaToday,
+      cityFailedYesterday,
+    ];
 
     const prisma = {
       tenant: {
@@ -184,16 +201,16 @@ describe('OpsService.home', () => {
     expect(home.sends.timezone).toBe('America/Sao_Paulo');
     expect(home.sends.today).toEqual({
       sent: 0,
-      delivered: 1,
+      delivered: 2,
       read: 0,
       failed: 0,
       pending: 1,
-      total: 2,
+      total: 3,
     });
     expect(home.sends.yesterday.failed).toBe(1);
     expect(home.sends.yesterday.sent).toBe(1);
     expect(home.sends.yesterday.total).toBe(2);
-    expect(home.sends.today.total).toBe(2);
+    expect(home.sends.today.total).toBe(3);
 
     expect(prisma.tenantLead.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -218,6 +235,36 @@ describe('OpsService.home', () => {
       expect.arrayContaining([expect.objectContaining({ messageId: null })]),
     );
     expect(todayStart.toISOString()).toBe('2026-08-19T03:00:00.000Z');
+  });
+
+  it('byOutreachCampaign soma hoje ao total pool (sem list sends)', async () => {
+    const { service } = build();
+    const home = await service.home(TENANT_ID, NOW);
+
+    const poolTodayTotal = home.sends.today.total - 1;
+    const breakdownTodayTotal = home.sends.byOutreachCampaign.reduce(
+      (sum, row) => sum + row.today.total,
+      0,
+    );
+    expect(breakdownTodayTotal).toBe(poolTodayTotal);
+    expect(home.sends.byOutreachCampaign).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          outreachCampaignId: 3,
+          name: 'Camp A',
+          today: expect.objectContaining({ pending: 1, total: 1 }),
+        }),
+        expect.objectContaining({
+          outreachCampaignId: 7,
+          name: 'Camp B',
+          today: expect.objectContaining({ delivered: 1, total: 1 }),
+        }),
+      ]),
+    );
+    expect(
+      home.sends.byOutreachCampaign.find((r) => r.outreachCampaignId === 3)
+        ?.yesterday.failed,
+    ).toBe(1);
   });
 
   it('hasDedicatedNumber é false quando whatsappAccountId é null', async () => {

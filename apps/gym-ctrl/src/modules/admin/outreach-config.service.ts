@@ -11,27 +11,11 @@ import { UpsertOutreachConfigDto } from './dto/upsert-outreach-config.dto';
 import { UpsertTenantOutreachConfigDto } from './dto/upsert-tenant-outreach-config.dto';
 import { PatchOutreachConfigDto } from './dto/patch-outreach-config.dto';
 import { PatchPlatformOutreachConfigDto } from './dto/patch-platform-outreach-config.dto';
-import { assertTemplateGranted } from './assert-template-grant';
 import { rejectForbiddenBodyKeys } from './reject-forbidden-body-keys';
 import { eligibleOutreachCategories } from '@core/shared/eligible-outreach-categories';
 import { asIntArray, cityAllowed } from '@core/shared/send-policy';
-import {
-  assertSlotBindingsValid,
-  persistedSlotKeys,
-  SlotBindingInput,
-  SlotBindingsInput,
-} from './slot-bindings.validate';
 
-const TENANT_OWNED_OUTREACH_KEYS = [
-  'enabled',
-  'schedule',
-  'categories',
-  'leadsPerRun',
-  'sendIntervalSeconds',
-  'slotBindings',
-  'outreachTemplateId',
-  'notifyTemplateId',
-] as const;
+const TENANT_OWNED_OUTREACH_KEYS = ['enabled'] as const;
 
 const PLATFORM_OUTREACH_KEYS = [
   'costPerLead',
@@ -46,18 +30,6 @@ const RESOLVED_ACCOUNT_SELECT = {
   phoneNumberId: true,
   displayPhone: true,
   isDefault: true,
-} as const;
-
-const TEMPLATE_MIN_SELECT = {
-  id: true,
-  name: true,
-  language: true,
-  status: true,
-} as const;
-
-const CONFIG_INCLUDE = {
-  outreachTemplate: { select: TEMPLATE_MIN_SELECT },
-  notifyTemplate: { select: TEMPLATE_MIN_SELECT },
 } as const;
 
 type TenantReadiness = { id: number; phone: string | null; active: boolean };
@@ -92,14 +64,19 @@ export class OutreachConfigService {
     await this.ensureTenant(tenantId);
     const config = await this.prisma.tenantOutreachConfig.findUnique({
       where: { tenantId },
-      include: CONFIG_INCLUDE,
     });
     if (!config) {
       throw new NotFoundException(
         `Outreach config do tenant ${tenantId} não encontrada`,
       );
     }
-    return this.withResolvedWhatsappAccount(config);
+    const campaignCount = await this.prisma.tenantOutreachCampaign.count({
+      where: { tenantId },
+    });
+    return {
+      ...(await this.withResolvedWhatsappAccount(config)),
+      campaignCount,
+    };
   }
 
   async createBootstrap(
@@ -123,20 +100,11 @@ export class OutreachConfigService {
 
     const enabled = dto.enabled ?? false;
     const cashbackOnReply = dto.cashbackOnReply ?? 0;
-    const slotBindings = assertSlotBindingsValid(dto.slotBindings);
 
-    await this.assertTemplateIdsGranted(tenantId, {
-      outreachTemplateId: dto.outreachTemplateId,
-      notifyTemplateId: dto.notifyTemplateId,
-    });
-    await this.assertEnableAllowed(tenant, {
+    await this.assertMasterEnableAllowed(tenant, {
       enabled,
       costPerLead: dto.costPerLead,
-      outreachTemplateId: dto.outreachTemplateId,
-      notifyTemplateId: dto.notifyTemplateId,
-      slotBindings,
     });
-    await this.assertPlatformCategoriesValid(dto.categories);
 
     const whatsappAccountId = dto.whatsappAccountId ?? null;
     await this.assertAssignableWhatsappAccount(whatsappAccountId, tenantId);
@@ -148,16 +116,8 @@ export class OutreachConfigService {
           enabled,
           costPerLead: dto.costPerLead,
           cashbackOnReply,
-          outreachTemplateId: dto.outreachTemplateId,
-          notifyTemplateId: dto.notifyTemplateId,
           whatsappAccountId,
-          slotBindings: slotBindings as unknown as Prisma.InputJsonValue,
-          schedule: dto.schedule as Prisma.InputJsonValue,
-          categories: dto.categories as Prisma.InputJsonValue,
-          leadsPerRun: dto.leadsPerRun ?? 5,
-          sendIntervalSeconds: dto.sendIntervalSeconds ?? 5,
         },
-        include: CONFIG_INCLUDE,
       });
       return this.withResolvedWhatsappAccount(created);
     } catch (error) {
@@ -203,6 +163,14 @@ export class OutreachConfigService {
       );
     }
 
+    if (existing.enabled && dto.costPerLead !== undefined) {
+      const tenant = await this.loadTenant(tenantId);
+      await this.assertMasterEnableAllowed(tenant, {
+        enabled: true,
+        costPerLead: dto.costPerLead,
+      });
+    }
+
     try {
       const updated = await this.prisma.tenantOutreachConfig.update({
         where: { tenantId },
@@ -223,7 +191,6 @@ export class OutreachConfigService {
             ? { whatsappAccountId: dto.whatsappAccountId }
             : {}),
         },
-        include: CONFIG_INCLUDE,
       });
       return this.withResolvedWhatsappAccount(updated);
     } catch (error) {
@@ -253,24 +220,10 @@ export class OutreachConfigService {
     });
 
     const enabled = dto.enabled ?? false;
-    const slotBindings = assertSlotBindingsValid(
-      dto.slotBindings ?? { outreach: {}, notify: {} },
-    );
-    const outreachTemplateId = dto.outreachTemplateId ?? null;
-    const notifyTemplateId = dto.notifyTemplateId ?? null;
-
-    await this.assertTemplateIdsGranted(tenantId, {
-      outreachTemplateId,
-      notifyTemplateId,
-    });
-    await this.assertEnableAllowed(tenant, {
+    await this.assertMasterEnableAllowed(tenant, {
       enabled,
       costPerLead: 0,
-      outreachTemplateId,
-      notifyTemplateId,
-      slotBindings,
     });
-    await this.assertTenantCategoriesValid(tenantId, dto.categories ?? []);
 
     const created = await this.prisma.tenantOutreachConfig.create({
       data: {
@@ -279,15 +232,7 @@ export class OutreachConfigService {
         costPerLead: 0,
         costPerOnDemandSend: 0,
         cashbackOnReply: 0,
-        outreachTemplateId,
-        notifyTemplateId,
-        slotBindings: slotBindings as unknown as Prisma.InputJsonValue,
-        schedule: (dto.schedule ?? {}) as Prisma.InputJsonValue,
-        categories: (dto.categories ?? []) as Prisma.InputJsonValue,
-        leadsPerRun: dto.leadsPerRun ?? 5,
-        sendIntervalSeconds: dto.sendIntervalSeconds ?? 5,
       },
-      include: CONFIG_INCLUDE,
     });
     return this.withResolvedWhatsappAccount(created);
   }
@@ -321,68 +266,17 @@ export class OutreachConfigService {
       isPlatformField: false,
     });
 
-    const slotBindings =
-      dto.slotBindings !== undefined
-        ? assertSlotBindingsValid(dto.slotBindings)
-        : this.asSlotBindings(existing.slotBindings);
-
-    const outreachTemplateId =
-      dto.outreachTemplateId !== undefined
-        ? dto.outreachTemplateId
-        : existing.outreachTemplateId;
-    const notifyTemplateId =
-      dto.notifyTemplateId !== undefined
-        ? dto.notifyTemplateId
-        : existing.notifyTemplateId;
-
-    await this.assertTemplateIdsGranted(tenantId, {
-      outreachTemplateId: dto.outreachTemplateId,
-      notifyTemplateId: dto.notifyTemplateId,
-    });
-
-    const merged = {
-      enabled: dto.enabled ?? existing.enabled,
+    const mergedEnabled = dto.enabled ?? existing.enabled;
+    await this.assertMasterEnableAllowed(tenant, {
+      enabled: mergedEnabled,
       costPerLead: existing.costPerLead,
-      outreachTemplateId,
-      notifyTemplateId,
-      slotBindings,
-    };
-
-    await this.assertEnableAllowed(tenant, merged);
-
-    if (dto.categories !== undefined) {
-      await this.assertTenantCategoriesValid(tenantId, dto.categories);
-    }
+    });
 
     const updated = await this.prisma.tenantOutreachConfig.update({
       where: { tenantId },
       data: {
         ...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
-        ...(dto.outreachTemplateId !== undefined
-          ? { outreachTemplateId: dto.outreachTemplateId }
-          : {}),
-        ...(dto.notifyTemplateId !== undefined
-          ? { notifyTemplateId: dto.notifyTemplateId }
-          : {}),
-        ...(dto.slotBindings !== undefined
-          ? {
-              slotBindings: slotBindings as unknown as Prisma.InputJsonValue,
-            }
-          : {}),
-        ...(dto.schedule !== undefined
-          ? { schedule: dto.schedule as Prisma.InputJsonValue }
-          : {}),
-        ...(dto.categories !== undefined
-          ? { categories: dto.categories as Prisma.InputJsonValue }
-          : {}),
-        ...(dto.leadsPerRun !== undefined
-          ? { leadsPerRun: dto.leadsPerRun }
-          : {}),
-        ...(dto.sendIntervalSeconds !== undefined
-          ? { sendIntervalSeconds: dto.sendIntervalSeconds }
-          : {}),
       },
-      include: CONFIG_INCLUDE,
     });
     return this.withResolvedWhatsappAccount(updated);
   }
@@ -481,31 +375,6 @@ export class OutreachConfigService {
     return TENANT_OWNED_OUTREACH_KEYS.filter((k) => keys.includes(k));
   }
 
-  private asSlotBindings(raw: Prisma.JsonValue): SlotBindingsInput {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      return { outreach: {}, notify: {} };
-    }
-    const rec = raw as Record<string, unknown>;
-    const outreach = isRecord(rec.outreach)
-      ? (rec.outreach as Record<string, SlotBindingInput>)
-      : {};
-    const notify = isRecord(rec.notify)
-      ? (rec.notify as Record<string, SlotBindingInput>)
-      : {};
-    return { outreach, notify };
-  }
-
-  private async assertTemplateIdsGranted(
-    tenantId: number,
-    ids: {
-      outreachTemplateId?: number | null;
-      notifyTemplateId?: number | null;
-    },
-  ) {
-    await assertTemplateGranted(this.prisma, tenantId, ids.outreachTemplateId);
-    await assertTemplateGranted(this.prisma, tenantId, ids.notifyTemplateId);
-  }
-
   private async loadTenantCityPolicy(tenantId: number) {
     const policy = await this.prisma.tenantSendPolicy.findUnique({
       where: { tenantId },
@@ -530,54 +399,6 @@ export class OutreachConfigService {
     });
   }
 
-  private async tenantCategoryAllowList(tenantId: number): Promise<Set<string>> {
-    const { allowedCityIds, deniedCityIds } =
-      await this.loadTenantCityPolicy(tenantId);
-    const targets = await this.loadEnabledScrapeTargetsForCatalog();
-    return new Set(
-      eligibleOutreachCategories({
-        allowedCityIds,
-        deniedCityIds,
-        targets,
-      }),
-    );
-  }
-
-  private async globalEnabledCategoryAllowList(): Promise<Set<string>> {
-    const targets = await this.loadEnabledScrapeTargetsForCatalog();
-    return new Set(targets.map((t) => t.category));
-  }
-
-  /**
-   * Case-sensitive match to ScrapeTarget.category strings (no normalization).
-   */
-  private assertCategoriesInAllowList(
-    categories: string[],
-    allowList: Set<string>,
-  ): void {
-    const invalid = categories.filter((c) => !allowList.has(c));
-    if (invalid.length > 0) {
-      throw new BadRequestException(
-        `Categorias inválidas: ${invalid.join(', ')}`,
-      );
-    }
-  }
-
-  private async assertTenantCategoriesValid(
-    tenantId: number,
-    categories: string[],
-  ): Promise<void> {
-    const allowList = await this.tenantCategoryAllowList(tenantId);
-    this.assertCategoriesInAllowList(categories, allowList);
-  }
-
-  private async assertPlatformCategoriesValid(
-    categories: string[],
-  ): Promise<void> {
-    const allowList = await this.globalEnabledCategoryAllowList();
-    this.assertCategoriesInAllowList(categories, allowList);
-  }
-
   private async ensureTenant(tenantId: number) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -599,15 +420,9 @@ export class OutreachConfigService {
     return tenant;
   }
 
-  private async assertEnableAllowed(
+  private async assertMasterEnableAllowed(
     tenant: TenantReadiness,
-    fields: {
-      enabled: boolean;
-      costPerLead: number;
-      outreachTemplateId: number | null;
-      notifyTemplateId: number | null;
-      slotBindings: SlotBindingsInput;
-    },
+    fields: { enabled: boolean; costPerLead: number },
   ) {
     if (!fields.enabled) return;
 
@@ -626,84 +441,5 @@ export class OutreachConfigService {
         'Não é possível habilitar outreach: costPerLead deve ser > 0',
       );
     }
-    if (fields.outreachTemplateId == null || fields.notifyTemplateId == null) {
-      throw new BadRequestException(
-        'Não é possível habilitar outreach: outreachTemplateId e notifyTemplateId são obrigatórios',
-      );
-    }
-
-    await this.assertTemplateIdsGranted(tenant.id, {
-      outreachTemplateId: fields.outreachTemplateId,
-      notifyTemplateId: fields.notifyTemplateId,
-    });
-
-    const [outreachTemplate, notifyTemplate] = await Promise.all([
-      this.prisma.whatsappMessageTemplate.findUnique({
-        where: { id: fields.outreachTemplateId },
-        select: { id: true, status: true, slots: true },
-      }),
-      this.prisma.whatsappMessageTemplate.findUnique({
-        where: { id: fields.notifyTemplateId },
-        select: { id: true, status: true, slots: true },
-      }),
-    ]);
-
-    if (!outreachTemplate) {
-      throw new BadRequestException(
-        `Não é possível habilitar outreach: template ${fields.outreachTemplateId} não encontrado`,
-      );
-    }
-    if (!notifyTemplate) {
-      throw new BadRequestException(
-        `Não é possível habilitar outreach: template ${fields.notifyTemplateId} não encontrado`,
-      );
-    }
-
-    this.assertApproved('outreach', outreachTemplate.status);
-    this.assertApproved('notify', notifyTemplate.status);
-    this.assertSlotCoverage(
-      'outreach',
-      persistedSlotKeys(outreachTemplate.slots),
-      fields.slotBindings.outreach,
-    );
-    this.assertSlotCoverage(
-      'notify',
-      persistedSlotKeys(notifyTemplate.slots),
-      fields.slotBindings.notify,
-    );
   }
-
-  private assertApproved(role: string, status: string) {
-    if (status.trim().toUpperCase() !== 'APPROVED') {
-      throw new BadRequestException(
-        `Não é possível habilitar outreach: template ${role} deve estar APPROVED (status=${status})`,
-      );
-    }
-  }
-
-  private assertSlotCoverage(
-    role: 'outreach' | 'notify',
-    requiredKeys: string[],
-    bindings: Record<string, SlotBindingInput>,
-  ) {
-    for (const key of requiredKeys) {
-      const binding = bindings[key];
-      if (!binding) {
-        throw new BadRequestException(
-          `Não é possível habilitar outreach: slotBindings.${role} omite ${key}`,
-        );
-      }
-      if (binding.type === 'literal' || binding.type === 'header_image') {
-        if (!(binding.value ?? '').trim()) {
-          throw new BadRequestException(
-            `Não é possível habilitar outreach: slotBindings.${role}.${key} exige value`,
-          );
-        }
-      }
-    }
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }

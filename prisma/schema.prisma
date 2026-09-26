@@ -42,6 +42,7 @@ model Tenant {
   outreachSendRuns             OutreachSendRun[]
   scrapeOnDemandStates         ScrapeOnDemandState[]
   scrapeOnDemandRuns           ScrapeOnDemandRun[]
+  outreachCampaigns            TenantOutreachCampaign[]
 
   @@map("tenants")
 }
@@ -177,11 +178,15 @@ model TenantLead {
   coinRefundedAt     DateTime?                @map("coin_refunded_at")
   runId              Int?                     @map("run_id")
   run                OutreachSendRun?         @relation(fields: [runId], references: [id])
+  outreachCampaignId Int?                     @map("outreach_campaign_id")
+  outreachCampaign   TenantOutreachCampaign?  @relation(fields: [outreachCampaignId], references: [id])
   refillTriggeredAt  DateTime?                @map("refill_triggered_at")
   wasPremium         Boolean?                 @map("was_premium")
   sendStatuses       WhatsappSendStatus[]
 
+  @@unique([tenantId, leadId])
   @@index([runId])
+  @@index([outreachCampaignId])
   @@map("tenant_leads")
 }
 
@@ -236,8 +241,9 @@ model City {
   state           String?
   Neighborhood    Neighborhood[]
   leads           Lead[]
-  scrapeTargets   ScrapeTarget[]
-  scrapeCoverages ScrapeCoverage[]
+  scrapeTargets     ScrapeTarget[]
+  scrapeCoverages   ScrapeCoverage[]
+  outreachCampaigns TenantOutreachCampaign[]
 
   @@map("cities")
 }
@@ -369,8 +375,8 @@ model WhatsappMessageTemplate {
   lastSyncedAt      DateTime               @map("last_synced_at")
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @updatedAt @map("updated_at")
-  outreachConfigs     TenantOutreachConfig[] @relation("OutreachTemplate")
-  notifyConfigs       TenantOutreachConfig[] @relation("NotifyTemplate")
+  outreachCampaigns       TenantOutreachCampaign[] @relation("OutreachCampaignOutreachTemplate")
+  notifyOutreachCampaigns TenantOutreachCampaign[] @relation("OutreachCampaignNotifyTemplate")
   listCampaigns       TenantListCampaign[]   @relation("ListCampaignTemplate")
   notifyListCampaigns TenantListCampaign[]   @relation("ListCampaignNotifyTemplate")
   tenantGrants        TenantTemplateGrant[]
@@ -390,21 +396,37 @@ model TenantOutreachConfig {
   costPerOnDemandSend Float                    @default(0) @map("cost_per_on_demand_send")
   cashbackOnReply     Float                    @default(0) @map("cashback_on_reply")
   coinDebitOnStatus   CoinDebitOnStatus        @default(delivered) @map("coin_debit_on_status")
-  outreachTemplateId  Int?                     @map("outreach_template_id")
-  notifyTemplateId    Int?                     @map("notify_template_id")
-  outreachTemplate    WhatsappMessageTemplate? @relation("OutreachTemplate", fields: [outreachTemplateId], references: [id])
-  notifyTemplate      WhatsappMessageTemplate? @relation("NotifyTemplate", fields: [notifyTemplateId], references: [id])
   whatsappAccountId   Int?                     @unique @map("whatsapp_account_id")
   whatsappAccount     WhatsappAccount?         @relation(fields: [whatsappAccountId], references: [id], onDelete: Restrict)
-  slotBindings        Json                     @default("{}") @map("slot_bindings")
-  schedule            Json
-  categories          Json
-  leadsPerRun         Int                      @default(5) @map("leads_per_run")
-  sendIntervalSeconds Int                      @default(5) @map("send_interval_seconds")
   createdAt           DateTime                 @default(now()) @map("created_at")
   updatedAt           DateTime                 @updatedAt @map("updated_at")
 
   @@map("tenant_outreach_configs")
+}
+
+model TenantOutreachCampaign {
+  id                  Int                      @id @default(autoincrement())
+  tenantId            Int                      @map("tenant_id")
+  tenant              Tenant                   @relation(fields: [tenantId], references: [id])
+  name                String
+  enabled             Boolean                  @default(false)
+  schedule            Json
+  categories          Json
+  leadsPerRun         Int                      @default(5) @map("leads_per_run")
+  sendIntervalSeconds Int                      @default(5) @map("send_interval_seconds")
+  outreachTemplateId  Int?                     @map("outreach_template_id")
+  notifyTemplateId    Int?                     @map("notify_template_id")
+  outreachTemplate    WhatsappMessageTemplate? @relation("OutreachCampaignOutreachTemplate", fields: [outreachTemplateId], references: [id])
+  notifyTemplate      WhatsappMessageTemplate? @relation("OutreachCampaignNotifyTemplate", fields: [notifyTemplateId], references: [id])
+  slotBindings        Json                     @default("{}") @map("slot_bindings")
+  cityId              Int?                     @map("city_id")
+  city                City?                    @relation(fields: [cityId], references: [id])
+  outreachSendRuns    OutreachSendRun[]
+  tenantLeads         TenantLead[]
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
+
+  @@map("tenant_outreach_campaigns")
 }
 
 model TenantSendPolicy {
@@ -600,9 +622,11 @@ model OutreachSendRun {
   channel      OutreachSendRunChannel
   tenantId     Int                          @map("tenant_id")
   tenant       Tenant                       @relation(fields: [tenantId], references: [id])
-  campaignId   Int?                         @map("campaign_id")
-  campaign     TenantListCampaign?          @relation(fields: [campaignId], references: [id])
-  targetCount  Int                          @map("target_count")
+  campaignId         Int?                         @map("campaign_id")
+  campaign           TenantListCampaign?          @relation(fields: [campaignId], references: [id])
+  outreachCampaignId Int?                         @map("outreach_campaign_id")
+  outreachCampaign   TenantOutreachCampaign?      @relation(fields: [outreachCampaignId], references: [id])
+  targetCount        Int                          @map("target_count")
   tryCount     Int                          @default(0) @map("try_count")
   attemptCount Int                          @default(0) @map("attempt_count")
   chargedCount Int                          @default(0) @map("charged_count")
@@ -616,6 +640,7 @@ model OutreachSendRun {
 
   @@index([tenantId, channel, status])
   @@index([campaignId, status])
+  @@index([outreachCampaignId, status])
   @@index([expiresAt])
   @@map("outreach_send_runs")
 }

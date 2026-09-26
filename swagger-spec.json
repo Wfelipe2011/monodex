@@ -3578,51 +3578,16 @@
                   "costPerOnDemandSend": 1.2,
                   "cashbackOnReply": 0.1,
                   "coinDebitOnStatus": "delivered",
-                  "outreachTemplateId": 10,
-                  "notifyTemplateId": 11,
                   "whatsappAccountId": 3,
-                  "slotBindings": {
-                    "outreach": {
-                      "body.1": {
-                        "type": "literal",
-                        "value": "Acme"
-                      }
-                    },
-                    "notify": {}
-                  },
-                  "schedule": {
-                    "days": [
-                      "MON",
-                      "WED"
-                    ],
-                    "startHour": 9,
-                    "endHour": 18
-                  },
-                  "categories": [
-                    "Construtoras"
-                  ],
-                  "leadsPerRun": 5,
-                  "sendIntervalSeconds": 5,
                   "createdAt": "2026-08-17T12:00:00.000Z",
                   "updatedAt": "2026-09-24T17:00:00.000Z",
-                  "outreachTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
-                  "notifyTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
                   "resolvedWhatsappAccount": {
                     "id": 2,
                     "phoneNumberId": "123456789012345",
                     "displayPhone": "+55 12 98888-7777",
                     "isDefault": false
-                  }
+                  },
+                  "campaignCount": 2
                 }
               }
             }
@@ -3724,51 +3689,16 @@
                   "costPerOnDemandSend": 1.2,
                   "cashbackOnReply": 0.1,
                   "coinDebitOnStatus": "delivered",
-                  "outreachTemplateId": 10,
-                  "notifyTemplateId": 11,
                   "whatsappAccountId": 3,
-                  "slotBindings": {
-                    "outreach": {
-                      "body.1": {
-                        "type": "literal",
-                        "value": "Acme"
-                      }
-                    },
-                    "notify": {}
-                  },
-                  "schedule": {
-                    "days": [
-                      "MON",
-                      "WED"
-                    ],
-                    "startHour": 9,
-                    "endHour": 18
-                  },
-                  "categories": [
-                    "Construtoras"
-                  ],
-                  "leadsPerRun": 5,
-                  "sendIntervalSeconds": 5,
                   "createdAt": "2026-08-17T12:00:00.000Z",
                   "updatedAt": "2026-09-24T17:00:00.000Z",
-                  "outreachTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
-                  "notifyTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
                   "resolvedWhatsappAccount": {
                     "id": 2,
                     "phoneNumberId": "123456789012345",
                     "displayPhone": "+55 12 98888-7777",
                     "isDefault": false
-                  }
+                  },
+                  "campaignCount": 2
                 }
               }
             }
@@ -3900,51 +3830,16 @@
                   "costPerOnDemandSend": 1.2,
                   "cashbackOnReply": 0.1,
                   "coinDebitOnStatus": "delivered",
-                  "outreachTemplateId": 10,
-                  "notifyTemplateId": 11,
                   "whatsappAccountId": 3,
-                  "slotBindings": {
-                    "outreach": {
-                      "body.1": {
-                        "type": "literal",
-                        "value": "Acme"
-                      }
-                    },
-                    "notify": {}
-                  },
-                  "schedule": {
-                    "days": [
-                      "MON",
-                      "WED"
-                    ],
-                    "startHour": 9,
-                    "endHour": 18
-                  },
-                  "categories": [
-                    "Construtoras"
-                  ],
-                  "leadsPerRun": 5,
-                  "sendIntervalSeconds": 5,
                   "createdAt": "2026-08-17T12:00:00.000Z",
                   "updatedAt": "2026-09-24T17:00:00.000Z",
-                  "outreachTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
-                  "notifyTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
                   "resolvedWhatsappAccount": {
                     "id": 2,
                     "phoneNumberId": "123456789012345",
                     "displayPhone": "+55 12 98888-7777",
                     "isDefault": false
-                  }
+                  },
+                  "campaignCount": 2
                 }
               }
             }
@@ -4068,51 +3963,16 @@
                   "costPerOnDemandSend": 1.2,
                   "cashbackOnReply": 0.1,
                   "coinDebitOnStatus": "delivered",
-                  "outreachTemplateId": 10,
-                  "notifyTemplateId": 11,
                   "whatsappAccountId": 3,
-                  "slotBindings": {
-                    "outreach": {
-                      "body.1": {
-                        "type": "literal",
-                        "value": "Acme"
-                      }
-                    },
-                    "notify": {}
-                  },
-                  "schedule": {
-                    "days": [
-                      "MON",
-                      "WED"
-                    ],
-                    "startHour": 9,
-                    "endHour": 18
-                  },
-                  "categories": [
-                    "Construtoras"
-                  ],
-                  "leadsPerRun": 5,
-                  "sendIntervalSeconds": 5,
                   "createdAt": "2026-08-17T12:00:00.000Z",
                   "updatedAt": "2026-09-24T17:00:00.000Z",
-                  "outreachTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
-                  "notifyTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
                   "resolvedWhatsappAccount": {
                     "id": 2,
                     "phoneNumberId": "123456789012345",
                     "displayPhone": "+55 12 98888-7777",
                     "isDefault": false
-                  }
+                  },
+                  "campaignCount": 2
                 }
               }
             }
@@ -4214,51 +4074,16 @@
                   "costPerOnDemandSend": 1.2,
                   "cashbackOnReply": 0.1,
                   "coinDebitOnStatus": "delivered",
-                  "outreachTemplateId": 10,
-                  "notifyTemplateId": 11,
                   "whatsappAccountId": 3,
-                  "slotBindings": {
-                    "outreach": {
-                      "body.1": {
-                        "type": "literal",
-                        "value": "Acme"
-                      }
-                    },
-                    "notify": {}
-                  },
-                  "schedule": {
-                    "days": [
-                      "MON",
-                      "WED"
-                    ],
-                    "startHour": 9,
-                    "endHour": 18
-                  },
-                  "categories": [
-                    "Construtoras"
-                  ],
-                  "leadsPerRun": 5,
-                  "sendIntervalSeconds": 5,
                   "createdAt": "2026-08-17T12:00:00.000Z",
                   "updatedAt": "2026-09-24T17:00:00.000Z",
-                  "outreachTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
-                  "notifyTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
                   "resolvedWhatsappAccount": {
                     "id": 2,
                     "phoneNumberId": "123456789012345",
                     "displayPhone": "+55 12 98888-7777",
                     "isDefault": false
-                  }
+                  },
+                  "campaignCount": 2
                 }
               }
             }
@@ -4375,51 +4200,16 @@
                   "costPerOnDemandSend": 1.2,
                   "cashbackOnReply": 0.1,
                   "coinDebitOnStatus": "delivered",
-                  "outreachTemplateId": 10,
-                  "notifyTemplateId": 11,
                   "whatsappAccountId": 3,
-                  "slotBindings": {
-                    "outreach": {
-                      "body.1": {
-                        "type": "literal",
-                        "value": "Acme"
-                      }
-                    },
-                    "notify": {}
-                  },
-                  "schedule": {
-                    "days": [
-                      "MON",
-                      "WED"
-                    ],
-                    "startHour": 9,
-                    "endHour": 18
-                  },
-                  "categories": [
-                    "Construtoras"
-                  ],
-                  "leadsPerRun": 5,
-                  "sendIntervalSeconds": 5,
                   "createdAt": "2026-08-17T12:00:00.000Z",
                   "updatedAt": "2026-09-24T17:00:00.000Z",
-                  "outreachTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
-                  "notifyTemplate": {
-                    "id": 10,
-                    "name": "outreach_v1",
-                    "language": "pt_BR",
-                    "status": "APPROVED"
-                  },
                   "resolvedWhatsappAccount": {
                     "id": 2,
                     "phoneNumberId": "123456789012345",
                     "displayPhone": "+55 12 98888-7777",
                     "isDefault": false
-                  }
+                  },
+                  "campaignCount": 2
                 }
               }
             }
@@ -10028,6 +9818,691 @@
         ]
       }
     },
+    "/tenant/{tenantId}/outreach-campaigns": {
+      "get": {
+        "description": "Inclui relação mínima dos templates (id, name, language, status) e bindings persistidos.",
+        "operationId": "OutreachCampaignsController_listCampaigns",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OutreachCampaignResponseDto"
+                  }
+                },
+                "example": [
+                  {
+                    "id": 3,
+                    "tenantId": 8,
+                    "name": "Padrão",
+                    "enabled": true,
+                    "schedule": {
+                      "2": [
+                        18
+                      ],
+                      "4": [
+                        13
+                      ]
+                    },
+                    "categories": [
+                      "Construtoras"
+                    ],
+                    "leadsPerRun": 5,
+                    "sendIntervalSeconds": 5,
+                    "outreachTemplateId": 10,
+                    "notifyTemplateId": 11,
+                    "slotBindings": {
+                      "outreach": {
+                        "body.1": {
+                          "type": "literal",
+                          "value": "Acme"
+                        }
+                      },
+                      "notify": {}
+                    },
+                    "cityId": 1,
+                    "createdAt": "2026-08-17T12:00:00.000Z",
+                    "updatedAt": "2026-09-24T17:00:00.000Z",
+                    "outreachTemplate": {
+                      "id": 10,
+                      "name": "outreach_v1",
+                      "language": "pt_BR",
+                      "status": "APPROVED"
+                    },
+                    "notifyTemplate": {
+                      "id": 10,
+                      "name": "outreach_v1",
+                      "language": "pt_BR",
+                      "status": "APPROVED"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente, expirado ou inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 401,
+                  "message": "Unauthorized",
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant inativo, escopo incorreto (tenantId do token ≠ path) ou role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 403,
+                  "message": "Tenant inativo, escopo incorreto (tenantId do token ≠ path) ou role insuficiente",
+                  "error": "Forbidden"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 404,
+                  "message": "Tenant não encontrado",
+                  "error": "Not Found"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar campanhas de prospecção (pool)",
+        "tags": [
+          "Tenant — Outreach Campaigns"
+        ]
+      },
+      "post": {
+        "description": "enabled=true exige templates APPROVED, grants válidos e slotBindings outreach/notify completos.",
+        "operationId": "OutreachCampaignsController_createCampaign",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertOutreachCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachCampaignResponseDto"
+                },
+                "example": {
+                  "id": 3,
+                  "tenantId": 8,
+                  "name": "Padrão",
+                  "enabled": true,
+                  "schedule": {
+                    "2": [
+                      18
+                    ],
+                    "4": [
+                      13
+                    ]
+                  },
+                  "categories": [
+                    "Construtoras"
+                  ],
+                  "leadsPerRun": 5,
+                  "sendIntervalSeconds": 5,
+                  "outreachTemplateId": 10,
+                  "notifyTemplateId": 11,
+                  "slotBindings": {
+                    "outreach": {
+                      "body.1": {
+                        "type": "literal",
+                        "value": "Acme"
+                      }
+                    },
+                    "notify": {}
+                  },
+                  "cityId": 1,
+                  "createdAt": "2026-08-17T12:00:00.000Z",
+                  "updatedAt": "2026-09-24T17:00:00.000Z",
+                  "outreachTemplate": {
+                    "id": 10,
+                    "name": "outreach_v1",
+                    "language": "pt_BR",
+                    "status": "APPROVED"
+                  },
+                  "notifyTemplate": {
+                    "id": 10,
+                    "name": "outreach_v1",
+                    "language": "pt_BR",
+                    "status": "APPROVED"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação de enable, cityId, categorias ou bindings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 400,
+                  "message": "Validação de enable, cityId, categorias ou bindings",
+                  "error": "Bad Request"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente, expirado ou inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 401,
+                  "message": "Unauthorized",
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant inativo, escopo incorreto (tenantId do token ≠ path) ou role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 403,
+                  "message": "Tenant inativo, escopo incorreto (tenantId do token ≠ path) ou role insuficiente",
+                  "error": "Forbidden"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 404,
+                  "message": "Tenant não encontrado",
+                  "error": "Not Found"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Criar campanha de prospecção",
+        "tags": [
+          "Tenant — Outreach Campaigns"
+        ]
+      }
+    },
+    "/tenant/{tenantId}/outreach-campaigns/{campaignId}": {
+      "get": {
+        "operationId": "OutreachCampaignsController_getCampaign",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "description": "ID da campanha de prospecção (pool)",
+            "schema": {
+              "example": 3,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachCampaignResponseDto"
+                },
+                "example": {
+                  "id": 3,
+                  "tenantId": 8,
+                  "name": "Padrão",
+                  "enabled": true,
+                  "schedule": {
+                    "2": [
+                      18
+                    ],
+                    "4": [
+                      13
+                    ]
+                  },
+                  "categories": [
+                    "Construtoras"
+                  ],
+                  "leadsPerRun": 5,
+                  "sendIntervalSeconds": 5,
+                  "outreachTemplateId": 10,
+                  "notifyTemplateId": 11,
+                  "slotBindings": {
+                    "outreach": {
+                      "body.1": {
+                        "type": "literal",
+                        "value": "Acme"
+                      }
+                    },
+                    "notify": {}
+                  },
+                  "cityId": 1,
+                  "createdAt": "2026-08-17T12:00:00.000Z",
+                  "updatedAt": "2026-09-24T17:00:00.000Z",
+                  "outreachTemplate": {
+                    "id": 10,
+                    "name": "outreach_v1",
+                    "language": "pt_BR",
+                    "status": "APPROVED"
+                  },
+                  "notifyTemplate": {
+                    "id": 10,
+                    "name": "outreach_v1",
+                    "language": "pt_BR",
+                    "status": "APPROVED"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente, expirado ou inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 401,
+                  "message": "Unauthorized",
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant inativo, escopo incorreto (tenantId do token ≠ path) ou role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 403,
+                  "message": "Tenant inativo, escopo incorreto (tenantId do token ≠ path) ou role insuficiente",
+                  "error": "Forbidden"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant ou campanha não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 404,
+                  "message": "Tenant ou campanha não encontrado",
+                  "error": "Not Found"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Obter campanha por id",
+        "tags": [
+          "Tenant — Outreach Campaigns"
+        ]
+      },
+      "patch": {
+        "description": "Merge com valores existentes. enabled=true revalida templates e bindings resultantes.",
+        "operationId": "OutreachCampaignsController_patchCampaign",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "description": "ID da campanha de prospecção (pool)",
+            "schema": {
+              "example": 3,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchOutreachCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachCampaignResponseDto"
+                },
+                "example": {
+                  "id": 3,
+                  "tenantId": 8,
+                  "name": "Padrão",
+                  "enabled": true,
+                  "schedule": {
+                    "2": [
+                      18
+                    ],
+                    "4": [
+                      13
+                    ]
+                  },
+                  "categories": [
+                    "Construtoras"
+                  ],
+                  "leadsPerRun": 5,
+                  "sendIntervalSeconds": 5,
+                  "outreachTemplateId": 10,
+                  "notifyTemplateId": 11,
+                  "slotBindings": {
+                    "outreach": {
+                      "body.1": {
+                        "type": "literal",
+                        "value": "Acme"
+                      }
+                    },
+                    "notify": {}
+                  },
+                  "cityId": 1,
+                  "createdAt": "2026-08-17T12:00:00.000Z",
+                  "updatedAt": "2026-09-24T17:00:00.000Z",
+                  "outreachTemplate": {
+                    "id": 10,
+                    "name": "outreach_v1",
+                    "language": "pt_BR",
+                    "status": "APPROVED"
+                  },
+                  "notifyTemplate": {
+                    "id": 10,
+                    "name": "outreach_v1",
+                    "language": "pt_BR",
+                    "status": "APPROVED"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 400,
+                  "message": "Validação falhou",
+                  "error": "Bad Request"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente, expirado ou inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 401,
+                  "message": "Unauthorized",
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant inativo, escopo incorreto (tenantId do token ≠ path) ou role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 403,
+                  "message": "Tenant inativo, escopo incorreto (tenantId do token ≠ path) ou role insuficiente",
+                  "error": "Forbidden"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant ou campanha não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 404,
+                  "message": "Tenant ou campanha não encontrado",
+                  "error": "Not Found"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Atualizar campanha (parcial)",
+        "tags": [
+          "Tenant — Outreach Campaigns"
+        ]
+      },
+      "delete": {
+        "operationId": "OutreachCampaignsController_deleteCampaign",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "ID numérico do tenant",
+            "schema": {
+              "example": 8,
+              "type": "number"
+            }
+          },
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "description": "ID da campanha de prospecção (pool)",
+            "schema": {
+              "example": 3,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "example": {
+                  "ok": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente, expirado ou inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 401,
+                  "message": "Unauthorized",
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant inativo, escopo incorreto (tenantId do token ≠ path) ou role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 403,
+                  "message": "Tenant inativo, escopo incorreto (tenantId do token ≠ path) ou role insuficiente",
+                  "error": "Forbidden"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant ou campanha não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponseDto"
+                },
+                "example": {
+                  "statusCode": 404,
+                  "message": "Tenant ou campanha não encontrado",
+                  "error": "Not Found"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Excluir campanha (hard delete)",
+        "tags": [
+          "Tenant — Outreach Campaigns"
+        ]
+      }
+    },
     "/tenant/{tenantId}/conversations": {
       "get": {
         "description": "Threads ordenadas por lastMessageAt descendente. Inclui resumo da última mensagem e windowOpen (inbound nas últimas 24h).",
@@ -14397,33 +14872,6 @@
           "amount"
         ]
       },
-      "OutreachConfigTemplateRefDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "number",
-            "example": 10
-          },
-          "name": {
-            "type": "string",
-            "example": "outreach_v1"
-          },
-          "language": {
-            "type": "string",
-            "example": "pt_BR"
-          },
-          "status": {
-            "type": "string",
-            "example": "APPROVED"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "language",
-          "status"
-        ]
-      },
       "ResolvedWhatsappAccountDto": {
         "type": "object",
         "properties": {
@@ -14488,61 +14936,10 @@
             ],
             "example": "delivered"
           },
-          "outreachTemplateId": {
-            "type": "number",
-            "example": 10,
-            "nullable": true
-          },
-          "notifyTemplateId": {
-            "type": "number",
-            "example": 11,
-            "nullable": true
-          },
           "whatsappAccountId": {
             "type": "number",
             "example": 3,
             "nullable": true
-          },
-          "slotBindings": {
-            "type": "object",
-            "description": "Bindings persistidos (outreach / notify)",
-            "example": {
-              "outreach": {
-                "body.1": {
-                  "type": "literal",
-                  "value": "Acme"
-                }
-              },
-              "notify": {}
-            }
-          },
-          "schedule": {
-            "type": "object",
-            "example": {
-              "days": [
-                "MON",
-                "WED"
-              ],
-              "startHour": 9,
-              "endHour": 18
-            }
-          },
-          "categories": {
-            "example": [
-              "Construtoras"
-            ],
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "leadsPerRun": {
-            "type": "number",
-            "example": 5
-          },
-          "sendIntervalSeconds": {
-            "type": "number",
-            "example": 5
           },
           "createdAt": {
             "format": "date-time",
@@ -14554,22 +14951,6 @@
             "type": "string",
             "example": "2026-09-24T17:00:00.000Z"
           },
-          "outreachTemplate": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/OutreachConfigTemplateRefDto"
-              }
-            ]
-          },
-          "notifyTemplate": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/OutreachConfigTemplateRefDto"
-              }
-            ]
-          },
           "resolvedWhatsappAccount": {
             "nullable": true,
             "description": "Conta atribuída ou default da plataforma quando FK é null",
@@ -14578,6 +14959,11 @@
                 "$ref": "#/components/schemas/ResolvedWhatsappAccountDto"
               }
             ]
+          },
+          "campaignCount": {
+            "type": "number",
+            "description": "Número de campanhas de prospecção do tenant",
+            "example": 2
           }
         },
         "required": [
@@ -14588,41 +14974,8 @@
           "costPerOnDemandSend",
           "cashbackOnReply",
           "coinDebitOnStatus",
-          "slotBindings",
-          "schedule",
-          "categories",
-          "leadsPerRun",
-          "sendIntervalSeconds",
           "createdAt",
           "updatedAt"
-        ]
-      },
-      "SlotBindingsDto": {
-        "type": "object",
-        "properties": {
-          "outreach": {
-            "type": "object",
-            "description": "Bindings do template de outreach, keyed por slot",
-            "example": {
-              "body.1": {
-                "type": "literal",
-                "value": "Gladson Teixeira"
-              }
-            }
-          },
-          "notify": {
-            "type": "object",
-            "description": "Bindings do template de notify, keyed por slot",
-            "example": {
-              "body.customer_name": {
-                "type": "lead.name"
-              }
-            }
-          }
-        },
-        "required": [
-          "outreach",
-          "notify"
         ]
       },
       "UpsertOutreachConfigDto": {
@@ -14630,7 +14983,7 @@
         "properties": {
           "enabled": {
             "type": "boolean",
-            "description": "Habilitar outreach",
+            "description": "Master pool enabled",
             "default": false
           },
           "costPerLead": {
@@ -14648,65 +15001,10 @@
             "description": "Conta WhatsApp dedicada (não-default). Omitido ou null = remetente default da plataforma",
             "nullable": true,
             "example": 2
-          },
-          "outreachTemplateId": {
-            "type": "number",
-            "description": "FK do template de outreach no catálogo"
-          },
-          "notifyTemplateId": {
-            "type": "number",
-            "description": "FK do template de notify no catálogo"
-          },
-          "slotBindings": {
-            "$ref": "#/components/schemas/SlotBindingsDto"
-          },
-          "schedule": {
-            "type": "object",
-            "description": "Mapa dia-da-semana → horas UTC",
-            "example": {
-              "2": [
-                18
-              ],
-              "3": [
-                18
-              ],
-              "4": [
-                13,
-                18
-              ]
-            }
-          },
-          "categories": {
-            "description": "Categorias de leads",
-            "example": [
-              "Construtoras",
-              "Clínicas médicas"
-            ],
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "leadsPerRun": {
-            "type": "number",
-            "description": "Leads contactados por execução (default 5)",
-            "example": 5,
-            "default": 5
-          },
-          "sendIntervalSeconds": {
-            "type": "number",
-            "description": "Intervalo em segundos entre envios (default 5)",
-            "example": 5,
-            "default": 5
           }
         },
         "required": [
-          "costPerLead",
-          "outreachTemplateId",
-          "notifyTemplateId",
-          "slotBindings",
-          "schedule",
-          "categories"
+          "costPerLead"
         ]
       },
       "PatchPlatformOutreachConfigDto": {
@@ -14816,53 +15114,8 @@
         "properties": {
           "enabled": {
             "type": "boolean",
-            "description": "Habilitar outreach",
+            "description": "Master pool enabled",
             "default": false
-          },
-          "outreachTemplateId": {
-            "type": "number",
-            "description": "FK do template de outreach no catálogo"
-          },
-          "notifyTemplateId": {
-            "type": "number",
-            "description": "FK do template de notify no catálogo"
-          },
-          "slotBindings": {
-            "$ref": "#/components/schemas/SlotBindingsDto"
-          },
-          "schedule": {
-            "type": "object",
-            "description": "Mapa dia-da-semana → horas UTC",
-            "example": {
-              "2": [
-                18
-              ],
-              "3": [
-                18
-              ],
-              "4": [
-                13,
-                18
-              ]
-            }
-          },
-          "categories": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "leadsPerRun": {
-            "type": "number",
-            "description": "Leads contactados por execução (default 5)",
-            "example": 5,
-            "default": 5
-          },
-          "sendIntervalSeconds": {
-            "type": "number",
-            "description": "Intervalo em segundos entre envios (default 5)",
-            "example": 5,
-            "default": 5
           }
         }
       },
@@ -14871,50 +15124,7 @@
         "properties": {
           "enabled": {
             "type": "boolean",
-            "description": "Habilitar outreach"
-          },
-          "outreachTemplateId": {
-            "type": "number",
-            "description": "FK do template de outreach no catálogo"
-          },
-          "notifyTemplateId": {
-            "type": "number",
-            "description": "FK do template de notify no catálogo"
-          },
-          "slotBindings": {
-            "$ref": "#/components/schemas/SlotBindingsDto"
-          },
-          "schedule": {
-            "type": "object",
-            "description": "Mapa dia-da-semana → horas UTC",
-            "example": {
-              "2": [
-                18
-              ],
-              "3": [
-                18
-              ],
-              "4": [
-                13,
-                18
-              ]
-            }
-          },
-          "categories": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "leadsPerRun": {
-            "type": "number",
-            "description": "Leads contactados por execução",
-            "example": 5
-          },
-          "sendIntervalSeconds": {
-            "type": "number",
-            "description": "Intervalo em segundos entre envios",
-            "example": 5
+            "description": "Master pool enabled"
           }
         }
       },
@@ -16515,6 +16725,294 @@
           "listLead",
           "campaign"
         ]
+      },
+      "OutreachCampaignTemplateRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 10
+          },
+          "name": {
+            "type": "string",
+            "example": "outreach_v1"
+          },
+          "language": {
+            "type": "string",
+            "example": "pt_BR"
+          },
+          "status": {
+            "type": "string",
+            "example": "APPROVED"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "language",
+          "status"
+        ]
+      },
+      "OutreachCampaignResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 3
+          },
+          "tenantId": {
+            "type": "number",
+            "example": 8
+          },
+          "name": {
+            "type": "string",
+            "example": "Padrão"
+          },
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "schedule": {
+            "type": "object",
+            "example": {
+              "2": [
+                18
+              ],
+              "4": [
+                13
+              ]
+            }
+          },
+          "categories": {
+            "example": [
+              "Construtoras"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "leadsPerRun": {
+            "type": "number",
+            "example": 5
+          },
+          "sendIntervalSeconds": {
+            "type": "number",
+            "example": 5
+          },
+          "outreachTemplateId": {
+            "type": "number",
+            "example": 10,
+            "nullable": true
+          },
+          "notifyTemplateId": {
+            "type": "number",
+            "example": 11,
+            "nullable": true
+          },
+          "slotBindings": {
+            "type": "object",
+            "description": "Bindings persistidos (outreach / notify)",
+            "example": {
+              "outreach": {
+                "body.1": {
+                  "type": "literal",
+                  "value": "Acme"
+                }
+              },
+              "notify": {}
+            }
+          },
+          "cityId": {
+            "type": "number",
+            "example": 1,
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T12:00:00.000Z"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-09-24T17:00:00.000Z"
+          },
+          "outreachTemplate": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OutreachCampaignTemplateRefDto"
+              }
+            ]
+          },
+          "notifyTemplate": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OutreachCampaignTemplateRefDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "name",
+          "enabled",
+          "schedule",
+          "categories",
+          "leadsPerRun",
+          "sendIntervalSeconds",
+          "slotBindings",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "SlotBindingsDto": {
+        "type": "object",
+        "properties": {
+          "outreach": {
+            "type": "object",
+            "description": "Bindings do template de outreach, keyed por slot",
+            "example": {
+              "body.1": {
+                "type": "literal",
+                "value": "Gladson Teixeira"
+              }
+            }
+          },
+          "notify": {
+            "type": "object",
+            "description": "Bindings do template de notify, keyed por slot",
+            "example": {
+              "body.customer_name": {
+                "type": "lead.name"
+              }
+            }
+          }
+        },
+        "required": [
+          "outreach",
+          "notify"
+        ]
+      },
+      "UpsertOutreachCampaignDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Padrão"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "outreachTemplateId": {
+            "type": "number"
+          },
+          "notifyTemplateId": {
+            "type": "number"
+          },
+          "slotBindings": {
+            "$ref": "#/components/schemas/SlotBindingsDto"
+          },
+          "schedule": {
+            "type": "object",
+            "description": "Mapa dia-da-semana → horas UTC",
+            "example": {
+              "2": [
+                18
+              ],
+              "3": [
+                18
+              ],
+              "4": [
+                13,
+                18
+              ]
+            }
+          },
+          "categories": {
+            "example": [
+              "Construtoras"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "leadsPerRun": {
+            "type": "number",
+            "example": 5,
+            "default": 5
+          },
+          "sendIntervalSeconds": {
+            "type": "number",
+            "example": 5,
+            "default": 5
+          },
+          "cityId": {
+            "type": "number",
+            "description": "Filtro opcional de cidade; null = sem filtro extra além da policy",
+            "nullable": true,
+            "example": 1
+          }
+        },
+        "required": [
+          "name",
+          "schedule",
+          "categories"
+        ]
+      },
+      "PatchOutreachCampaignDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Campanha A"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "outreachTemplateId": {
+            "type": "number"
+          },
+          "notifyTemplateId": {
+            "type": "number"
+          },
+          "slotBindings": {
+            "$ref": "#/components/schemas/SlotBindingsDto"
+          },
+          "schedule": {
+            "type": "object",
+            "description": "Mapa dia-da-semana → horas UTC",
+            "example": {
+              "2": [
+                18
+              ],
+              "4": [
+                13
+              ]
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "leadsPerRun": {
+            "type": "number"
+          },
+          "sendIntervalSeconds": {
+            "type": "number"
+          },
+          "cityId": {
+            "type": "number",
+            "nullable": true
+          }
+        }
       },
       "ConversationLastMessageDto": {
         "type": "object",

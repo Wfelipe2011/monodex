@@ -47,13 +47,25 @@ export class TenantOutreachSendsController {
     description: 'Filtrar apenas envios com falha de entrega Meta',
     example: 'failed',
   })
+  @ApiQuery({
+    name: 'outreachCampaignId',
+    required: false,
+    type: Number,
+    description: 'Restringe aos envios da campanha de prospecção indicada',
+    example: 12,
+  })
   @ApiOkResponse({ type: CityOutreachSendResponseDto, isArray: true })
   @ApiTenantScopedErrors({ badRequest: 'Query status inválida' })
   listSends(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Query('status') status?: string,
+    @Query('outreachCampaignId', new ParseIntPipe({ optional: true }))
+    outreachCampaignId?: number,
   ) {
-    return this.outreachSendsService.listSends(tenantId, { status });
+    return this.outreachSendsService.listSends(tenantId, {
+      status,
+      outreachCampaignId,
+    });
   }
 }
 
@@ -74,6 +86,13 @@ export class PlatformOutreachSendsController {
     description: 'Filtrar apenas envios com falha de entrega Meta',
     example: 'failed',
   })
+  @ApiQuery({
+    name: 'outreachCampaignId',
+    required: false,
+    type: Number,
+    description: 'Restringe aos envios da campanha de prospecção indicada',
+    example: 12,
+  })
   @ApiOkResponse({ type: CityOutreachSendResponseDto, isArray: true })
   @ApiPlatformSuperAdminErrors({
     notFound: 'Tenant não encontrado',
@@ -82,7 +101,12 @@ export class PlatformOutreachSendsController {
   listSends(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Query('status') status?: string,
+    @Query('outreachCampaignId', new ParseIntPipe({ optional: true }))
+    outreachCampaignId?: number,
   ) {
-    return this.outreachSendsService.listSends(tenantId, { status });
+    return this.outreachSendsService.listSends(tenantId, {
+      status,
+      outreachCampaignId,
+    });
   }
 }

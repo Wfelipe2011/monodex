@@ -48,6 +48,8 @@ import {
   ListSendsController,
 } from './list-campaigns.controller';
 import { ListCampaignsService } from './list-campaigns.service';
+import { OutreachCampaignsController } from './outreach-campaigns.controller';
+import { OutreachCampaignsService } from './outreach-campaigns.service';
 import { ConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
 import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
@@ -105,6 +107,7 @@ import { OnDemandSchedulesService } from './on-demand-schedules.service';
     TenantCategorySuggestionsController,
     ListCampaignsController,
     ListSendsController,
+    OutreachCampaignsController,
     ConversationsController,
     OnDemandSendsController,
     OnDemandSchedulesController,
@@ -135,6 +138,7 @@ import { OnDemandSchedulesService } from './on-demand-schedules.service';
     ScrapeCoveragesService,
     LeadListsService,
     ListCampaignsService,
+    OutreachCampaignsService,
     ConversationsService,
     OnDemandSendsService,
     OnDemandSchedulesService,

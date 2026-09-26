@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   asIntArray,
+  assertCampaignCityAllowed,
   assertCityPolicyXor,
   cityAllowed,
   cityIdFilter,
@@ -13,6 +14,86 @@ describe('assertCityPolicyXor', () => {
     expect(() => assertCityPolicyXor([1], [])).not.toThrow();
     expect(() => assertCityPolicyXor([], [2])).not.toThrow();
     expect(() => assertCityPolicyXor([], [])).not.toThrow();
+  });
+});
+
+describe('assertCampaignCityAllowed', () => {
+  it('tenant single-city: cityId diferente rejeita', () => {
+    expect(() =>
+      assertCampaignCityAllowed(8, {
+        allowedCityIds: [7],
+        deniedCityIds: [],
+      }),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      assertCampaignCityAllowed(7, {
+        allowedCityIds: [7],
+        deniedCityIds: [],
+      }),
+    ).not.toThrow();
+  });
+
+  it('allowlist multi: cityId fora da lista rejeita', () => {
+    expect(() =>
+      assertCampaignCityAllowed(3, {
+        allowedCityIds: [1, 2],
+        deniedCityIds: [],
+      }),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      assertCampaignCityAllowed(2, {
+        allowedCityIds: [1, 2],
+        deniedCityIds: [],
+      }),
+    ).not.toThrow();
+  });
+
+  it('política irrestrita: null cityId e cityId arbitrário ok', () => {
+    expect(() =>
+      assertCampaignCityAllowed(null, {
+        allowedCityIds: [],
+        deniedCityIds: [],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertCampaignCityAllowed(undefined, {
+        allowedCityIds: [],
+        deniedCityIds: [],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertCampaignCityAllowed(99, {
+        allowedCityIds: [],
+        deniedCityIds: [],
+      }),
+    ).not.toThrow();
+  });
+
+  it('allowlist multi: null cityId ok', () => {
+    expect(() =>
+      assertCampaignCityAllowed(null, {
+        allowedCityIds: [1, 2],
+        deniedCityIds: [],
+      }),
+    ).not.toThrow();
+  });
+
+  it('denylist: cityId negado rejeita', () => {
+    expect(() =>
+      assertCampaignCityAllowed(2, {
+        allowedCityIds: [],
+        deniedCityIds: [2],
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('policy inválida (allow e deny): rejeita antes de cityId', () => {
+    expect(() =>
+      assertCampaignCityAllowed(1, {
+        allowedCityIds: [1],
+        deniedCityIds: [2],
+      }),
+    ).toThrow(BadRequestException);
   });
 });
 

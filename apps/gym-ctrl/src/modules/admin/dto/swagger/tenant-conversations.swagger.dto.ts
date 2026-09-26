@@ -7,6 +7,17 @@ export const CONVERSATION_ID_PARAM = {
   example: 88,
 };
 
+export class ConversationProspectingDto {
+  @ApiPropertyOptional({ example: 3, nullable: true })
+  outreachCampaignId?: number | null;
+
+  @ApiPropertyOptional({ example: 'Padrão', nullable: true })
+  outreachCampaignName?: string | null;
+
+  @ApiPropertyOptional({ example: 'hello_city', nullable: true })
+  lastOutreachTemplateName?: string | null;
+}
+
 export class ConversationLastMessageDto {
   @ApiProperty({ example: 501 })
   id: number;
@@ -63,6 +74,14 @@ export class ConversationThreadResponseDto {
     nullable: true,
   })
   lastMessage?: ConversationLastMessageDto | null;
+
+  @ApiPropertyOptional({
+    type: ConversationProspectingDto,
+    nullable: true,
+    description:
+      'Último envio pool (TenantLead com messageId) para o telefone normalizado',
+  })
+  prospecting?: ConversationProspectingDto | null;
 }
 
 export { ConversationMessageResponseDto };

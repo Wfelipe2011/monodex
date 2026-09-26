@@ -12,7 +12,9 @@ import {
   WhatsappConversationDirection,
 } from '@prisma/client';
 import { PrismaService } from '@core/infra/prisma/prisma.service';
+import { normalizeListPhone } from '@core/shared/list-campaign-helpers';
 import { isDedicatedPlatformAccount } from '@core/shared/whatsapp-conversation';
+import { ListConversationsQueryDto } from './dto/list-conversations-query.dto';
 import { PlatformWhatsappAdminService } from './platform-whatsapp-admin.service';
 import { SendConversationMessageDto } from './dto/send-conversation-message.dto';
 
@@ -51,12 +53,24 @@ export class ConversationsService {
     private readonly platformWhatsapp: PlatformWhatsappAdminService,
   ) {}
 
-  async listConversations(tenantId: number) {
+  async listConversations(
+    tenantId: number,
+    query: ListConversationsQueryDto = {},
+  ) {
     await this.assertTenantExists(tenantId);
 
     const windowStart = subHours(new Date(), 24);
+    const q = query.q?.trim();
+    const threadWhere: Prisma.WhatsappConversationWhereInput = { tenantId };
+    if (q) {
+      threadWhere.OR = [
+        { displayName: { contains: q, mode: 'insensitive' } },
+        { phone: { contains: q } },
+      ];
+    }
+
     const threads = await this.prisma.whatsappConversation.findMany({
-      where: { tenantId },
+      where: threadWhere,
       orderBy: { lastMessageAt: 'desc' },
       select: {
         id: true,
@@ -72,13 +86,78 @@ export class ConversationsService {
       },
     });
 
-    return threads.map(({ messages, lastInboundAt, ...rest }) => ({
-      ...rest,
-      lastInboundAt,
-      windowOpen:
-        lastInboundAt != null && lastInboundAt >= windowStart,
-      lastMessage: messages[0] ?? null,
-    }));
+    const prospectingByPhone =
+      await this.loadLatestProspectingByPhone(tenantId);
+
+    const mapped = threads.map(({ messages, lastInboundAt, phone, ...rest }) => {
+      const normalized = normalizeListPhone(phone);
+      const prospecting = normalized
+        ? (prospectingByPhone.get(normalized) ?? null)
+        : null;
+      return {
+        ...rest,
+        phone,
+        lastInboundAt,
+        windowOpen:
+          lastInboundAt != null && lastInboundAt >= windowStart,
+        lastMessage: messages[0] ?? null,
+        prospecting,
+      };
+    });
+
+    return mapped.filter((thread) => {
+      if (query.outreachCampaignId != null) {
+        if (thread.prospecting?.outreachCampaignId !== query.outreachCampaignId) {
+          return false;
+        }
+      }
+      if (query.templateName != null && query.templateName !== '') {
+        if (thread.prospecting?.lastOutreachTemplateName !== query.templateName) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  private async loadLatestProspectingByPhone(tenantId: number) {
+    const rows = await this.prisma.tenantLead.findMany({
+      where: {
+        tenantId,
+        messageId: { not: null },
+      },
+      select: {
+        templateName: true,
+        createdAt: true,
+        outreachCampaignId: true,
+        outreachCampaign: { select: { name: true } },
+        lead: { select: { phone: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const map = new Map<
+      string,
+      {
+        outreachCampaignId: number | null;
+        outreachCampaignName: string | null;
+        lastOutreachTemplateName: string | null;
+      }
+    >();
+
+    for (const row of rows) {
+      const phone = normalizeListPhone(row.lead.phone);
+      if (!phone || map.has(phone)) {
+        continue;
+      }
+      map.set(phone, {
+        outreachCampaignId: row.outreachCampaignId,
+        outreachCampaignName: row.outreachCampaign?.name ?? null,
+        lastOutreachTemplateName: row.templateName,
+      });
+    }
+
+    return map;
   }
 
   async listMessages(

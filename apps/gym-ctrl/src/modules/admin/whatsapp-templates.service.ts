@@ -68,7 +68,7 @@ type GraphTemplateWriteResponse = {
 
 type TemplateReferenceKind =
   | 'tenant_template_grant'
-  | 'tenant_outreach_config'
+  | 'tenant_outreach_campaign'
   | 'tenant_list_campaign'
   | 'tenant_on_demand_send'
   | 'tenant_on_demand_schedule';
@@ -384,10 +384,10 @@ export class WhatsappTemplatesService {
       this.prisma.tenantTemplateGrant.count({
         where: { templateId },
       }),
-      this.prisma.tenantOutreachConfig.count({
+      this.prisma.tenantOutreachCampaign.count({
         where: { outreachTemplateId: templateId },
       }),
-      this.prisma.tenantOutreachConfig.count({
+      this.prisma.tenantOutreachCampaign.count({
         where: { notifyTemplateId: templateId },
       }),
       this.prisma.tenantListCampaign.count({
@@ -409,7 +409,7 @@ export class WhatsappTemplatesService {
       refs.push('tenant_template_grant');
     }
     if (outreachCount > 0 || notifyOutreachCount > 0) {
-      refs.push('tenant_outreach_config');
+      refs.push('tenant_outreach_campaign');
     }
     if (campaignCount > 0 || notifyCampaignCount > 0) {
       refs.push('tenant_list_campaign');

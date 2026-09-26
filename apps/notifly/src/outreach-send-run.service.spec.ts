@@ -14,6 +14,7 @@ describe('OutreachSendRunService', () => {
     channel: OutreachSendRunChannel;
     tenantId: number;
     campaignId: number | null;
+    outreachCampaignId: number | null;
     targetCount: number;
     tryCount: number;
     attemptCount: number;
@@ -27,6 +28,7 @@ describe('OutreachSendRunService', () => {
       channel: overrides?.channel ?? OutreachSendRunChannel.CITY,
       tenantId: overrides?.tenantId ?? TENANT_ID,
       campaignId: overrides?.campaignId ?? null,
+      outreachCampaignId: overrides?.outreachCampaignId ?? null,
       targetCount: overrides?.targetCount ?? 5,
       tryCount: overrides?.tryCount ?? 0,
       attemptCount: overrides?.attemptCount ?? 0,
@@ -97,6 +99,7 @@ describe('OutreachSendRunService', () => {
 
     const result = await service.openCityRun({
       tenantId: TENANT_ID,
+      outreachCampaignId: 1,
       targetCount: 5,
     });
 
@@ -128,6 +131,7 @@ describe('OutreachSendRunService', () => {
 
     const result = await service.openCityRun({
       tenantId: TENANT_ID,
+      outreachCampaignId: 1,
       targetCount: 5,
     });
 

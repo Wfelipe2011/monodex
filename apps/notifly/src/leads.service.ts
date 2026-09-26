@@ -8,11 +8,13 @@ import {
   OutreachSendRunClosedReason,
   Prisma,
   Tenant,
+  TenantOutreachCampaign,
   TenantOutreachConfig,
   TenantSendPolicy,
   WhatsappConversationDirection,
   WhatsappMessageTemplate,
 } from '@prisma/client';
+import { isWithinSchedule } from '@core/shared/list-campaign-helpers';
 import {
   resolveBindingValue,
   SlotBinding,
@@ -21,6 +23,7 @@ import { TemplateSlot } from '@core/shared/whatsapp-template-slots';
 import { buildTemplateSendBody } from '@core/shared/whatsapp-template-payload';
 import {
   asIntArray,
+  cityAllowed,
   cityIdFilter,
   mergeExcludedPhones,
 } from '@core/shared/send-policy';
@@ -49,22 +52,29 @@ import {
 import { OutreachSendRunService } from './outreach-send-run.service';
 import { OutreachQuotaRefillService } from './outreach-quota-refill.service';
 
-type OutreachConfigWithTemplates = TenantOutreachConfig & {
+type OutreachCampaignWithRelations = TenantOutreachCampaign & {
   outreachTemplate: WhatsappMessageTemplate | null;
   notifyTemplate: WhatsappMessageTemplate | null;
-};
-
-type TenantWithOutreach = Tenant & {
-  outreachConfig: OutreachConfigWithTemplates;
-  sendPolicy?: TenantSendPolicy | null;
+  tenant: Tenant & {
+    outreachConfig: TenantOutreachConfig;
+    sendPolicy?: TenantSendPolicy | null;
+  };
 };
 
 type LeadWithCity = Lead & { city?: { name: string } | null };
 
-const OUTREACH_INCLUDE = {
+const OUTREACH_CAMPAIGN_INCLUDE = {
   outreachTemplate: true,
   notifyTemplate: true,
+  tenant: {
+    include: {
+      outreachConfig: true,
+      sendPolicy: true,
+    },
+  },
 } as const;
+
+const PADRAO_CAMPAIGN_NAME = 'Padrão';
 
 @Injectable()
 export class LeadsService implements OnModuleInit {
@@ -84,20 +94,6 @@ export class LeadsService implements OnModuleInit {
     this.logger.log(`[onModuleInit] WHATSAPP_TOKEN present=${tokenPresent}`);
     // Sender fino para refill (webhook / refillOne) sem DI circular.
     this.quotaRefill.registerCitySender((args) => this.sendCityLead(args));
-  }
-
-  /** schedule Json: mapa dia-da-semana → horas UTC, ex. { "2": [18], "4": [13, 18] } */
-  private isWithinSchedule(
-    schedule: Prisma.JsonValue,
-    day: number,
-    hour: number,
-  ): boolean {
-    if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) {
-      return false;
-    }
-    const map = schedule as Record<string, unknown>;
-    const hours = map[String(day)];
-    return Array.isArray(hours) && hours.includes(hour);
   }
 
   private asStringArray(value: Prisma.JsonValue): string[] {
@@ -121,69 +117,52 @@ export class LeadsService implements OnModuleInit {
     const currentDay = new Date().getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
     console.log(`[handleCron] Hora atual: ${currentHour}, Dia atual: ${currentDay}`);
 
-    const tenants = await this.prisma.tenant.findMany({
+    const campaigns = await this.prisma.tenantOutreachCampaign.findMany({
       where: {
-        active: true,
-        outreachConfig: {
-          enabled: true,
-        },
-        NOT: {
-          OR: [{ phone: null }, { phone: '' }],
+        enabled: true,
+        tenant: {
+          active: true,
+          outreachConfig: { enabled: true },
+          NOT: {
+            OR: [{ phone: null }, { phone: '' }],
+          },
         },
       },
-      include: {
-        outreachConfig: {
-          include: OUTREACH_INCLUDE,
-        },
-        sendPolicy: true,
-      },
+      include: OUTREACH_CAMPAIGN_INCLUDE,
     });
 
-    console.log(
-      `[handleCron] Encontrados ${tenants.length} tenants active com outreach enabled + phone`,
+    const dueCampaigns = campaigns.filter((row) =>
+      isWithinSchedule(row.schedule, currentDay, currentHour),
     );
 
-    for (const tenant of tenants) {
-      const config = tenant.outreachConfig;
-      if (!config) {
-        continue;
-      }
+    console.log(
+      `[handleCron] ${dueCampaigns.length}/${campaigns.length} campanhas na janela de schedule`,
+    );
 
-      if (!this.isWithinSchedule(config.schedule, currentDay, currentHour)) {
+    const byTenant = new Map<number, OutreachCampaignWithRelations[]>();
+    for (const row of dueCampaigns) {
+      const list = byTenant.get(row.tenantId) ?? [];
+      list.push(row as OutreachCampaignWithRelations);
+      byTenant.set(row.tenantId, list);
+    }
+
+    for (const [, tenantCampaigns] of [...byTenant.entries()].sort(
+      (a, b) => a[0] - b[0],
+    )) {
+      tenantCampaigns.sort((a, b) => a.id - b.id);
+      const tenant = tenantCampaigns[0].tenant;
+      for (const campaign of tenantCampaigns) {
         this.logger.log(
-          `[handleCron] Tenant ${tenant.name} (ID: ${tenant.id}) fora da janela de schedule; pulando`,
+          `[handleCron] Campanha ${campaign.id} (${campaign.name}) tenant=${tenant.name} (${tenant.id})`,
         );
-        continue;
-      }
-
-      const saldo = await this.prisma.coin.findFirst({
-        where: {
-          tenantId: tenant.id,
-        },
-        select: {
-          balance: true,
-        },
-      });
-      if (!saldo || saldo.balance < config.costPerLead) {
-        this.logger.warn(
-          `[handleCron] Tenant ${tenant.name} (ID: ${tenant.id}) não possui saldo suficiente para contatar leads. Saldo atual: ${saldo?.balance ?? 0}, costPerLead: ${config.costPerLead}`,
-        );
-        continue;
-      }
-
-      this.logger.log(
-        `[handleCron] Iniciando contato com leads do tenant: ${tenant.name} (ID: ${tenant.id})`,
-      );
-      try {
-        await this.contactLeads(tenant as TenantWithOutreach);
-        this.logger.log(
-          `[handleCron] Contato com leads do tenant ${tenant.name} concluído.`,
-        );
-      } catch (error) {
-        console.log(error['response']?.['data']);
-        this.logger.error(
-          `[handleCron] Erro ao contatar leads do tenant ${tenant.name}: ${error}`,
-        );
+        try {
+          await this.contactLeadsForCampaign(campaign);
+        } catch (error) {
+          console.log(error['response']?.['data']);
+          this.logger.error(
+            `[handleCron] Erro campanha ${campaign.id} tenant ${tenant.name}: ${error}`,
+          );
+        }
       }
     }
   }
@@ -263,23 +242,24 @@ export class LeadsService implements OnModuleInit {
     };
   }
 
-  async contactLeads(tenant: TenantWithOutreach) {
+  async contactLeadsForCampaign(campaign: OutreachCampaignWithRelations) {
+    const tenant = campaign.tenant;
     const config = tenant.outreachConfig;
-    const categories = this.asStringArray(config.categories);
+    const categories = this.asStringArray(campaign.categories);
     this.logger.log(
-      `[contactLeads] Buscando leads para contato (tenant=${tenant.id}, categories=${categories.length})...`,
+      `[contactLeadsForCampaign] campanha=${campaign.id} tenant=${tenant.id} categories=${categories.length}`,
     );
 
     if (categories.length === 0) {
       this.logger.log(
-        `[contactLeads] Tenant ${tenant.id} sem categories configuradas; não selecionando leads`,
+        `[contactLeadsForCampaign] campanha ${campaign.id} sem categories; skip`,
       );
       return;
     }
 
     if (config.costPerLead <= 0) {
       this.logger.warn(
-        `[contactLeads] Tenant ${tenant.id} com costPerLead=${config.costPerLead}; não enviando`,
+        `[contactLeadsForCampaign] tenant ${tenant.id} costPerLead=${config.costPerLead}; skip`,
       );
       return;
     }
@@ -310,24 +290,24 @@ export class LeadsService implements OnModuleInit {
     );
     if (affordable <= 0) {
       this.logger.warn(
-        `[contactLeads] Tenant ${tenant.id} sem saldo disponível para um lead. Saldo: ${balance}, available=${available}, pendingCity=${pendingCity}, pendingListAmount=${pendingListAmount}, pendingOnDemand=${pendingOnDemand}, costPerLead: ${config.costPerLead}`,
+        `[contactLeadsForCampaign] tenant ${tenant.id} sem saldo (balance=${balance}, available=${available})`,
       );
       return;
     }
 
-    // openCityRun já fecha TTL expirados; null = OPEN não expirado → skip tick.
     const run = await this.runs.openCityRun({
       tenantId: tenant.id,
-      targetCount: config.leadsPerRun,
+      outreachCampaignId: campaign.id,
+      targetCount: campaign.leadsPerRun,
     });
     if (!run) {
       this.logger.log(
-        `[contactLeads] Tenant ${tenant.id}: run CITY OPEN existente; skip batch inicial`,
+        `[contactLeadsForCampaign] campanha ${campaign.id}: run OPEN existente; skip`,
       );
       return;
     }
     this.logger.log(
-      `[contactLeads] run CITY aberto id=${run.id} target=${run.targetCount}`,
+      `[contactLeadsForCampaign] run CITY id=${run.id} target=${run.targetCount}`,
     );
 
     const used = await this.prisma.tenantLead.findMany({
@@ -340,7 +320,23 @@ export class LeadsService implements OnModuleInit {
     const categoryFilter = this.categoryWhere(categories);
     const allowedCityIds = asIntArray(tenant.sendPolicy?.allowedCityIds);
     const deniedCityIds = asIntArray(tenant.sendPolicy?.deniedCityIds);
-    const cityFilter = cityIdFilter(allowedCityIds, deniedCityIds);
+    if (
+      campaign.cityId != null &&
+      !cityAllowed(campaign.cityId, allowedCityIds, deniedCityIds)
+    ) {
+      this.logger.warn(
+        `[contactLeadsForCampaign] campanha ${campaign.id} cityId=${campaign.cityId} bloqueada pela policy`,
+      );
+      await this.runs.close(run.id, OutreachSendRunClosedReason.EXHAUSTED);
+      return;
+    }
+    const policyCityFilter = cityIdFilter(allowedCityIds, deniedCityIds);
+    const cityWhere =
+      campaign.cityId != null
+        ? { cityId: campaign.cityId }
+        : policyCityFilter
+          ? { cityId: policyCityFilter }
+          : {};
     const extraExcluded = await this.loadPolicyExclusionPhones(
       tenant.id,
       tenant.sendPolicy?.respectAllTenants ?? false,
@@ -356,7 +352,7 @@ export class LeadsService implements OnModuleInit {
     const leads = await this.prisma.lead.findMany({
       where: {
         deletedAt: null,
-        ...(cityFilter ? { cityId: cityFilter } : {}),
+        ...cityWhere,
         AND: [
           categoryFilter,
           {
@@ -400,7 +396,7 @@ export class LeadsService implements OnModuleInit {
     const P = premium.length;
     const R = regular.length;
     this.logger.log(
-      `[contactLeads] Pool P=${P} R=${R} (leadsPerRun=${config.leadsPerRun}, affordable=${affordable}, uniquePhones=${uniquePool.length}, run=${run.id})`,
+      `[contactLeadsForCampaign] Pool P=${P} R=${R} (leadsPerRun=${campaign.leadsPerRun}, affordable=${affordable}, uniquePhones=${uniquePool.length}, run=${run.id})`,
     );
 
     if (P + R === 0) {
@@ -408,10 +404,10 @@ export class LeadsService implements OnModuleInit {
       return;
     }
 
-    const outreachTemplate = config.outreachTemplate;
+    const outreachTemplate = campaign.outreachTemplate;
     if (!outreachTemplate || outreachTemplate.status.toUpperCase() !== 'APPROVED') {
       this.logger.warn(
-        `[contactLeads] outreachTemplate ausente ou status≠APPROVED (tenant=${tenant.id}, status=${outreachTemplate?.status ?? 'null'}); não enviando`,
+        `[contactLeadsForCampaign] outreachTemplate ausente ou status≠APPROVED (campanha=${campaign.id}, status=${outreachTemplate?.status ?? 'null'}); não enviando`,
       );
       await this.runs.close(run.id, OutreachSendRunClosedReason.EXHAUSTED);
       return;
@@ -425,7 +421,7 @@ export class LeadsService implements OnModuleInit {
       { accountId },
     );
     const slots = this.asSlots(outreachTemplate.slots);
-    const bindings = this.roleBindings(config.slotBindings, 'outreach');
+    const bindings = this.roleBindings(campaign.slotBindings, 'outreach');
 
     // While unificado: Graph-fail repõe via próximo pick (sem refillOne no catch).
     // refillOne fica para webhook (task 05). Prefer premium após fail premium.
@@ -471,7 +467,7 @@ export class LeadsService implements OnModuleInit {
       }
 
       if (!isFirstPost) {
-        await this.sleep(config.sendIntervalSeconds * 1000);
+        await this.sleep(campaign.sendIntervalSeconds * 1000);
       }
 
       const allowed = await this.runs.beginTry(run.id);
@@ -488,6 +484,7 @@ export class LeadsService implements OnModuleInit {
           tenant,
           lead,
           runId: run.id,
+          outreachCampaignId: campaign.id,
           wasPremium: wasPrem,
           outreachTemplate,
           slots,
@@ -526,18 +523,30 @@ export class LeadsService implements OnModuleInit {
     tenantId: number;
     lead: Lead;
   }): Promise<{ accepted: boolean; tenantLeadId?: number }> {
+    const run = await this.prisma.outreachSendRun.findUnique({
+      where: { id: args.runId },
+      select: { outreachCampaignId: true },
+    });
+    const campaign = await this.loadOutreachCampaignForSend(
+      args.tenantId,
+      run?.outreachCampaignId ?? null,
+    );
+    if (!campaign) {
+      return { accepted: false };
+    }
+
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: args.tenantId },
       include: {
-        outreachConfig: { include: OUTREACH_INCLUDE },
+        outreachConfig: true,
         sendPolicy: true,
       },
     });
     if (!tenant?.outreachConfig) {
       return { accepted: false };
     }
-    const config = tenant.outreachConfig as OutreachConfigWithTemplates;
-    const outreachTemplate = config.outreachTemplate;
+
+    const outreachTemplate = campaign.outreachTemplate;
     if (
       !outreachTemplate ||
       outreachTemplate.status.toUpperCase() !== 'APPROVED'
@@ -545,7 +554,7 @@ export class LeadsService implements OnModuleInit {
       return { accepted: false };
     }
 
-    const categories = this.asStringArray(config.categories);
+    const categories = this.asStringArray(campaign.categories);
     const categoryFilter = this.categoryWhere(categories);
     const allForAvg = await this.prisma.lead.findMany({
       where: { deletedAt: null, ...categoryFilter },
@@ -566,7 +575,7 @@ export class LeadsService implements OnModuleInit {
     }
 
     const slots = this.asSlots(outreachTemplate.slots);
-    const bindings = this.roleBindings(config.slotBindings, 'outreach');
+    const bindings = this.roleBindings(campaign.slotBindings, 'outreach');
     const values = this.resolveRoleValues(slots, bindings, {
       lead: leadWithCity,
       tenant,
@@ -588,9 +597,10 @@ export class LeadsService implements OnModuleInit {
 
     try {
       const tenantLeadId = await this.persistCityGraphAccept({
-        tenant: tenant as TenantWithOutreach,
+        tenant,
         lead: leadWithCity,
         runId: args.runId,
+        outreachCampaignId: campaign.id,
         wasPremium: wasPrem,
         outreachTemplate,
         slots,
@@ -608,10 +618,51 @@ export class LeadsService implements OnModuleInit {
     }
   }
 
+  private async loadOutreachCampaignForSend(
+    tenantId: number,
+    outreachCampaignId: number | null,
+  ): Promise<
+    (TenantOutreachCampaign & {
+      outreachTemplate: WhatsappMessageTemplate | null;
+    }) | null
+  > {
+    if (outreachCampaignId != null) {
+      return this.prisma.tenantOutreachCampaign.findUnique({
+        where: { id: outreachCampaignId },
+        include: { outreachTemplate: true },
+      });
+    }
+    return this.prisma.tenantOutreachCampaign.findFirst({
+      where: { tenantId, name: PADRAO_CAMPAIGN_NAME },
+      include: { outreachTemplate: true },
+    });
+  }
+
+  private async loadNotifyCampaign(
+    tenantId: number,
+    outreachCampaignId: number | null,
+  ): Promise<
+    (TenantOutreachCampaign & {
+      notifyTemplate: WhatsappMessageTemplate | null;
+    }) | null
+  > {
+    if (outreachCampaignId != null) {
+      return this.prisma.tenantOutreachCampaign.findUnique({
+        where: { id: outreachCampaignId },
+        include: { notifyTemplate: true },
+      });
+    }
+    return this.prisma.tenantOutreachCampaign.findFirst({
+      where: { tenantId, name: PADRAO_CAMPAIGN_NAME },
+      include: { notifyTemplate: true },
+    });
+  }
+
   private async persistCityGraphAccept(args: {
-    tenant: TenantWithOutreach | Tenant;
+    tenant: Tenant;
     lead: LeadWithCity;
     runId: number;
+    outreachCampaignId: number;
     wasPremium: boolean;
     outreachTemplate: WhatsappMessageTemplate;
     slots: TemplateSlot[];
@@ -624,6 +675,7 @@ export class LeadsService implements OnModuleInit {
       tenant,
       lead,
       runId,
+      outreachCampaignId,
       wasPremium,
       outreachTemplate,
       slots,
@@ -655,16 +707,34 @@ export class LeadsService implements OnModuleInit {
         },
       );
 
-      const created = await tsx.tenantLead.create({
-        data: {
+      const messageId = res.data.messages[0].id;
+      const created = await tsx.tenantLead.upsert({
+        where: {
+          tenantId_leadId: {
+            tenantId: tenant.id,
+            leadId: lead.id,
+          },
+        },
+        create: {
           tenantId: tenant.id,
           leadId: lead.id,
           contacted: true,
           replied: false,
           deleted: false,
-          messageId: res.data.messages[0].id,
+          messageId,
           templateName: outreachTemplate.name,
           runId,
+          outreachCampaignId,
+          wasPremium,
+        },
+        update: {
+          contacted: true,
+          replied: false,
+          deleted: false,
+          messageId,
+          templateName: outreachTemplate.name,
+          runId,
+          outreachCampaignId,
           wasPremium,
         },
       });
@@ -788,9 +858,7 @@ export class LeadsService implements OnModuleInit {
         lead: { include: { city: true } },
         tenant: {
           include: {
-            outreachConfig: {
-              include: OUTREACH_INCLUDE,
-            },
+            outreachConfig: true,
           },
         },
       },
@@ -821,10 +889,20 @@ export class LeadsService implements OnModuleInit {
         return;
       }
 
-      const notifyTemplate = config.notifyTemplate;
+      const notifyCampaign = await this.loadNotifyCampaign(
+        lead.tenant.id,
+        lead.outreachCampaignId,
+      );
+      if (!notifyCampaign) {
+        this.logger.warn(
+          `[responseLeads] campanha notify não encontrada tenant=${lead.tenant.id}`,
+        );
+        return;
+      }
+      const notifyTemplate = notifyCampaign.notifyTemplate;
       if (!notifyTemplate || notifyTemplate.status.toUpperCase() !== 'APPROVED') {
         this.logger.warn(
-          `[responseLeads] notifyTemplate ausente ou status≠APPROVED (tenant=${lead.tenant.id}, status=${notifyTemplate?.status ?? 'null'}); pulando notify/cashback`,
+          `[responseLeads] notifyTemplate ausente ou status≠APPROVED (tenant=${lead.tenant.id}, campaign=${lead.outreachCampaignId ?? 'Padrão'}, status=${notifyTemplate?.status ?? 'null'}); pulando notify/cashback`,
         );
         return;
       }
@@ -834,7 +912,7 @@ export class LeadsService implements OnModuleInit {
       );
       const { messagesUrl, token } = await this.platformWhatsapp.resolveCredentials(lead.tenant.id);
       const slots = this.asSlots(notifyTemplate.slots);
-      const bindings = this.roleBindings(config.slotBindings, 'notify');
+      const bindings = this.roleBindings(notifyCampaign.slotBindings, 'notify');
       const values = this.resolveRoleValues(slots, bindings, {
         lead: lead.lead as LeadWithCity,
         tenant: lead.tenant,

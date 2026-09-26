@@ -8,9 +8,10 @@ jest.mock('./conversation-thread', () => ({
 }));
 
 const TENANT_ID = 42;
+const CAMPAIGN_ID = 11;
 const RUN_ID = 7;
 
-describe('LeadsService.contactLeads (city run)', () => {
+describe('LeadsService.contactLeadsForCampaign (city run)', () => {
   function makeLead(partial: {
     id: number;
     phone: string;
@@ -46,6 +47,7 @@ describe('LeadsService.contactLeads (city run)', () => {
       channel: 'CITY',
       tenantId: TENANT_ID,
       campaignId: null,
+      outreachCampaignId: CAMPAIGN_ID,
       targetCount,
       tryCount: 0,
       attemptCount: 0,
@@ -58,36 +60,43 @@ describe('LeadsService.contactLeads (city run)', () => {
     };
   }
 
-  function buildTenant(overrides?: {
+  function buildCampaign(overrides?: {
     leadsPerRun?: number;
     sendIntervalSeconds?: number;
     costPerLead?: number;
     balance?: number;
   }) {
     return {
-      id: TENANT_ID,
-      name: 'Tenant Test',
-      phone: '12999990000',
-      active: true,
-      sendPolicy: null,
-      outreachConfig: {
-        enabled: true,
-        categories: ['Construtoras'],
-        leadsPerRun: overrides?.leadsPerRun ?? 5,
-        costPerLead: overrides?.costPerLead ?? 2,
-        costPerOnDemandSend: 0,
-        sendIntervalSeconds: overrides?.sendIntervalSeconds ?? 1,
-        cashbackOnReply: 0,
-        schedule: {},
-        slotBindings: {},
-        outreachTemplate: {
-          id: 1,
-          name: 'outreach_tpl',
-          language: 'pt_BR',
-          status: 'APPROVED',
-          slots: [],
+      id: CAMPAIGN_ID,
+      tenantId: TENANT_ID,
+      name: 'Campanha teste',
+      enabled: true,
+      schedule: {},
+      categories: ['Construtoras'],
+      leadsPerRun: overrides?.leadsPerRun ?? 5,
+      sendIntervalSeconds: overrides?.sendIntervalSeconds ?? 1,
+      cityId: null,
+      slotBindings: {},
+      outreachTemplate: {
+        id: 1,
+        name: 'outreach_tpl',
+        language: 'pt_BR',
+        status: 'APPROVED',
+        slots: [],
+      },
+      notifyTemplate: null,
+      tenant: {
+        id: TENANT_ID,
+        name: 'Tenant Test',
+        phone: '12999990000',
+        active: true,
+        sendPolicy: null,
+        outreachConfig: {
+          enabled: true,
+          costPerLead: overrides?.costPerLead ?? 2,
+          costPerOnDemandSend: 0,
+          cashbackOnReply: 0,
         },
-        notifyTemplate: null,
       },
     };
   }
@@ -114,10 +123,36 @@ describe('LeadsService.contactLeads (city run)', () => {
       runId: number | null;
       wasPremium: boolean | null;
       leadId: number;
+      outreachCampaignId?: number | null;
     }> = [];
 
     let httpCalls = 0;
     const httpFailOn = opts?.httpFailOnCall;
+
+    const upsertImpl = async (args: {
+      create: {
+        leadId: number;
+        runId?: number | null;
+        wasPremium?: boolean | null;
+        outreachCampaignId?: number | null;
+      };
+      update?: {
+        runId?: number | null;
+        wasPremium?: boolean | null;
+        outreachCampaignId?: number | null;
+      };
+    }) => {
+      const data = { ...args.create, ...args.update };
+      const row = {
+        id: ++tenantLeadSeq,
+        runId: data.runId ?? null,
+        wasPremium: data.wasPremium ?? null,
+        leadId: data.leadId,
+        outreachCampaignId: data.outreachCampaignId ?? null,
+      };
+      createdLeads.push(row);
+      return row;
+    };
 
     const prisma = {
       coin: {
@@ -128,22 +163,19 @@ describe('LeadsService.contactLeads (city run)', () => {
       tenantLead: {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
+        upsert: jest.fn().mockImplementation(upsertImpl),
         create: jest.fn().mockImplementation(async (args: {
           data: {
             leadId: number;
             runId?: number | null;
             wasPremium?: boolean | null;
+            outreachCampaignId?: number | null;
           };
-        }) => {
-          const row = {
-            id: ++tenantLeadSeq,
-            runId: args.data.runId ?? null,
-            wasPremium: args.data.wasPremium ?? null,
-            leadId: args.data.leadId,
-          };
-          createdLeads.push(row);
-          return row;
-        }),
+        }) =>
+          upsertImpl({
+            create: args.data,
+          }),
+        ),
       },
       tenantOnDemandSend: {
         count: jest.fn().mockResolvedValue(0),
@@ -159,6 +191,20 @@ describe('LeadsService.contactLeads (city run)', () => {
       },
       tenantSendPolicy: {
         findMany: jest.fn().mockResolvedValue([]),
+      },
+      outreachSendRun: {
+        findUnique: jest.fn().mockResolvedValue({
+          outreachCampaignId: CAMPAIGN_ID,
+        }),
+      },
+      tenantOutreachCampaign: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: CAMPAIGN_ID,
+          categories: ['Construtoras'],
+          slotBindings: {},
+          outreachTemplate: buildCampaign().outreachTemplate,
+        }),
+        findFirst: jest.fn(),
       },
       lead: {
         findMany: jest.fn().mockImplementation(async (args: {
@@ -178,6 +224,7 @@ describe('LeadsService.contactLeads (city run)', () => {
       $transaction: jest.fn().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
         const tx = {
           tenantLead: {
+            upsert: prisma.tenantLead.upsert,
             create: prisma.tenantLead.create,
           },
         };
@@ -244,7 +291,7 @@ describe('LeadsService.contactLeads (city run)', () => {
       quotaRefill,
       createdLeads,
       getHttpCalls: () => httpCalls,
-      tenant: buildTenant({
+      campaign: buildCampaign({
         leadsPerRun: opts?.leadsPerRun,
         sendIntervalSeconds: opts?.sendIntervalSeconds ?? 1,
         balance: opts?.balance,
@@ -258,27 +305,31 @@ describe('LeadsService.contactLeads (city run)', () => {
     expect(quotaRefill.registerCitySender).toHaveBeenCalledTimes(1);
   });
 
-  it('abre run, linka runId em todo accept e não abre batch se já há OPEN', async () => {
+  it('abre run por campanha, linka runId e outreachCampaignId em todo accept', async () => {
     const ok = build({ leadsPerRun: 5 });
-    await ok.service.contactLeads(ok.tenant as never);
+    await ok.service.contactLeadsForCampaign(ok.campaign as never);
 
     expect(ok.runs.openCityRun).toHaveBeenCalledWith({
       tenantId: TENANT_ID,
+      outreachCampaignId: CAMPAIGN_ID,
       targetCount: 5,
     });
     expect(ok.runs.recordAccept).toHaveBeenCalledTimes(5);
     expect(ok.createdLeads).toHaveLength(5);
     expect(ok.createdLeads.every((r) => r.runId === RUN_ID)).toBe(true);
+    expect(
+      ok.createdLeads.every((r) => r.outreachCampaignId === CAMPAIGN_ID),
+    ).toBe(true);
     expect(ok.runs.close).not.toHaveBeenCalled();
 
     const skip = build({ openRunResult: null });
-    await skip.service.contactLeads(skip.tenant as never);
+    await skip.service.contactLeadsForCampaign(skip.campaign as never);
     expect(skip.getHttpCalls()).toBe(0);
     expect(skip.runs.beginTry).not.toHaveBeenCalled();
   });
 
   it('Graph-fail no 2º lead ainda alcança 5 accepts (while refill)', async () => {
-    const { service, tenant, runs, createdLeads, getHttpCalls, httpService } =
+    const { service, campaign, runs, createdLeads, getHttpCalls, httpService } =
       build({
         httpFailOnCall: 2,
         leadsPerRun: 5,
@@ -287,7 +338,7 @@ describe('LeadsService.contactLeads (city run)', () => {
         ),
       });
 
-    await service.contactLeads(tenant as never);
+    await service.contactLeadsForCampaign(campaign as never);
 
     expect(getHttpCalls()).toBe(6); // 1 fail + 5 accepts
     expect(runs.recordAccept).toHaveBeenCalledTimes(5);
@@ -296,7 +347,7 @@ describe('LeadsService.contactLeads (city run)', () => {
   });
 
   it('respeita intervalo entre POSTs (sleep entre tentativas)', async () => {
-    const { service, tenant } = build({
+    const { service, campaign } = build({
       leadsPerRun: 3,
       sendIntervalSeconds: 9,
       pool: Array.from({ length: 5 }, (_, i) =>
@@ -307,9 +358,8 @@ describe('LeadsService.contactLeads (city run)', () => {
       .spyOn(service as never, 'sleep')
       .mockResolvedValue(undefined as never);
 
-    await service.contactLeads(tenant as never);
+    await service.contactLeadsForCampaign(campaign as never);
 
-    // 3 accepts → 2 sleeps entre posts
     expect(sleepSpy).toHaveBeenCalledTimes(2);
     expect(sleepSpy).toHaveBeenCalledWith(9000);
   });
@@ -337,7 +387,7 @@ describe('LeadsService.contactLeads (city run)', () => {
       premiumLead(6, '12940000006'),
       regularLead(10, '12940000010'),
     ];
-    const { service, tenant, createdLeads } = build({
+    const { service, campaign, createdLeads } = build({
       pool,
       httpFailOnCall: 1,
       leadsPerRun: 2,
@@ -349,14 +399,13 @@ describe('LeadsService.contactLeads (city run)', () => {
       if (preferFlags.length === 1) {
         return pool[0] as never;
       }
-      // Após fail premium, preferPremium=true e pool premium restante.
       if (prefer) {
         return (prem[0] ?? pool[1]) as never;
       }
       return (prem[0] ?? null) as never;
     });
 
-    await service.contactLeads(tenant as never);
+    await service.contactLeadsForCampaign(campaign as never);
 
     expect(preferFlags[0]).toBe(false);
     expect(preferFlags[1]).toBe(true);
@@ -365,10 +414,10 @@ describe('LeadsService.contactLeads (city run)', () => {
   });
 
   it('não debita coins no Graph accept', async () => {
-    const { service, tenant, prisma } = build({ leadsPerRun: 2 });
+    const { service, campaign, prisma } = build({ leadsPerRun: 2 });
     const coinUpdate = jest.fn();
     (prisma.coin as { update?: jest.Mock }).update = coinUpdate;
-    await service.contactLeads(tenant as never);
+    await service.contactLeadsForCampaign(campaign as never);
     expect(coinUpdate).not.toHaveBeenCalled();
   });
 });

@@ -13,6 +13,8 @@ describe('OutreachSendsService', () => {
     createdAt: sentAtNew,
     lastStatus: WhatsappDeliveryStatus.delivered,
     templateName: 'hello_city',
+    outreachCampaignId: 12,
+    outreachCampaign: { name: 'Padrão' },
     lead: { id: 90, name: 'Academia X', phone: '11999999999' },
   };
 
@@ -23,6 +25,8 @@ describe('OutreachSendsService', () => {
     createdAt: sentAtOld,
     lastStatus: null,
     templateName: null,
+    outreachCampaignId: null,
+    outreachCampaign: null,
     lead: { id: 91, name: 'Captura Y', phone: '11888888888' },
   };
 
@@ -33,6 +37,8 @@ describe('OutreachSendsService', () => {
     createdAt: sentAtOld,
     lastStatus: WhatsappDeliveryStatus.failed,
     templateName: 'hello_city',
+    outreachCampaignId: 99,
+    outreachCampaign: { name: 'Premium SP' },
     lead: { id: 92, name: 'Studio Z', phone: '11777777777' },
   };
 
@@ -71,6 +77,7 @@ describe('OutreachSendsService', () => {
               tenantId: number;
               messageId?: { not: null };
               lastStatus?: WhatsappDeliveryStatus;
+              outreachCampaignId?: number;
             };
             take?: number;
           }) => {
@@ -80,6 +87,11 @@ describe('OutreachSendsService', () => {
             }
             if (where.lastStatus !== undefined) {
               rows = rows.filter((row) => row.lastStatus === where.lastStatus);
+            }
+            if (where.outreachCampaignId !== undefined) {
+              rows = rows.filter(
+                (row) => row.outreachCampaignId === where.outreachCampaignId,
+              );
             }
             rows = [...rows].sort(
               (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
@@ -156,6 +168,8 @@ describe('OutreachSendsService', () => {
       wamid: 'wamid.city',
       lastStatus: WhatsappDeliveryStatus.delivered,
       templateName: 'hello_city',
+      outreachCampaignId: 12,
+      outreachCampaignName: 'Padrão',
       lead: { id: 90, name: 'Academia X', phone: '11999999999' },
     });
     expect(result[0]).not.toHaveProperty('listLead');
@@ -207,6 +221,25 @@ describe('OutreachSendsService', () => {
         orderBy: { metaTimestamp: 'desc' },
       }),
     );
+    expect(prisma.tenantListSend.findMany).not.toHaveBeenCalled();
+  });
+
+  it('outreachCampaignId restringe ao subconjunto da campanha', async () => {
+    const { service, prisma } = build();
+
+    const result = await service.listSends(4, { outreachCampaignId: 12 });
+
+    expect(prisma.tenantLead.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 4,
+          messageId: { not: null },
+          outreachCampaignId: 12,
+        }),
+      }),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].outreachCampaignId).toBe(12);
     expect(prisma.tenantListSend.findMany).not.toHaveBeenCalled();
   });
 

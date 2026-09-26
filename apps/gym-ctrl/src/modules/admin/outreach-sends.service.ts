@@ -8,7 +8,10 @@ const DEFAULT_SEND_LIMIT = 100;
 export class OutreachSendsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listSends(tenantId: number, query: { status?: string }) {
+  async listSends(
+    tenantId: number,
+    query: { status?: string; outreachCampaignId?: number },
+  ) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
       select: { id: true },
@@ -23,6 +26,9 @@ export class OutreachSendsService {
       ...(query.status === 'failed'
         ? { lastStatus: WhatsappDeliveryStatus.failed }
         : {}),
+      ...(query.outreachCampaignId != null
+        ? { outreachCampaignId: query.outreachCampaignId }
+        : {}),
     };
 
     const rows = await this.prisma.tenantLead.findMany({
@@ -33,6 +39,8 @@ export class OutreachSendsService {
         createdAt: true,
         lastStatus: true,
         templateName: true,
+        outreachCampaignId: true,
+        outreachCampaign: { select: { name: true } },
         lead: { select: { id: true, name: true, phone: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -54,6 +62,8 @@ export class OutreachSendsService {
       sentAt: row.createdAt,
       lastStatus: row.lastStatus,
       templateName: row.templateName,
+      outreachCampaignId: row.outreachCampaignId,
+      outreachCampaignName: row.outreachCampaign?.name ?? null,
       lead: row.lead,
       ...(row.lastStatus === WhatsappDeliveryStatus.failed
         ? { latestError: latestErrors.get(row.messageId as string) ?? null }

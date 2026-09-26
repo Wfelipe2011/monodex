@@ -38,6 +38,20 @@ export class CityOutreachSendResponseDto {
   })
   templateName?: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Campanha de prospecção que disparou o envio',
+    example: 12,
+    nullable: true,
+  })
+  outreachCampaignId?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Nome da campanha no momento do envio',
+    example: 'Padrão',
+    nullable: true,
+  })
+  outreachCampaignName?: string | null;
+
   @ApiProperty({ type: CityOutreachSendLeadRefDto })
   lead: CityOutreachSendLeadRefDto;
 

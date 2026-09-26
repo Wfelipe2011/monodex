@@ -1,6 +1,7 @@
 /**
  * Idempotent seed: platform WhatsappAccount + stub templates + TenantOutreachConfig
- * + empty TenantSendPolicy + TenantTemplateGrant for stub templates on the operational tenant.
+ * + slim TenantOutreachConfig + campanha **Padrão** + empty TenantSendPolicy + TenantTemplateGrant
+ *   for stub templates on the operational tenant.
  *
  * Tenant resolution:
  * - Uses TENANT_ID env when set
@@ -331,13 +332,7 @@ async function ensureTemplateGrants(tenantId: number, templateIds: number[]) {
   }
 }
 
-async function upsertOutreachConfig(
-  tenantId: number,
-  outreachTemplateId: number,
-  notifyTemplateId: number,
-) {
-  const headerImageUrl = process.env.WHATSAPP_OUTREACH_HEADER_IMAGE_URL?.trim();
-  const slotBindings = defaultSlotBindings(headerImageUrl);
+async function upsertOutreachConfig(tenantId: number) {
   const existing = await prisma.tenantOutreachConfig.findUnique({
     where: { tenantId },
   });
@@ -351,6 +346,51 @@ async function upsertOutreachConfig(
         costPerOnDemandSend: 0,
         cashbackOnReply: 0,
         coinDebitOnStatus: 'delivered',
+      },
+    });
+    console.log(
+      `[seed-outreach] TenantOutreachConfig created id=${created.id} tenantId=${tenantId}`,
+    );
+    return created;
+  }
+
+  const updated = await prisma.tenantOutreachConfig.update({
+    where: { tenantId },
+    data: {
+      enabled: true,
+      costPerLead: 0.35,
+      cashbackOnReply: 0,
+    },
+  });
+  console.log(
+    `[seed-outreach] TenantOutreachConfig updated id=${updated.id} tenantId=${tenantId}`,
+  );
+  return updated;
+}
+
+async function upsertDefaultOutreachCampaign(
+  tenantId: number,
+  outreachTemplateId: number,
+  notifyTemplateId: number,
+) {
+  const headerImageUrl = process.env.WHATSAPP_OUTREACH_HEADER_IMAGE_URL?.trim();
+  const slotBindings = defaultSlotBindings(headerImageUrl);
+
+  const existing =
+    (await prisma.tenantOutreachCampaign.findFirst({
+      where: { tenantId, name: 'Padrão' },
+    })) ??
+    (await prisma.tenantOutreachCampaign.findFirst({
+      where: { tenantId },
+      orderBy: { id: 'asc' },
+    }));
+
+  if (!existing) {
+    const created = await prisma.tenantOutreachCampaign.create({
+      data: {
+        tenantId,
+        name: 'Padrão',
+        enabled: true,
         outreachTemplateId,
         notifyTemplateId,
         slotBindings: slotBindings as Prisma.InputJsonValue,
@@ -361,17 +401,16 @@ async function upsertOutreachConfig(
       },
     });
     console.log(
-      `[seed-outreach] TenantOutreachConfig created id=${created.id} tenantId=${tenantId}`,
+      `[seed-outreach] TenantOutreachCampaign Padrão created id=${created.id} tenantId=${tenantId}`,
     );
     return created;
   }
 
-  const updateData: Prisma.TenantOutreachConfigUpdateInput = {
-    enabled: true,
-    costPerLead: 0.35,
-    cashbackOnReply: 0,
+  const updateData: Prisma.TenantOutreachCampaignUpdateInput = {
     schedule: SCHEDULE,
     categories: CATEGORIES,
+    leadsPerRun: 5,
+    sendIntervalSeconds: 5,
   };
   if (existing.outreachTemplateId == null) {
     updateData.outreachTemplate = { connect: { id: outreachTemplateId } };
@@ -379,13 +418,20 @@ async function upsertOutreachConfig(
   if (existing.notifyTemplateId == null) {
     updateData.notifyTemplate = { connect: { id: notifyTemplateId } };
   }
+  if (
+    !existing.slotBindings ||
+    (typeof existing.slotBindings === 'object' &&
+      Object.keys(existing.slotBindings as object).length === 0)
+  ) {
+    updateData.slotBindings = slotBindings as Prisma.InputJsonValue;
+  }
 
-  const updated = await prisma.tenantOutreachConfig.update({
-    where: { tenantId },
+  const updated = await prisma.tenantOutreachCampaign.update({
+    where: { id: existing.id },
     data: updateData,
   });
   console.log(
-    `[seed-outreach] TenantOutreachConfig updated id=${updated.id} tenantId=${tenantId} (slotBindings kept)`,
+    `[seed-outreach] TenantOutreachCampaign id=${updated.id} name="${updated.name}" tenantId=${tenantId} (templates/slotBindings kept when set)`,
   );
   return updated;
 }
@@ -409,7 +455,8 @@ async function main() {
     outreachTemplate.id,
     notifyTemplate.id,
   ]);
-  const config = await upsertOutreachConfig(
+  const config = await upsertOutreachConfig(tenantId);
+  const campaign = await upsertDefaultOutreachCampaign(
     tenantId,
     outreachTemplate.id,
     notifyTemplate.id,
@@ -423,6 +470,7 @@ async function main() {
     outreachTemplateId: outreachTemplate.id,
     notifyTemplateId: notifyTemplate.id,
     outreachConfigId: config.id,
+    outreachCampaignId: campaign.id,
     tenantId: config.tenantId,
   });
 }

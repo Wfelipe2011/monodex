@@ -78,6 +78,9 @@ describe('ConversationsService', () => {
           createdAt: new Date(),
         }),
       },
+      tenantLead: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     };
     const httpService = {
       axiosRef: {
@@ -256,5 +259,85 @@ describe('ConversationsService', () => {
       service.listMessages(TENANT_DEDICATED, CONVERSATION_ID, 'not-iso'),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.whatsappConversationMessage.findMany).not.toHaveBeenCalled();
+  });
+
+  it('lista threads com prospecting e filtra por outreachCampaignId', async () => {
+    const { service, prisma } = build();
+    const lastMessageAt = new Date('2026-08-19T12:00:00.000Z');
+    prisma.whatsappConversation.findMany.mockResolvedValue([
+      {
+        id: 1,
+        phone: THREAD_PHONE,
+        displayName: 'Maria',
+        lastMessageAt,
+        lastInboundAt: lastMessageAt,
+        messages: [],
+      },
+      {
+        id: 2,
+        phone: '5511888777666',
+        displayName: 'João',
+        lastMessageAt,
+        lastInboundAt: null,
+        messages: [],
+      },
+    ]);
+    prisma.tenantLead.findMany.mockResolvedValue([
+      {
+        templateName: 'hello_city',
+        createdAt: new Date('2026-08-19T10:00:00.000Z'),
+        outreachCampaignId: 3,
+        outreachCampaign: { name: 'Camp A' },
+        lead: { phone: THREAD_PHONE },
+      },
+      {
+        templateName: 'other_tpl',
+        createdAt: new Date('2026-08-18T10:00:00.000Z'),
+        outreachCampaignId: 9,
+        outreachCampaign: { name: 'Camp B' },
+        lead: { phone: '5511888777666' },
+      },
+    ]);
+
+    const filtered = await service.listConversations(TENANT_DEDICATED, {
+      outreachCampaignId: 3,
+    });
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]).toMatchObject({
+      id: 1,
+      prospecting: {
+        outreachCampaignId: 3,
+        outreachCampaignName: 'Camp A',
+        lastOutreachTemplateName: 'hello_city',
+      },
+    });
+    expect(prisma.tenantLead.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId: TENANT_DEDICATED,
+          messageId: { not: null },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
+  });
+
+  it('q filtra displayName ou telefone no findMany de threads', async () => {
+    const { service, prisma } = build();
+
+    await service.listConversations(TENANT_DEDICATED, { q: 'maria' });
+
+    expect(prisma.whatsappConversation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId: TENANT_DEDICATED,
+          OR: [
+            { displayName: { contains: 'maria', mode: 'insensitive' } },
+            { phone: { contains: 'maria' } },
+          ],
+        },
+      }),
+    );
   });
 });

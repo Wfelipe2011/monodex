@@ -73,7 +73,16 @@ describe('reserva unificada (computeAvailableBalance + affordable)', () => {
 });
 
 describe('isCityPhoneExcludedByStatus', () => {
-  it('failed não exclui o phone', () => {
+  it('failed com messageId exclui o phone (lock permanente)', () => {
+    expect(
+      isCityPhoneExcludedByStatus(
+        WhatsappDeliveryStatus.failed,
+        'wamid.abc',
+      ),
+    ).toBe(true);
+  });
+
+  it('failed sem messageId não exclui o phone', () => {
     expect(isCityPhoneExcludedByStatus(WhatsappDeliveryStatus.failed)).toBe(
       false,
     );
@@ -106,14 +115,12 @@ describe('pending / used-phone where clauses', () => {
     ]);
   });
 
-  it('used phones cidade não filtra só por tenant — exclui failed via OR', () => {
+  it('used phones cidade: lock permanente por messageId (inclui failed)', () => {
     const where = cityUsedPhonesWhere(3);
-    expect(where.tenantId).toBe(3);
-    expect(where.OR).toEqual([
-      { lastStatus: null },
-      { lastStatus: { not: WhatsappDeliveryStatus.failed } },
-    ]);
-    expect(where).not.toHaveProperty('coinDebitedAt');
+    expect(where).toEqual({
+      tenantId: 3,
+      messageId: { not: null },
+    });
   });
 
   it('pending lista escopa por listId via campaign', () => {

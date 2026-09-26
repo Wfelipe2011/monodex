@@ -12,6 +12,11 @@ import {
 } from '@prisma/client';
 import { computeAvailableBalance } from '@core/shared/on-demand-balance';
 import {
+  asIntArray,
+  cityAllowed,
+  cityIdFilter,
+} from '@core/shared/send-policy';
+import {
   affordableFromAvailable,
   cityUsedPhonesWhere,
   loadCrossChannelPending,
@@ -280,14 +285,36 @@ export class OutreachQuotaRefillService {
     run: OutreachSendRun,
     opts: { failedPhone?: string; wasPremium: boolean },
   ): Promise<Lead | null> {
-    const config = await this.prisma.tenantOutreachConfig.findUnique({
-      where: { tenantId: run.tenantId },
-      select: { categories: true },
-    });
-    const categories = this.asStringArray(config?.categories);
+    const [campaign, sendPolicy] = await Promise.all([
+      this.loadOutreachCampaignForCityRun(run),
+      this.prisma.tenantSendPolicy.findUnique({
+        where: { tenantId: run.tenantId },
+        select: { allowedCityIds: true, deniedCityIds: true },
+      }),
+    ]);
+    if (!campaign) {
+      return null;
+    }
+    const categories = this.asStringArray(campaign.categories);
     if (categories.length === 0) {
       return null;
     }
+
+    const allowedCityIds = asIntArray(sendPolicy?.allowedCityIds);
+    const deniedCityIds = asIntArray(sendPolicy?.deniedCityIds);
+    if (
+      campaign.cityId != null &&
+      !cityAllowed(campaign.cityId, allowedCityIds, deniedCityIds)
+    ) {
+      return null;
+    }
+    const policyCityFilter = cityIdFilter(allowedCityIds, deniedCityIds);
+    const cityWhere =
+      campaign.cityId != null
+        ? { cityId: campaign.cityId }
+        : policyCityFilter
+          ? { cityId: policyCityFilter }
+          : {};
 
     const acceptedInRun = await this.prisma.tenantLead.findMany({
       where: { runId: run.id },
@@ -313,6 +340,7 @@ export class OutreachQuotaRefillService {
     const leads = await this.prisma.lead.findMany({
       where: {
         deletedAt: null,
+        ...cityWhere,
         AND: [
           categoryFilter,
           {
@@ -485,15 +513,37 @@ export class OutreachQuotaRefillService {
     return affordableFromAvailable(available, costPerSend) >= 1;
   }
 
+  private async loadOutreachCampaignForCityRun(run: OutreachSendRun): Promise<{
+    categories: Prisma.JsonValue;
+    cityId: number | null;
+    sendIntervalSeconds: number;
+  } | null> {
+    if (run.outreachCampaignId != null) {
+      return this.prisma.tenantOutreachCampaign.findUnique({
+        where: { id: run.outreachCampaignId },
+        select: {
+          categories: true,
+          cityId: true,
+          sendIntervalSeconds: true,
+        },
+      });
+    }
+    return this.prisma.tenantOutreachCampaign.findFirst({
+      where: { tenantId: run.tenantId, name: 'Padrão' },
+      select: {
+        categories: true,
+        cityId: true,
+        sendIntervalSeconds: true,
+      },
+    });
+  }
+
   private async loadSendIntervalSeconds(
     run: OutreachSendRun,
   ): Promise<number> {
     if (run.channel === OutreachSendRunChannel.CITY) {
-      const config = await this.prisma.tenantOutreachConfig.findUnique({
-        where: { tenantId: run.tenantId },
-        select: { sendIntervalSeconds: true },
-      });
-      return config?.sendIntervalSeconds ?? 5;
+      const campaign = await this.loadOutreachCampaignForCityRun(run);
+      return campaign?.sendIntervalSeconds ?? 5;
     }
     if (run.campaignId == null) {
       return 5;

@@ -32,6 +32,7 @@ import { TenantActiveGuard } from '@core/guard/tenant-active.guard';
 import { ApiTenantScopedErrors } from '../../swagger/api-route-errors.decorator';
 import { apiErrorJsonContent } from '../../swagger/http-error.swagger';
 import { ConversationsService } from './conversations.service';
+import { ListConversationsQueryDto } from './dto/list-conversations-query.dto';
 import { SendConversationMessageDto } from './dto/send-conversation-message.dto';
 import { rejectSecretTokenFields } from './reject-secret-token-fields';
 import { ADMIN_TENANT_ID_PARAM } from './dto/swagger/tenant-list.swagger.dto';
@@ -65,8 +66,11 @@ export class ConversationsController {
     description: 'Threads do tenant, mais recente primeiro',
   })
   @ApiTenantScopedErrors()
-  listConversations(@Param('tenantId', ParseIntPipe) tenantId: number) {
-    return this.conversationsService.listConversations(tenantId);
+  listConversations(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Query() query: ListConversationsQueryDto,
+  ) {
+    return this.conversationsService.listConversations(tenantId, query);
   }
 
   @Get(':conversationId/messages')
