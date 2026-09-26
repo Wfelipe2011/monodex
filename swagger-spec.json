@@ -4419,6 +4419,16 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "name": "outreachCampaignId",
+            "required": false,
+            "in": "query",
+            "description": "Restringe aos envios da campanha de prospecção indicada",
+            "schema": {
+              "example": 12,
+              "type": "number"
+            }
           }
         ],
         "responses": {
@@ -4439,6 +4449,8 @@
                     "sentAt": "2026-08-18T20:05:00.000Z",
                     "lastStatus": "delivered",
                     "templateName": "hello_city",
+                    "outreachCampaignId": 12,
+                    "outreachCampaignName": "Padrão",
                     "lead": {
                       "id": 90,
                       "name": "Academia X",
@@ -4551,6 +4563,16 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "name": "outreachCampaignId",
+            "required": false,
+            "in": "query",
+            "description": "Restringe aos envios da campanha de prospecção indicada",
+            "schema": {
+              "example": 12,
+              "type": "number"
+            }
           }
         ],
         "responses": {
@@ -4571,6 +4593,8 @@
                     "sentAt": "2026-08-18T20:05:00.000Z",
                     "lastStatus": "delivered",
                     "templateName": "hello_city",
+                    "outreachCampaignId": 12,
+                    "outreachCampaignName": "Padrão",
                     "lead": {
                       "id": 90,
                       "name": "Academia X",
@@ -10517,6 +10541,36 @@
               "example": 8,
               "type": "number"
             }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Busca case-insensitive em displayName ou substring do telefone",
+            "schema": {
+              "example": "maria",
+              "type": "string"
+            }
+          },
+          {
+            "name": "outreachCampaignId",
+            "required": false,
+            "in": "query",
+            "description": "Filtra threads cujo último envio pool foi desta campanha",
+            "schema": {
+              "example": 3,
+              "type": "number"
+            }
+          },
+          {
+            "name": "templateName",
+            "required": false,
+            "in": "query",
+            "description": "Filtra pelo templateName do último envio pool na thread",
+            "schema": {
+              "example": "hello_city",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -10544,6 +10598,11 @@
                       "type": "text",
                       "body": "Tenho Interesse!",
                       "createdAt": "2026-08-17T20:10:00.000Z"
+                    },
+                    "prospecting": {
+                      "outreachCampaignId": 3,
+                      "outreachCampaignName": "Padrão",
+                      "lastOutreachTemplateName": "hello_city"
                     }
                   }
                 ]
@@ -11919,7 +11978,29 @@
                       "failed": 0,
                       "pending": 1,
                       "total": 8
-                    }
+                    },
+                    "byOutreachCampaign": [
+                      {
+                        "outreachCampaignId": 3,
+                        "name": "Padrão",
+                        "today": {
+                          "sent": 1,
+                          "delivered": 4,
+                          "read": 2,
+                          "failed": 0,
+                          "pending": 1,
+                          "total": 8
+                        },
+                        "yesterday": {
+                          "sent": 1,
+                          "delivered": 4,
+                          "read": 2,
+                          "failed": 0,
+                          "pending": 1,
+                          "total": 8
+                        }
+                      }
+                    ]
                   }
                 }
               }
@@ -15184,6 +15265,18 @@
             "example": "hello_city",
             "nullable": true
           },
+          "outreachCampaignId": {
+            "type": "number",
+            "description": "Campanha de prospecção que disparou o envio",
+            "example": 12,
+            "nullable": true
+          },
+          "outreachCampaignName": {
+            "type": "string",
+            "description": "Nome da campanha no momento do envio",
+            "example": "Padrão",
+            "nullable": true
+          },
           "lead": {
             "$ref": "#/components/schemas/CityOutreachSendLeadRefDto"
           },
@@ -17052,6 +17145,26 @@
           "createdAt"
         ]
       },
+      "ConversationProspectingDto": {
+        "type": "object",
+        "properties": {
+          "outreachCampaignId": {
+            "type": "number",
+            "example": 3,
+            "nullable": true
+          },
+          "outreachCampaignName": {
+            "type": "string",
+            "example": "Padrão",
+            "nullable": true
+          },
+          "lastOutreachTemplateName": {
+            "type": "string",
+            "example": "hello_city",
+            "nullable": true
+          }
+        }
+      },
       "ConversationThreadResponseDto": {
         "type": "object",
         "properties": {
@@ -17089,6 +17202,15 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/ConversationLastMessageDto"
+              }
+            ]
+          },
+          "prospecting": {
+            "nullable": true,
+            "description": "Último envio pool (TenantLead com messageId) para o telefone normalizado",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConversationProspectingDto"
               }
             ]
           }
@@ -17493,6 +17615,31 @@
           "total"
         ]
       },
+      "TenantHomeOutreachCampaignSendsResponseDto": {
+        "type": "object",
+        "properties": {
+          "outreachCampaignId": {
+            "type": "number",
+            "example": 3
+          },
+          "name": {
+            "type": "string",
+            "example": "Padrão"
+          },
+          "today": {
+            "$ref": "#/components/schemas/TenantHomeSendBucketsResponseDto"
+          },
+          "yesterday": {
+            "$ref": "#/components/schemas/TenantHomeSendBucketsResponseDto"
+          }
+        },
+        "required": [
+          "outreachCampaignId",
+          "name",
+          "today",
+          "yesterday"
+        ]
+      },
       "TenantHomeSendsResponseDto": {
         "type": "object",
         "properties": {
@@ -17505,12 +17652,20 @@
           },
           "yesterday": {
             "$ref": "#/components/schemas/TenantHomeSendBucketsResponseDto"
+          },
+          "byOutreachCampaign": {
+            "description": "Contagem pool (TenantLead com messageId) agrupada por campanha; list sends não entram",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantHomeOutreachCampaignSendsResponseDto"
+            }
           }
         },
         "required": [
           "timezone",
           "today",
-          "yesterday"
+          "yesterday",
+          "byOutreachCampaign"
         ]
       },
       "TenantHomeResponseDto": {
